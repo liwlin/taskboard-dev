@@ -25,7 +25,7 @@ Three-terminal collaborative development. Status encoded in filenames. Polling v
 1. Check if `docs/taskboard/` directory exists
 2. If not, create directory structure (see below)
 3. Check git status for uncommitted changes (crash recovery)
-4. Glob `docs/taskboard/TASK-*.md` to display current task summary
+4. Glob `docs/taskboard/TASK-*.T*.md` to display current task summary (excludes .history.md files)
 5. Detect available skills (superpowers, codex) and set review mode
 6. Set up role-specific polling
 7. Confirm: "T{N} {role} ready. Review mode: {full/standard/manual}."
@@ -144,7 +144,7 @@ When a task is completed, suggest switching to idle mode if no more tasks remain
 
 ### History Separation
 
-On each status change, append completed work to `TASK-NNN.history.md` and clear the "Pending" section in the main file. History file is never read during normal polling.
+On each status change, append completed work to `docs/taskboard/history/TASK-NNN.history.md` and clear the "Pending" section in the main file. History files live in a separate `history/` subdirectory so they never match active task Glob patterns (`TASK-*.T*.md`).
 
 ## Forced Fresh Context (Approach D)
 
@@ -198,7 +198,7 @@ Design solutions, write tasks, monitor progress. Never write implementation code
 
 ### Polling
 
-Glob `TASK-*.T1-*.md`. On task completion, append to `dev-log.md` and move to `archive/`.
+Glob `TASK-*.T1-*.md`. T1 does NOT archive completed tasks (T2 handles archival to avoid duplication).
 
 ### Reference Code
 
@@ -221,7 +221,7 @@ Review designs and code. Never write code or design solutions.
 
 ### Timeout Detection
 
-If any task file timestamp is older than 15 minutes, warn user. After 30 minutes, alert.
+After each rename (status change), touch the target file to reset its mtime: `touch TASK-NNN.vN.NEW-STATUS.md`. This ensures mtime reflects the last status change, not the original creation time. If any task file mtime is older than 15 minutes, warn user. After 30 minutes, alert.
 
 ## Role: T3 — Executor
 

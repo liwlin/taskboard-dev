@@ -6,6 +6,7 @@
 docs/
   taskboard/
     archive/
+    history/
   dev-log.md
   codex/
   superpowers/
