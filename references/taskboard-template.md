@@ -1,56 +1,65 @@
-# TASKBOARD Templates
+# TASKBOARD v3 Templates
 
-Templates for auto-generation on first `/taskboard-dev` initialization.
+## Directory Structure (auto-generated on first run)
 
----
-
-## index.md Template
-
-```markdown
-# Task Board Index
-
-| ID | Title | Status | Owner |
-|----|-------|--------|-------|
-| TASK-001 | (title) | 空 | -- |
-
-Last updated: YYYY-MM-DD HH:MM
+```
+docs/
+  taskboard/
+    archive/
+  dev-log.md
+  codex/
+  superpowers/
+    specs/
+    plans/
 ```
 
-Keep this file under 50 lines. One row per task. Completed tasks are removed and archived.
+## Task File Template
 
----
-
-## TASK-NNN.md Template
+Filename: `TASK-{NNN}.v{V}.{STATUS}[-{REVIEW_LEVEL}].md`
 
 ```markdown
-# TASK-NNN: (title)
+# TASK-NNN: Title
 
-**Status**: 空
-**Created**: YYYY-MM-DD
-**Spec**: (link to docs/superpowers/specs/ if exists)
-**Plan**: (link to docs/superpowers/plans/ if exists)
+**Spec**: docs/superpowers/specs/YYYY-MM-DD-topic-design.md
+**Plan**: docs/superpowers/plans/YYYY-MM-DD-topic.md
+**Version**: v1
 
-## Description
+## Current Instruction
 
-(What needs to be done and why)
+(Concise description of what to do now. Under 50 lines total.)
 
-## File Changes
+## Files
 
 | Action | File |
 |--------|------|
-| Create | path/to/new/file |
-| Modify | path/to/existing/file |
+| Create | path/to/new.c |
+| Modify | path/to/existing.c |
 
-## Execution Log
+## Pending
 
-- [ ] (pending steps)
-
-## Review Log
-
-(T2 writes review results here)
+- [ ] Step 1
+- [ ] Step 2
 ```
 
----
+## History File Template
+
+Filename: `TASK-NNN.history.md` (same directory as task file)
+
+```markdown
+# TASK-NNN History
+
+## v1 Execution Log
+
+- T3: implemented X (commit abc1234)
+- T2: review found P1 issue Y
+- T3: fixed Y (commit def5678)
+
+## v2 Execution Log
+
+- T1: revised spec — changed Z
+- T3: re-implemented (commit ghi9012)
+- T2: approved
+```
 
 ## dev-log.md Template
 
@@ -59,32 +68,20 @@ Keep this file under 50 lines. One row per task. Completed tasks are removed and
 
 ## YYYY-MM-DD
 
-### Completed Tasks
-
-| ID | Title | Key Outcome |
-|----|-------|-------------|
-| TASK-NNN | (title) | (one-line summary) |
-
-### Notes
-
-(Optional: key findings, lessons learned)
+| Task | Title | Outcome |
+|------|-------|---------|
+| TASK-001 | Title | One-line summary |
 ```
 
----
-
-## Directory Structure
-
-On first initialization, create:
+## Filename Status Reference
 
 ```
-docs/
-├── taskboard/
-│   ├── index.md          (from index template above)
-│   ├── archive/          (empty directory)
-│   └── .lock             (not created until needed)
-├── dev-log.md            (from dev-log template above)
-├── codex/                (empty directory)
-└── superpowers/
-    ├── specs/            (empty directory)
-    └── plans/            (empty directory)
+.T2-待审核方案        T2 reviews design
+.T2-待审核代码-L1     T2 reviews code (docs only)
+.T2-待审核代码-L2     T2 reviews code (simple)
+.T2-待审核代码-L3     T2 reviews code (complex, dual review)
+.T1-方案需修改        T1 revises design
+.T3-待执行            T3 implements
+.T3-需修复            T3 fixes code issues
+.完成                 Done (in archive/)
 ```
