@@ -44,7 +44,7 @@ Filename: `TASK-{NNN}.v{V}.{STATUS}[-{REVIEW_LEVEL}].md`
 
 ## History File Template
 
-Filename: `TASK-NNN.history.md` (same directory as task file)
+Filename: `history/TASK-NNN.history.md` (in docs/taskboard/history/ subdirectory)
 
 ```markdown
 # TASK-NNN History

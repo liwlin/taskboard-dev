@@ -4,11 +4,11 @@ description: >
   Three-terminal TASKBOARD-driven development workflow with architect, reviewer, and executor roles.
   This skill should be used when starting a multi-terminal collaborative development session.
   Invoke with role argument such as /taskboard-dev T1, /taskboard-dev T2, or /taskboard-dev T3.
-  Uses filename-as-status pattern for zero-content polling, tiered code review, and forced
-  fresh context on spec revision. No shared index file, no locks, no parsing overhead.
+  Uses filename-as-status pattern for zero-content polling, tiered code review, and version
+  experience management on spec revision. No shared index file, no locks, no parsing overhead.
 ---
 
-# TASKBOARD-Driven Development v3
+# TASKBOARD-Driven Development v3.2
 
 Three-terminal collaborative development. Status encoded in filenames. Polling via Glob with zero file content reads.
 
@@ -19,6 +19,8 @@ Three-terminal collaborative development. Status encoded in filenames. Polling v
 /taskboard-dev T2    # Reviewer (tiered review)
 /taskboard-dev T3    # Executor (code + compile + commit)
 ```
+
+> **Model hint**: T1/T2 benefit from deeper reasoning (Opus/Sonnet). T3 can use faster models (Sonnet/Haiku) for implementation tasks.
 
 ## Initialization (All Roles)
 
@@ -36,6 +38,7 @@ Three-terminal collaborative development. Status encoded in filenames. Polling v
 docs/
   taskboard/              # Active task files (filename = status)
     archive/              # Completed tasks
+    history/              # Execution logs per task
   dev-log.md              # Development log
   codex/                  # Review reports from T2
   superpowers/
@@ -43,7 +46,9 @@ docs/
     plans/                # Implementation plans from T1
 ```
 
-Only 1 file (`dev-log.md`) + 5 empty directories on first run. Task files created on demand.
+Only 1 file (`dev-log.md`) + 6 empty directories on first run. Task files created on demand.
+
+> **Git config for Chinese filenames**: Run `git config core.quotepath false` in the repo so that `git status` and `git mv` display Chinese characters correctly instead of octal escapes.
 
 ## Core Design: Filename as Status
 
@@ -87,7 +92,7 @@ mv TASK-001.v1.T1-方案需修改.md  TASK-001.v2.T2-待审核方案.md
 
 - **Zero-content polling**: Glob only reads filenames, never opens files
 - **No shared file**: Each terminal renames different files, no write conflicts
-- **No locks needed**: `mv` is atomic on all filesystems
+- **No locks needed**: `mv` within the same directory is effectively atomic
 - **No parsing**: Status is the filename, not buried inside content
 
 ## Polling
@@ -105,9 +110,9 @@ T3: Glob docs/taskboard/TASK-*.T3-*.md
 Since Claude Code /loop only supports fixed intervals:
 
 - **Active mode** (tasks found for this role): `/loop 30s` — fast response
-- **Idle mode** (no tasks found): Pause polling, display "No tasks. Type /taskboard-dev T{N} to resume."
+- **Idle mode** (no tasks found): Output "No tasks for T{N}." and return immediately. The `/loop` iteration ends; the next iteration will poll again after the configured interval. To stop polling entirely, the user exits `/loop`.
 
-When a task is completed, suggest switching to idle mode if no more tasks remain.
+When a task is completed and no more tasks remain, suggest the user exit `/loop` to avoid idle token consumption.
 
 ## File Content: Three-Layer Separation
 
@@ -146,23 +151,38 @@ When a task is completed, suggest switching to idle mode if no more tasks remain
 
 On each status change, append completed work to `docs/taskboard/history/TASK-NNN.history.md` and clear the "Pending" section in the main file. History files live in a separate `history/` subdirectory so they never match active task Glob patterns (`TASK-*.T*.md`).
 
-## Forced Fresh Context (Approach D)
+## Version Experience Management
 
-When T1 revises a spec (version bump v1 to v2), T3 must NOT re-execute in the same session because old spec content pollutes the context window.
+When T1 revises a spec (version bump v1 to v2), the v1 experience in T3's context is often **valuable** — T3 knows what failed and why. Forcing a fresh context discards this knowledge.
 
-### Mechanism
+### T1 Experience Summary (required on version bump)
 
-1. T1 bumps version in filename: `TASK-001.v2.T2-待审核方案.md`
-2. After T2 approval: `TASK-001.v2.T3-待执行.md`
-3. T3 polling detects version mismatch (session processed v1, file says v2)
-4. T3 outputs: `[STALE CONTEXT] TASK-001 upgraded to v2. Run /taskboard-dev T3 to restart.`
-5. T3 pauses polling for this task
-6. User restarts T3 terminal: `/taskboard-dev T3`
-7. Fresh session reads v2 spec with zero old-version pollution
+When T1 bumps a version, the task file must include an experience filter:
 
-### Version Tracking
+```markdown
+## v1 Lessons (keep — verified by testing)
+- Simplex I2S works for speaker output
+- ES7243E needs MCLK before I2C init
+- Internal SRAM must stay above 40KB for TLS
 
-T3 maintains a simple in-memory map: `{TASK-001: v1}`. On each Glob match, compare file version with map. Mismatch triggers stale context warning.
+## v2 Changes (override v1)
+- slot_bit_width: use AUTO not 32BIT (caused silence)
+- Volume formula: data[i]*vol*vol/10000 (old formula truncated)
+
+## Current Instruction
+(what to do now)
+```
+
+T3 reads the "keep" items as validated knowledge and the "override" items as explicit corrections. No ambiguity about what changed.
+
+### When to Restart T3
+
+Version number in filename (`v1` to `v2`) serves as a **visual indicator** for the user. In most cases, keeping v1 experience is beneficial. Restart T3 only when:
+- v2 is a **fundamental redesign** (completely different approach, not iterative fix)
+- T3's context window is near capacity
+- User observes T3 confusing v1 and v2 details
+
+In `/loop` mode, context accumulates across iterations (not cleared). This means v1 experience naturally persists, which is usually desirable.
 
 ## Review Tiers
 
@@ -217,7 +237,7 @@ Review designs and code. Never write code or design solutions.
 3. Review level from filename (L1/L2/L3), may override
 4. Execute review per tier
 5. Rename file to next status
-6. On `完成`: move to `archive/`, append `dev-log.md`, move history to archive
+6. On `完成`: move task file to `archive/`, move `history/TASK-NNN.history.md` to `archive/`, append summary to `dev-log.md`
 
 ### Timeout Detection
 
@@ -235,7 +255,7 @@ Implement code, run builds, commit. Never design or review.
 2. Check version (stale context detection)
 3. Read main file (under 50 lines)
 4. Read spec/plan via links (first execution only)
-5. Implement, build, commit
+5. Implement, build, commit — mark each Pending item `[x]` immediately after completion
 6. Rename file to `T2-待审核代码-L{N}`
 7. Append completed work to history file
 
