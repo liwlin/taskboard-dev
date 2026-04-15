@@ -103,6 +103,43 @@ docs/
 | **T2 审核者** | 审核设计和代码、验证任务结果、归档完成任务 | 写代码、设计方案 |
 | **T3 执行者** | 编码、编译、验证、提交 | 设计方案、审核 |
 
+### 角色边界速查（session 开始时每个角色会自动内化）
+
+每个角色都有严格的"可做 / 不可做"清单，写在 `SKILL.md` 的 Boundaries 子章节。以下是高频决策速查表：
+
+| 动作 | T1 | T2 | T3 |
+|------|:---:|:---:|:---:|
+| 写 `docs/**`（spec/plan/任务/STATE/HANDOFF）| ✅ | ✅ | ✅ |
+| 读源码、读构建配置 | ✅ | ✅ | ✅ |
+| 只读 git（status/log/diff/show）| ✅ | ✅ | ✅ |
+| 重命名 task 文件（状态流转）| ✅ | ✅ | ✅ |
+| 运行 build / test（read-only 验证）| ❌ | ✅ | ✅ |
+| 写源码（`main/**` / `src/**`）| ❌ | ❌ | ✅ |
+| 写构建配置 / `sdkconfig` / `CMakeLists.txt` | ❌ | ❌ | ✅ |
+| `git commit` 源码改动 | ❌ | ❌ | ✅ |
+| `git commit` 文档改动 | ✅ | ✅ | ✅ |
+| `git push`（非 force）| ❌ | ❌ | ✅ |
+| 刷机 / 部署 / 发布 | ❌ | ❌ | ✅ |
+| `git push --force` / `reset --hard` / `rm -rf` | ❌ | ❌ | ❌ |
+
+### 用户 override 协议
+
+如果用户明确说"直接改" / "不用审核" / "你处理" / 类似授权语，当前角色**可以单次越界**。越界时必须：
+
+1. **口头 acknowledge**："收到用户 override — 将直接执行 <动作> 而不走 T<N> 流程"
+2. **限定范围**到用户授权的具体内容，不自行扩大
+3. **记录异常**到对应任务的 history 文件或 HANDOFF.md session notes，让审计可见
+
+没有明确 override 就不越界。
+
+### 边界设计原因
+
+- **T1 ≠ T3**：T1 若直接改代码，T2→T3 审核链就被跳过，审计断档
+- **T2 ≠ T3**：审核者重写被审代码 = 失去独立性，不如双人联合开发
+- **T3 ≠ T1**：执行者中途改 spec = 隐形 scope creep，应退回 `T1-待决策`
+
+这些边界**由 Claude 自己遵守**（SKILL.md 里写明），不是靠 `settings.local.json` 的 permission 强制。如果你想加机械强制的 ask/deny 权限，参考 Claude Code 官方的 `.claude/settings.local.json` 文档单独配置。
+
 ---
 
 ## 4. 任务生命周期

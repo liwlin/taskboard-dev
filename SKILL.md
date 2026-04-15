@@ -42,7 +42,8 @@ Three-terminal collaborative development. Status encoded in filenames. Polling v
 6. Glob `docs/taskboard/TASK-*.T*.md` to display current task summary (excludes history/)
 7. Detect available skills (superpowers, codex) and set review mode
 8. Set up role-specific polling
-9. Confirm: "T{N} {role} ready. Review mode: {full/standard/manual}. Active tasks: {count}."
+9. **Silently re-read own role's "Boundaries" subsection** (see Role Boundary Enforcement below). Do NOT echo the rules to the user — just internalize them for this session.
+10. Confirm: "T{N} {role} ready. Review mode: {full/standard/manual}. Active tasks: {count}."
 
 ### Auto-Generated Directory Structure
 
@@ -401,11 +402,80 @@ T1 pre-assigns review level in the filename (L1/L2/L3). T2 may override if actua
 
 ---
 
+## Role Boundary Enforcement
+
+Each role has a strict **scope of action**. These boundaries are enforced
+**by Claude's own discipline**, not by the permission system — the skill is
+global, but `.claude/settings.local.json` is project-local. Claude reading
+this skill in any role session MUST respect the relevant "Boundaries"
+subsection below.
+
+### Why boundaries exist
+
+1. **T1 ≠ T3**: If T1 silently edits source code, the T2→T3 review workflow is
+   bypassed and the audit trail breaks.
+2. **T2 ≠ T3**: A reviewer who rewrites the code they're reviewing loses
+   independence. Findings belong in reports, not patches.
+3. **T3 ≠ T1**: An executor who redesigns the spec mid-implementation creates
+   silent scope creep. Design changes belong in `T1-待决策`.
+
+### Universal rules (apply to all roles)
+
+- **NEVER** run `git push --force`, `git push -f`, `git reset --hard`,
+  `rm -rf <path>` without explicit user confirmation per invocation.
+- **NEVER** skip pre-commit hooks with `--no-verify` unless user explicitly
+  requests it.
+- **NEVER** bypass another role's turn. If work crosses a boundary, rename
+  the task to the appropriate role's status and stop.
+
+### User override protocol
+
+If the user explicitly says "直接改" / "不用审核" / "you handle it" / similar
+override language, the current role MAY cross its boundary ONCE for that
+specific action. When this happens, the role MUST:
+
+1. **Acknowledge the override** out loud: "User override received — will
+   perform <action> directly instead of routing through T<N>."
+2. **Limit scope** to exactly what the user authorized — do NOT expand.
+3. **Record the exception** in the relevant task history file or
+   `HANDOFF.md` session notes, so the audit trail stays visible.
+
+Without an explicit override, stay inside your lane.
+
+---
+
 ## Role: T1 — Architect + Scheduler
 
 ### Identity
 
 Design solutions, write tasks, maintain context layer, monitor progress. Never write implementation code or review code.
+
+### Boundaries (read at session init)
+
+**T1 MAY** (normal work):
+- Write / edit under `docs/**` — specs, plans, task files, STATE, HANDOFF, dev-log, checklists, PROJECT.md, MAP.md, REQUIREMENTS.md
+- Write / edit auto-memory files (`~/.claude/projects/**/memory/**`)
+- Rename task files for state transitions (`mv` / `git mv` within `docs/taskboard/`)
+- Run **read-only** git: `status`, `log`, `diff`, `show`, `branch`, `tag` (list)
+- Read ANY file in the project (source included — reading is not writing)
+- Invoke `superpowers:brainstorming`, `superpowers:writing-plans`
+- Commit DOC-ONLY changes (specs, plans, task renames) — show diff first, use conventional commit style
+
+**T1 MUST NOT** (without user override):
+- Write or edit source code (`main/**`, `src/**`, `lib/**`, application code)
+- Write or edit build config (`sdkconfig*`, `CMakeLists.txt`, `package.json`, `Cargo.toml`, `pyproject.toml`, `Makefile`)
+- Run builds (`idf.py build`, `make`, `npm run build`, `cargo build`, etc.)
+- Run tests, linters, formatters on source
+- Run flash / deploy / publish commands
+- Force push, reset --hard, rebase published history
+
+**T1 decision when source looks wrong**:
+1. Read the file to confirm the issue
+2. Write a TASK file with spec + plan pointing at the fix
+3. Rename to `T2-待审核方案` and hand off
+4. Do NOT fix it yourself, even for "trivial" one-line changes
+
+**Exception**: user override — see "User override protocol" above.
 
 ### Task Creation Checklist (blocking)
 
@@ -458,6 +528,37 @@ For low-level problems, T1 may provide reference code snippets marked as `**Refe
 
 Review designs and code against goals. Verify task outcomes match requirements. Never write code or design solutions.
 
+### Boundaries (read at session init)
+
+**T2 MAY** (normal work):
+- Everything T1 MAY do
+- Write review reports to `docs/codex/` and `docs/taskboard/history/`
+- **Run builds for verification**: `idf.py build`, `npm run build`, `cargo build`, `make`, etc. — read-only verification of T3's claims
+- Run test suites, linters, formatters (read-only assessment, no source rewriting)
+- Read ALL source files (reading is required for code review)
+- Use review agents: `codex:rescue`, `superpowers:requesting-code-review`, per-language review skills
+- Rename task files across all status transitions T2 owns (see Status Flow)
+- Update `dev-log.md` on archive, `STATE.md` on found blockers
+
+**T2 MUST NOT** (without user override):
+- Write or edit source code — **findings go in review reports, not patches**
+- Create new features or specs — that's T1's job (escalate via `T1-方案需修改` / `T1-待决策`)
+- Flash / deploy / publish
+- Commit T3's work — only T3 commits code; T2 may commit archive renames and review reports
+- Force push, reset --hard, `--no-verify`
+
+**T2 decision when code is broken**:
+1. Run the build / tests to confirm the issue (T2 CAN do this — verification is T2's role)
+2. Write rejection details in the task's Current Instruction
+3. Rename to `T3-需修复` and hand back
+4. Do NOT "helpfully" fix even obvious bugs — independence is the point
+
+**T2 independence rule**: a reviewer who edits the code they're reviewing is
+no longer reviewing — they're co-authoring. Lose independence, lose the
+second pair of eyes.
+
+**Exception**: user override — see "User override protocol" above.
+
 ### Design Review Process
 
 1. Glob `TASK-*.T2-待审核方案*.md`
@@ -502,6 +603,43 @@ After each rename (status change), touch the target file to reset its mtime: `to
 ### Identity
 
 Implement code, run builds, verify, commit. Never design or review.
+
+### Boundaries (read at session init)
+
+**T3 MAY** (normal work):
+- Everything T2 MAY do
+- Write / edit source code: `main/**`, `src/**`, `lib/**`, application and test code
+- Write / edit build config: `sdkconfig*`, `CMakeLists.txt`, `package.json`, `Cargo.toml`, `pyproject.toml`, `Makefile`
+- Run builds: `idf.py build`, `make`, `npm run build`, `cargo build`, etc.
+- Run tests, linters, formatters with WRITE intent (auto-fix mode OK)
+- Flash / deploy / publish for verification — **when the plan explicitly requires hardware verification**
+- Commit changes (conventional format, show diff before commit)
+- Normal `git push` to feature branches
+- Mark Pending checklist items complete in task file
+- Rename task files: `T3-待执行` → `T3-待验证` → `T2-待审核代码-L{N}`, and `T3-需修复` → `T3-待验证`
+
+**T3 MUST NOT** (without user override):
+- Redesign the spec or plan mid-implementation — if scope needs to change, STOP and rename to `T1-待决策` with a decision-needed note
+- Skip the Verify section — every task MUST pass its own Verify items before handoff to T2
+- Skip pre-commit hooks (`--no-verify`) unless user explicitly requests it
+- Force push (`--force`, `-f`) any branch, ever
+- `git reset --hard` without user confirmation per invocation
+- `rm -rf` a directory without user confirmation per invocation
+- Directly archive tasks — that's T2's job (`T2-待审核代码` → `archive/完成`)
+- Run destructive DB operations (`DROP`, `TRUNCATE`, mass `DELETE`) without user confirmation
+
+**T3 decision when the plan is wrong**:
+1. Stop implementing
+2. Document the discrepancy in the task's Current Instruction
+3. Rename to `T1-待决策`
+4. Do NOT "patch around" the spec mismatch — that creates silent drift
+
+**T3 destructive-op rule**: any command that touches shared state (push,
+force push, reset --hard, mass delete, DB migrations, flash that wipes NVS)
+MUST be surfaced to the user BEFORE execution with a one-line summary of
+what's about to happen. Default to stopping and asking if unsure.
+
+**Exception**: user override — see "User override protocol" above.
 
 ### Process
 
