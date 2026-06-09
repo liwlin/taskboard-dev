@@ -598,6 +598,19 @@ def append_event_log(
                     "output": str(item.get("output") or "")[:2000],
                 }
             )
+    suppressed_launch_events: list[dict[str, object]] = []
+    for item in suppressed_launch_list:
+        if not isinstance(item, dict):
+            continue
+        suppressed_launch_events.append(
+            {
+                "role": str(item.get("role") or ""),
+                "reason": str(item.get("reason") or ""),
+                "remaining_seconds": int(item.get("remaining_seconds") or 0),
+                "age_seconds": int(item.get("age_seconds") or 0),
+                "command": str(item.get("command") or "")[:2000],
+            }
+        )
     event = {
         "kind": "taskboard-t0-supervisor-event",
         "version": 1,
@@ -623,6 +636,7 @@ def append_event_log(
         "launch_failure_count": launch_failure_count,
         "launch_failures": launch_failures,
         "suppressed_launch_count": len(suppressed_launch_list),
+        "suppressed_launches": suppressed_launch_events,
         "stop_gate_count": int(stop_gate_payload.get("stop_gate_count") or 0),
         "completion_ready": bool(completion_payload.get("completion_ready")),
         "completion_missing_evidence": completion_missing_list,

@@ -504,7 +504,14 @@ class TaskboardLoopTest(unittest.TestCase):
                     True,
                     root / ".taskboard" / "t0" / "latest.json",
                     root / ".taskboard" / "targets",
+                    300,
+                    root / ".taskboard" / "t0" / "events.jsonl",
                 )
+            events = [
+                json.loads(line)
+                for line in (root / ".taskboard" / "t0" / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
 
         self.assertEqual([len(batch) for batch in executed_batches], [3])
         self.assertEqual(len(output[0]["executed_commands"]), 3)
@@ -513,6 +520,13 @@ class TaskboardLoopTest(unittest.TestCase):
             [item["role"] for item in output[1]["suppressed_launches"]],
             ["T1", "T2", "T3"],
         )
+        self.assertEqual(events[1]["suppressed_launch_count"], 3)
+        self.assertEqual(
+            [item["role"] for item in events[1]["suppressed_launches"]],
+            ["T1", "T2", "T3"],
+        )
+        self.assertEqual(events[1]["suppressed_launches"][0]["reason"], "launch-lease-active")
+        self.assertGreater(events[1]["suppressed_launches"][0]["remaining_seconds"], 0)
         self.assertIn("launch lease active", " ".join(output[1]["actions"]))
 
     def test_execute_launches_does_not_relaunch_healthy_roles_after_launch_lease(self):

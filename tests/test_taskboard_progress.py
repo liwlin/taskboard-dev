@@ -16,6 +16,7 @@ PROGRESS_SCRIPT = ROOT / "scripts" / "taskboard_progress.py"
 START_SCRIPT = ROOT / "scripts" / "taskboard_start.py"
 sys.path.insert(0, str(ROOT / "scripts"))
 from taskboard_next import ROLE_PRIORITY  # noqa: E402
+import taskboard_loop as loop_module  # noqa: E402
 import taskboard_start as start_module  # noqa: E402
 
 
@@ -855,6 +856,53 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("waiting for recent T0 launch", progress["user_summary"])
         self.assertIn("No user action required", progress["user_action"])
         self.assertIn("latest_event_state=attention", text)
+
+    def test_progress_recovers_suppressed_launch_details_from_real_event_log(self):
+        executed_batches = []
+
+        def fake_execute(commands):
+            executed_batches.append(list(commands))
+            return [
+                {
+                    "command": command,
+                    "returncode": 0,
+                    "output": "",
+                }
+                for command in commands
+            ]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            with patch("taskboard_loop.execute_commands", fake_execute):
+                loop_module.run_loop(
+                    root,
+                    "Ship demo",
+                    30,
+                    300,
+                    "windows-terminal",
+                    'codex --prompt-file "{target_file}"',
+                    True,
+                    2,
+                    0,
+                    300,
+                    True,
+                    None,
+                    root / ".taskboard" / "targets",
+                    300,
+                    root / ".taskboard" / "t0" / "events.jsonl",
+                )
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+
+        self.assertEqual([len(batch) for batch in executed_batches], [3])
+        self.assertEqual(progress["suppressed_launch_count"], 3)
+        self.assertEqual(
+            [item["role"] for item in progress["suppressed_launches"]],
+            ["T1", "T2", "T3"],
+        )
+        self.assertIn("waiting for recent T0 launch", progress["user_summary"])
+        self.assertIn("No user action required", progress["user_action"])
 
     def test_progress_surfaces_queue_metrics_for_user_dashboard(self):
         with tempfile.TemporaryDirectory() as tmp:
