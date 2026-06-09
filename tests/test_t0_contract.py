@@ -134,6 +134,7 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("**Goal Complete**: yes", readme)
         self.assertIn("--no-stop-on-complete", readme)
         self.assertIn(".taskboard/t0/latest.json", readme)
+        self.assertIn(".taskboard/t0/goal.json", readme)
         self.assertIn("--no-state-file", readme)
         self.assertIn(".taskboard/targets/taskboard-T1.md", readme)
         self.assertIn("--no-target-files", readme)

@@ -101,6 +101,19 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertEqual(output[0]["dispatch"]["state"], "needs-goal")
         self.assertIn("ask user for one T0 goal", output[0]["actions"])
 
+    def test_loop_resumes_saved_t0_goal_without_retyping_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            first = self.run_loop(root, "--goal", "Ship demo")
+            resumed = self.run_loop(root)
+
+        self.assertEqual(first[0]["goal"], "Ship demo")
+        self.assertEqual(resumed[0]["goal"], "Ship demo")
+        self.assertEqual(resumed[0]["dispatch"]["state"], "dispatch")
+        self.assertIn("Ship demo", resumed[0]["dispatch"]["target"])
+
     def test_loop_stops_when_goal_complete_sentinel_exists(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

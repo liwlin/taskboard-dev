@@ -29,16 +29,32 @@ class TaskboardStartTest(unittest.TestCase):
             (root / "docs" / "taskboard").mkdir(parents=True)
 
             output = self.run_start(root, "--goal", "Ship demo", "--iterations", "1")
+            goal_file = root / ".taskboard" / "t0" / "goal.json"
+            saved_goal = json.loads(goal_file.read_text(encoding="utf-8"))
             t1_target = root / ".taskboard" / "targets" / "taskboard-T1.md"
             t1_exists = t1_target.exists()
 
         payload = output[0]
+        self.assertEqual(saved_goal["kind"], "taskboard-t0-goal")
+        self.assertEqual(saved_goal["goal"], "Ship demo")
         self.assertEqual(payload["dispatch"]["launcher"], "windows-terminal")
         self.assertEqual(len(payload["launch_commands"]), 3)
         self.assertEqual(payload["executed_commands"], [])
         self.assertIn("codex --prompt-file", payload["launch_commands"][0])
         self.assertIn("taskboard-T1.md", payload["launch_commands"][0])
         self.assertTrue(t1_exists)
+
+    def test_starter_resumes_saved_goal_without_retyping_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            self.run_start(root, "--goal", "Ship demo", "--iterations", "1")
+            resumed = self.run_start(root, "--iterations", "1")
+
+        self.assertEqual(resumed[0]["goal"], "Ship demo")
+        self.assertEqual(resumed[0]["dispatch"]["state"], "dispatch")
+        self.assertIn("Ship demo", resumed[0]["dispatch"]["target"])
 
     def test_starter_can_use_tmux_launcher(self):
         with tempfile.TemporaryDirectory() as tmp:

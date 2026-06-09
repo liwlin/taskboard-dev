@@ -606,6 +606,7 @@ Launcher rules:
 - `--launcher tmux` emits `tmux new-session/new-window` commands for Unix-like terminals.
 - `--agent-template` is the client-specific command T0 runs inside each role terminal. It supports `{role}`, `{title}`, `{command}`, `{target}`, and `{target_file}` placeholders.
 - T0 must inject the generated role target. Users should not write separate T1/T2/T3 prompts.
+- The first explicit `--goal` is saved to `.taskboard/t0/goal.json` as `taskboard-t0-goal`, so T0 can resume without asking the user to repeat the same goal. This is T0 control-plane recovery state, not TASKBOARD task state.
 - If no launcher is requested, the script emits a dry orchestration plan only.
 - The script emits `session_manifest` for T0 recovery and health checks. This is not a new shared state database; it is an output summary of managed sessions, recovery order, sync contract, and check commands. Persistent recovery still belongs in `HANDOFF.md`.
 - Use `scripts/taskboard_loop.py` for the actual T0 supervisor loop. It combines session heartbeat probing, queue health, and dispatch into each iteration. Add `--execute-launches` only when T0 should execute generated launcher commands; those commands only launch/recover T1/T2/T3 and must not perform worker tasks in T0.

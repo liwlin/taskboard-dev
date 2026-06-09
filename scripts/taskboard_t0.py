@@ -30,9 +30,46 @@ T0_BOUNDARY = (
 )
 
 
+def runtime_goal_file(root: Path) -> Path:
+    return root / ".taskboard" / "t0" / "goal.json"
+
+
+def read_runtime_goal(root: Path) -> str:
+    path = runtime_goal_file(root)
+    if not path.exists():
+        return ""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return ""
+    if not isinstance(payload, dict):
+        return ""
+    goal = payload.get("goal")
+    return goal.strip() if isinstance(goal, str) else ""
+
+
+def write_runtime_goal(root: Path, goal: Optional[str]) -> str:
+    normalized = goal.strip() if goal else ""
+    if not normalized:
+        return ""
+    path = runtime_goal_file(root)
+    payload = {
+        "kind": "taskboard-t0-goal",
+        "version": 1,
+        "goal": normalized,
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
+    return normalized
+
+
 def read_goal(root: Path, explicit_goal: Optional[str]) -> str:
     if explicit_goal and explicit_goal.strip():
         return explicit_goal.strip()
+
+    runtime_goal = read_runtime_goal(root)
+    if runtime_goal:
+        return runtime_goal
 
     for relative in ("docs/PROJECT.md", "docs/REQUIREMENTS.md"):
         path = root / relative
@@ -340,6 +377,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     args = parser.parse_args(argv)
     root = Path(args.root).resolve()
     target_dir = Path(args.target_dir).resolve() if args.target_dir else default_target_dir(root)
+    write_runtime_goal(root, args.goal)
 
     try:
         payload = dispatch(root, args.goal, args.mode, args.launcher, args.agent_template, target_dir)

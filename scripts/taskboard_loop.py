@@ -11,7 +11,7 @@ from typing import Optional
 
 from taskboard_health import report_health
 from taskboard_sessions import probe_sessions
-from taskboard_t0 import default_target_dir, dispatch
+from taskboard_t0 import default_target_dir, dispatch, read_goal, write_runtime_goal
 
 
 T0_BOUNDARY = (
@@ -299,12 +299,14 @@ def run_loop(
     if assignment_lease_seconds < 1:
         raise ValueError("--assignment-lease-seconds must be >= 1")
 
+    write_runtime_goal(root, goal)
+    effective_goal = read_goal(root, goal)
     results: list[dict[str, object]] = []
     count = 0
     while iterations is None or count < iterations:
         payload = run_once(
             root,
-            goal,
+            effective_goal,
             stale_minutes,
             stale_seconds,
             launcher,
@@ -316,7 +318,7 @@ def run_loop(
         results.append(payload)
         count += 1
         if state_file is not None:
-            write_state_snapshot(state_file, root, goal, results, stop_on_complete)
+            write_state_snapshot(state_file, root, effective_goal, results, stop_on_complete)
         if stop_on_complete and payload["dispatch"].get("state") == "complete":
             break
         if iterations is not None and count >= iterations:

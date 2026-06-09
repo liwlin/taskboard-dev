@@ -72,6 +72,8 @@ python scripts/taskboard_start.py --goal "完成 <你的开发目标>" --execute
 
 默认使用 Windows Terminal 创建/恢复 `taskboard-T1/T2/T3`，并用 `codex --prompt-file "{target_file}"` 让每个 worker 读取自己的 `.taskboard/targets/taskboard-T*.md`。不加 `--execute-launches` 时只做 dry-run 调度检查。
 
+首次传入 `--goal` 后，T0 会把用户目标保存到 `.taskboard/t0/goal.json`。T0 重启或恢复时可以不再重复输入目标；这个 `taskboard-t0-goal` 文件只是 T0 控制面恢复状态，不是 TASKBOARD 任务状态。
+
 #### T0 启动器脚本
 
 `scripts/taskboard_t0.py` 是 T0 的本地启动器/调度器辅助脚本。它不会让用户管理 T1/T2/T3，而是为 T0 生成受控角色会话和可执行启动命令。
