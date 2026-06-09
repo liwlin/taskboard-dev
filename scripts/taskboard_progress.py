@@ -141,6 +141,7 @@ def build_user_action(
     actions: list[str],
     launch_failure_count: int = 0,
     stop_gate_count: int = 0,
+    completion_missing_evidence: Optional[list[str]] = None,
 ) -> str:
     if stop_gate_count:
         return "T0 stop gate requires user decision; answer T0's summarized question, not T1/T2/T3."
@@ -152,6 +153,8 @@ def build_user_action(
         return "Provide one user goal to T0."
     if dispatch_state == "complete":
         return "Review T0's completion summary."
+    if completion_missing_evidence:
+        return "No user action required; T0 will wake T1 to record or revise missing completion evidence."
     if actions:
         return "No user action required; T0 is handling routine role recovery or dispatch."
     return "No user action required."
@@ -260,6 +263,7 @@ def report_progress(root: Path) -> dict[str, object]:
                 [],
                 0,
                 stop_gate_count,
+                completion_missing_list,
             ),
             "boundary": T0_PROGRESS_BOUNDARY,
         }
@@ -372,6 +376,7 @@ def report_progress(root: Path) -> dict[str, object]:
             action_list,
             len(launch_failures),
             stop_gate_count,
+            completion_missing_list,
         ),
         "actions": action_list,
         "boundary": T0_PROGRESS_BOUNDARY,

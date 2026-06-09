@@ -121,6 +121,7 @@ python scripts/taskboard_completion.py --root .
 ```
 
 这个审计只读 active TASK、archive、`STATE.md` completion sentinel 和 `dev-log.md`，用于判断 T0 是否可以向用户汇总完成结果。它不会让 T0 归档任务、跑验证、提交代码或执行 T1/T2/T3 工作。
+当完成证据缺失时，`taskboard_progress.py` 的 `user_action` 会显示 `No user action required; T0 will wake T1 to record or revise missing completion evidence.`，表示用户不需要接管任务板，T0 会继续唤醒角色补齐证据。
 
 ### T0 — 用户入口 + 编排器
 

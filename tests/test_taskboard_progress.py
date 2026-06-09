@@ -261,11 +261,14 @@ class TaskboardProgressTest(unittest.TestCase):
             self.run_json(LOOP_SCRIPT, root, "--goal", "Ship demo")
 
             text = self.run_text(PROGRESS_SCRIPT, root)
+            progress = self.run_json(PROGRESS_SCRIPT, root)
 
         self.assertIn("completion_ready=False", text)
         self.assertIn("completion_audit_state=incomplete", text)
         self.assertIn("completion_missing_evidence=no archived TASK evidence", text)
         self.assertIn("dev-log has no completion entries", text)
+        self.assertIn("No user action required", progress["user_action"])
+        self.assertIn("T0 will wake T1", progress["user_action"])
 
     def test_progress_surfaces_t0_event_log_summary(self):
         with tempfile.TemporaryDirectory() as tmp:

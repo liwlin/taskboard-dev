@@ -640,6 +640,7 @@ Use `scripts/taskboard_stopgates.py --root .` to aggregate true stop gates for t
 Use `scripts/taskboard_decide.py --root . --decision "<user answer>"` after the user answers T0's stop-gate question. This is a T0 control-plane resume action: it records the user answer in the task and `STATE.md`, renames the task from `T1-待决策` to `T1-方案需修改`, and lets T1 revise the plan or task. T0 must not transform the answer into a design, review, implementation, verification, commit, or release.
 
 Use `scripts/taskboard_completion.py --root .` before T0 summarizes completion. This is a read-only evidence audit over active TASK files, archived TASK files, `STATE.md` completion sentinel, and `dev-log.md`. T0 may report the evidence and missing evidence, but must not archive tasks, run worker verification, commit, release, or execute T1/T2/T3 work from this audit.
+When completion evidence is missing, `scripts/taskboard_progress.py` should report `No user action required; T0 will wake T1 to record or revise missing completion evidence.` as the user action. This keeps completion evidence repair inside T0-managed role orchestration instead of asking the user to inspect or manage T1/T2/T3.
 
 Use `scripts/taskboard_sessions.py` for managed role liveness. Each T1/T2/T3 role should write a heartbeat at loop start and after each TASKBOARD handoff:
 
