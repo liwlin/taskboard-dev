@@ -2,6 +2,7 @@
 """Report T0-managed TASKBOARD progress for the user."""
 
 from argparse import ArgumentParser
+from datetime import datetime, timezone
 from pathlib import Path
 import json
 import sys
@@ -200,6 +201,7 @@ def build_user_action(
     completion_missing_evidence: Optional[list[str]] = None,
     assignment_state: str = "",
     assignment_role: str = "",
+    t0_supervisor_state: str = "",
 ) -> str:
     if stop_gate_count:
         return "T0 stop gate requires user decision; answer T0's summarized question, not T1/T2/T3."
@@ -213,6 +215,8 @@ def build_user_action(
         return "Provide one user goal to T0."
     if dispatch_state == "complete":
         return "Review T0's completion summary."
+    if t0_supervisor_state == "stale":
+        return "Resume T0 with resume_command; do not manage T1/T2/T3 directly."
     has_active_completion_gap = any(
         "active TASK files remain" in str(item)
         for item in (completion_missing_evidence or [])
@@ -235,6 +239,56 @@ def safe_int(value: object, default: int = 0) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def parse_iso_timestamp(raw_value: object) -> Optional[datetime]:
+    if not raw_value:
+        return None
+    text = str(raw_value)
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def build_t0_supervisor_freshness(
+    snapshot: Optional[dict[str, object]],
+    resume_config: Optional[dict[str, object]] = None,
+) -> dict[str, object]:
+    if snapshot is None:
+        return {
+            "state": "missing",
+            "age_seconds": None,
+            "stale_after_seconds": 0,
+            "updated_at": "",
+            "boundary": "T0 supervisor freshness summarizes control-plane liveness; it is not worker state.",
+        }
+    config = resume_config if isinstance(resume_config, dict) else {}
+    interval_seconds = safe_int(config.get("interval_seconds"), 300)
+    stale_after_seconds = max(60, interval_seconds * 2)
+    updated_at = str(snapshot.get("updated_at") or "")
+    updated_at_time = parse_iso_timestamp(updated_at)
+    if updated_at_time is None:
+        return {
+            "state": "unknown",
+            "age_seconds": None,
+            "stale_after_seconds": stale_after_seconds,
+            "updated_at": updated_at,
+            "boundary": "T0 supervisor freshness summarizes control-plane liveness; it is not worker state.",
+        }
+    age_seconds = max(0, int((datetime.now(timezone.utc) - updated_at_time).total_seconds()))
+    return {
+        "state": "stale" if age_seconds > stale_after_seconds else "fresh",
+        "age_seconds": age_seconds,
+        "stale_after_seconds": stale_after_seconds,
+        "updated_at": updated_at,
+        "boundary": "T0 supervisor freshness summarizes control-plane liveness; it is not worker state.",
+    }
 
 
 def build_queue_metrics(
@@ -287,6 +341,7 @@ def report_progress(root: Path) -> dict[str, object]:
     decision_command = build_decision_command(root, first_stop_gate)
     snapshot = read_latest_snapshot(root)
     if snapshot is None:
+        t0_supervisor = build_t0_supervisor_freshness(None)
         latest_event = event_summary.get("latest_event", {})
         latest_event_payload = latest_event if isinstance(latest_event, dict) else {}
         goal = read_goal(root, "") or str(latest_event_payload.get("goal") or "")
@@ -406,6 +461,10 @@ def report_progress(root: Path) -> dict[str, object]:
             "completion_ready": bool(completion_audit.get("completion_ready")),
             "completion_missing_evidence": completion_missing_list,
             "queue_metrics": queue_metrics,
+            "t0_supervisor": t0_supervisor,
+            "t0_supervisor_state": t0_supervisor.get("state"),
+            "t0_supervisor_age_seconds": t0_supervisor.get("age_seconds"),
+            "t0_supervisor_stale_after_seconds": t0_supervisor.get("stale_after_seconds"),
             **event_summary,
             "user_summary": build_user_summary(
                 fallback_state,
@@ -492,6 +551,8 @@ def report_progress(root: Path) -> dict[str, object]:
     starter_boundary = str(latest_payload.get("starter_boundary") or "")
     resume_config = latest_payload.get("resume_config", {})
     resume_config_payload = resume_config if isinstance(resume_config, dict) else {}
+    t0_supervisor = build_t0_supervisor_freshness(snapshot, resume_config_payload)
+    t0_supervisor_state = str(t0_supervisor.get("state") or "")
     try:
         active_count = int(queue_payload.get("active_count") or 0)
     except (TypeError, ValueError):
@@ -540,6 +601,10 @@ def report_progress(root: Path) -> dict[str, object]:
         "completion_ready": bool(completion_audit.get("completion_ready")),
         "completion_missing_evidence": completion_missing_list,
         "queue_metrics": queue_metrics,
+        "t0_supervisor": t0_supervisor,
+        "t0_supervisor_state": t0_supervisor_state,
+        "t0_supervisor_age_seconds": t0_supervisor.get("age_seconds"),
+        "t0_supervisor_stale_after_seconds": t0_supervisor.get("stale_after_seconds"),
         **event_summary,
         "user_summary": build_user_summary(
             state,
@@ -563,6 +628,7 @@ def report_progress(root: Path) -> dict[str, object]:
             completion_missing_list,
             assignment_state,
             assignment_role,
+            t0_supervisor_state,
         ),
         "actions": action_list,
         "boundary": T0_PROGRESS_BOUNDARY,
@@ -604,6 +670,9 @@ def format_text(payload: dict[str, object]) -> str:
         "queue_metrics_role_counts="
         + ",".join(f"{role}:{role_count_payload.get(role, 0)}" for role in ROLES),
         f"queue_metrics_next_role={metrics_payload.get('next_role', payload['next_role'])}",
+        f"t0_supervisor_state={payload.get('t0_supervisor_state', '')}",
+        f"t0_supervisor_age_seconds={payload.get('t0_supervisor_age_seconds', '')}",
+        f"t0_supervisor_stale_after_seconds={payload.get('t0_supervisor_stale_after_seconds', '')}",
         f"event_count={payload.get('event_count', 0)}",
         f"latest_event_state={latest_event_payload.get('state', '')}",
         f"latest_event_dispatch_state={latest_event_payload.get('dispatch_state', '')}",

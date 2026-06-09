@@ -74,6 +74,41 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("No user action required", progress["user_action"])
         self.assertIn("manager-only", progress["boundary"])
 
+    def test_progress_flags_stale_t0_supervisor_snapshot_for_resume(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_dir = root / ".taskboard" / "t0"
+            state_dir.mkdir(parents=True)
+            snapshot = {
+                "kind": "taskboard-t0-supervisor-state",
+                "goal": "Ship demo",
+                "updated_at": "2000-01-01T00:00:00Z",
+                "latest": {
+                    "state": "active",
+                    "resume_config": {"interval_seconds": 60},
+                    "dispatch": {
+                        "state": "dispatch",
+                        "next_role": "T1",
+                        "task": "TASK-001.v1.T1-plan.md",
+                    },
+                    "assignment": {"state": "pending-ack", "role": "T1"},
+                    "queue_health": {"active_count": 1},
+                    "session_probe": {"missing_roles": [], "stale_roles": []},
+                },
+            }
+            (state_dir / "latest.json").write_text(json.dumps(snapshot), encoding="utf-8")
+
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertEqual(progress["t0_supervisor_state"], "stale")
+        self.assertGreater(progress["t0_supervisor_age_seconds"], 120)
+        self.assertEqual(progress["t0_supervisor_stale_after_seconds"], 120)
+        self.assertIn("Resume T0", progress["user_action"])
+        self.assertIn("do not manage T1/T2/T3", progress["user_action"])
+        self.assertIn("t0_supervisor_state=stale", text)
+        self.assertIn("t0_supervisor_stale_after_seconds=120", text)
+
     def test_progress_surfaces_assignment_recovery_without_user_role_management(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
