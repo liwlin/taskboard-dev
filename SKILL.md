@@ -625,6 +625,8 @@ python scripts/taskboard_health.py --root . --stale-minutes 30
 The health report includes active queue counts, stalled TASK files, the next role/task selected by T0 priority, and manager-only wake/recover actions. It does not authorize T0 to do design, review, implementation, verification, or commit work.
 Pass `--goal "<user goal>"` when T0 has received a user goal that has not yet been written to `PROJECT.md`; empty queues plus an explicit goal should wake T1 to create or revise TASK files.
 
+Use `scripts/taskboard_progress.py --root .` for a concise user-facing T0 progress summary. It reports the goal, T0 state, next managed role, current task, assignment state, and whether user action is required; it does not ask the user to manage T1/T2/T3.
+
 Use `scripts/taskboard_sessions.py` for managed role liveness. Each T1/T2/T3 role should write a heartbeat at loop start and after each TASKBOARD handoff:
 
 ```bash

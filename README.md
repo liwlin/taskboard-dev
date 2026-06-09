@@ -89,6 +89,14 @@ python scripts/taskboard_start.py --goal "完成 <你的开发目标>" --execute
 
 首次传入 `--goal` 后，T0 会把用户目标保存到 `.taskboard/t0/goal.json`。T0 重启或恢复时可以不再重复输入目标；这个 `taskboard-t0-goal` 文件只是 T0 控制面恢复状态，不是 TASKBOARD 任务状态。
 
+查看 T0 给用户的进度摘要：
+
+```bash
+python scripts/taskboard_progress.py --root .
+```
+
+这个摘要只汇报目标、T0 状态、下一受控角色、当前任务和是否需要用户动作；它不会让用户去管理 T1/T2/T3。
+
 ### T0 — 用户入口 + 编排器
 
 ```text
