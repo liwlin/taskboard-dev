@@ -440,6 +440,13 @@ def report_progress(root: Path) -> dict[str, object]:
             and latest_event_assignment_role
         ):
             fallback_state = "attention"
+        if (
+            fallback_state == "needs-supervisor-run"
+            and latest_event_state == "active"
+            and latest_event_assignment_state == "acknowledged"
+            and latest_event_assignment_role
+        ):
+            fallback_state = "active"
         latest_event_resume_config = latest_event_payload.get("resume_config", {})
         latest_event_resume_config_payload = (
             latest_event_resume_config if isinstance(latest_event_resume_config, dict) else {}
