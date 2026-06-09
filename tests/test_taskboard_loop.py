@@ -166,6 +166,25 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertIn("wake T1", output[0]["completion_audit"]["user_action"])
         self.assertIn("wake T1", " ".join(output[0]["actions"]))
 
+    def test_loop_event_log_records_missing_completion_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+            (root / "docs" / "PROJECT.md").write_text("# PROJECT\n\n## Goal\nShip demo\n", encoding="utf-8")
+            (root / "docs" / "STATE.md").write_text("# STATE\n\n**Goal Complete**: yes\n", encoding="utf-8")
+
+            self.run_loop(root, "--goal", "Ship demo")
+            event_log = root / ".taskboard" / "t0" / "events.jsonl"
+            events = [
+                json.loads(line)
+                for line in event_log.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertFalse(events[0]["completion_ready"])
+        self.assertIn("no archived TASK evidence", events[0]["completion_missing_evidence"])
+        self.assertIn("wake T1", events[0]["completion_user_action"])
+
     def test_loop_pauses_worker_launches_for_user_stop_gate(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

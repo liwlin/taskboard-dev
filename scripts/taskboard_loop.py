@@ -529,6 +529,10 @@ def append_event_log(
     stop_gate_payload = stop_gate_report if isinstance(stop_gate_report, dict) else {}
     completion_audit = payload.get("completion_audit", {})
     completion_payload = completion_audit if isinstance(completion_audit, dict) else {}
+    completion_missing = completion_payload.get("missing_evidence", [])
+    completion_missing_list = (
+        [str(item) for item in completion_missing] if isinstance(completion_missing, list) else []
+    )
     auto_mode = payload.get("auto_mode")
     starter_mode = payload.get("starter_mode")
     launch_failure_count = 0
@@ -563,6 +567,8 @@ def append_event_log(
         "suppressed_launch_count": len(suppressed_launch_list),
         "stop_gate_count": int(stop_gate_payload.get("stop_gate_count") or 0),
         "completion_ready": bool(completion_payload.get("completion_ready")),
+        "completion_missing_evidence": completion_missing_list,
+        "completion_user_action": str(completion_payload.get("user_action") or ""),
         "auto_mode": bool(auto_mode) if auto_mode is not None else False,
         "starter_mode": str(starter_mode or ""),
         "boundary": (
