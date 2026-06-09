@@ -292,6 +292,29 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertEqual(progress["latest_event"]["iteration"], 2)
         self.assertIn("append-only", progress["event_log_boundary"])
 
+    def test_progress_text_prints_t0_event_log_recovery_lines_without_latest_snapshot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            taskboard = root / "docs" / "taskboard"
+            taskboard.mkdir(parents=True)
+            task_name = f"TASK-004.v1.{T3_EXECUTE}.md"
+            (taskboard / task_name).write_text("# execute\n\n**Wave**: 1\n", encoding="utf-8")
+            self.run_json(
+                LOOP_SCRIPT,
+                root,
+                "--goal",
+                "Ship demo",
+                "--no-state-file",
+            )
+
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertIn("event_count=1", text)
+        self.assertIn("latest_event_state=attention", text)
+        self.assertIn("latest_event_next_role=T3", text)
+        self.assertIn(f"latest_event_task={task_name}", text)
+        self.assertIn("latest_event_completion_ready=False", text)
+
     def test_progress_surfaces_queue_metrics_for_user_dashboard(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

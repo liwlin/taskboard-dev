@@ -167,6 +167,8 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("events.jsonl` also records `auto_mode`", readme)
         self.assertIn("completion_missing_evidence", readme)
         self.assertIn("completion_user_action", readme)
+        self.assertIn("latest_event_state", readme)
+        self.assertIn("latest_event_next_role", readme)
         self.assertIn("queue_metrics", readme)
         self.assertIn("queue_metrics_active_count", readme)
         self.assertIn("--no-event-log", readme)

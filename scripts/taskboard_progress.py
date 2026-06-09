@@ -392,6 +392,8 @@ def format_text(payload: dict[str, object]) -> str:
     completion_payload = completion_audit if isinstance(completion_audit, dict) else {}
     completion_missing = payload.get("completion_missing_evidence", [])
     completion_missing_list = completion_missing if isinstance(completion_missing, list) else []
+    latest_event = payload.get("latest_event", {})
+    latest_event_payload = latest_event if isinstance(latest_event, dict) else {}
     lines = [
         f"state={payload['state']}",
         f"goal={payload['goal']}",
@@ -403,6 +405,11 @@ def format_text(payload: dict[str, object]) -> str:
         "queue_metrics_role_counts="
         + ",".join(f"{role}:{role_count_payload.get(role, 0)}" for role in ROLES),
         f"queue_metrics_next_role={metrics_payload.get('next_role', payload['next_role'])}",
+        f"event_count={payload.get('event_count', 0)}",
+        f"latest_event_state={latest_event_payload.get('state', '')}",
+        f"latest_event_next_role={latest_event_payload.get('next_role', '')}",
+        f"latest_event_task={latest_event_payload.get('task', '')}",
+        f"latest_event_completion_ready={latest_event_payload.get('completion_ready', '')}",
         f"completion_ready={payload.get('completion_ready')}",
         f"completion_audit_state={completion_payload.get('state', '')}",
         f"starter_mode={payload.get('starter_mode')}",
