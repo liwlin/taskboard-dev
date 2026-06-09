@@ -96,6 +96,8 @@ python scripts/taskboard_t0.py --goal "完成 <你的开发目标>" --root . --l
 
 `--agent-template` 按你的实际 agent CLI 调整。T0 会自动把 T1/T2/T3 的角色目标注入 `{target}`。
 
+脚本输出包含 `session_manifest`，供 T0 恢复和健康检查使用；它不是新的共享状态数据库。
+
 高级用户仍可手动运行 T1/T2/T3；这是兼容模式，不是默认用法：
 
 ```text

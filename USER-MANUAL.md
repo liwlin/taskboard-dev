@@ -94,6 +94,8 @@ python scripts/taskboard_t0.py --goal "完成 <你的开发目标>" --root . --l
 
 `--agent-template` 是实际 agent CLI 的启动模板，支持 `{role}`、`{title}`、`{command}`、`{target}`。T0 会把每个角色的目标注入 `{target}`；用户不需要单独写 T1/T2/T3 prompt。不同客户端命令不同，可以把 `codex --prompt {target}` 换成当前客户端支持的等价命令。
 
+脚本输出里的 `session_manifest` 给 T0 做恢复和健康检查用，包含受控角色列表、当前优先角色、恢复顺序、同步契约和检查命令。它不是新的共享状态数据库，也不是让用户管理 T1/T2/T3 的清单；持久恢复仍写入 `HANDOFF.md`，日常同步仍走 TASKBOARD 文件名状态机。
+
 #### 兼容：手动启动 T1/T2/T3
 
 高级用户仍可手动打开 3 个 agent CLI 终端，分别运行 T1/T2/T3。T0 模式下不需要用户这样做。

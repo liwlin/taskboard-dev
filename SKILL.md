@@ -603,6 +603,7 @@ Launcher rules:
 - `--agent-template` is the client-specific command T0 runs inside each role terminal. It supports `{role}`, `{title}`, `{command}`, and `{target}` placeholders.
 - T0 must inject the generated role target. Users should not write separate T1/T2/T3 prompts.
 - If no launcher is requested, the script emits a dry orchestration plan only.
+- The script emits `session_manifest` for T0 recovery and health checks. This is not a new shared state database; it is an output summary of managed sessions, recovery order, sync contract, and check commands. Persistent recovery still belongs in `HANDOFF.md`.
 
 ### Multi-Agent Synchronization
 

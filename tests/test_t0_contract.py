@@ -123,6 +123,15 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("tmux", manual)
         self.assertIn("--launcher windows-terminal", readme)
 
+    def test_session_manifest_contract_is_documented(self):
+        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
+
+        self.assertIn("session_manifest", skill)
+        self.assertIn("not a new shared state database", skill)
+        self.assertIn("session_manifest", manual)
+        self.assertIn("不是新的共享状态数据库", manual)
+
     def test_user_program_development_fit_is_documented(self):
         manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
 

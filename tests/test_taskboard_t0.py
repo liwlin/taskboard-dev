@@ -53,6 +53,13 @@ class TaskboardT0Test(unittest.TestCase):
             [session["title"] for session in output["managed_sessions"]],
             ["taskboard-T1", "taskboard-T2", "taskboard-T3"],
         )
+        manifest = output["session_manifest"]
+        self.assertEqual(manifest["managed_by"], "T0")
+        self.assertEqual(manifest["next_role"], "T2")
+        self.assertEqual(manifest["roles"], ["T1", "T2", "T3"])
+        self.assertEqual(manifest["recovery_order"][0], "T2")
+        self.assertIn("TASKBOARD filenames", manifest["sync_contract"])
+        self.assertIn("taskboard_next.py --role T0", " ".join(manifest["health_checks"]))
 
     def test_goal_without_active_tasks_dispatches_t1_to_create_board_work(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -82,6 +89,7 @@ class TaskboardT0Test(unittest.TestCase):
         self.assertIn("用户目标", output["target"])
         self.assertIn("T0 manager-only", output["boundary"])
         self.assertEqual(output["managed_sessions"], [])
+        self.assertEqual(output["session_manifest"]["roles"], [])
 
     def test_windows_terminal_launcher_commands_use_agent_template(self):
         with tempfile.TemporaryDirectory() as tmp:

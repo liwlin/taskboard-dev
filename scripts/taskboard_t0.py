@@ -145,6 +145,34 @@ def build_launch_commands(
     return commands
 
 
+def build_session_manifest(
+    state: str,
+    next_role: str,
+    status: str,
+    task_name: str,
+    reason: str,
+    sessions: list[dict[str, str]],
+) -> dict[str, object]:
+    roles = [session["role"] for session in sessions]
+    recovery_order = [next_role] + [role for role in roles if role != next_role] if sessions else []
+    return {
+        "managed_by": "T0",
+        "state": state,
+        "roles": roles,
+        "next_role": next_role,
+        "status": status,
+        "task": task_name,
+        "reason": reason,
+        "recovery_order": recovery_order,
+        "sync_contract": "TASKBOARD filenames + stable context files + history/HANDOFF; no shared chat context",
+        "health_checks": [
+            "python scripts/taskboard_next.py --role T0 --root .",
+            "check managed terminal titles: taskboard-T1, taskboard-T2, taskboard-T3",
+            "check docs/taskboard/TASK-*.T*.md mtime for stalled work",
+        ],
+    }
+
+
 def dispatch(
     root: Path,
     goal_arg: Optional[str],
@@ -168,6 +196,9 @@ def dispatch(
             "boundary": T0_BOUNDARY,
             "managed_sessions": [],
             "launch_commands": [],
+            "session_manifest": build_session_manifest(
+                "needs-goal", "T0", "needs-goal", "none", "missing-user-goal", []
+            ),
         }
 
     role, status, task, reason = select_task("T0", root)
@@ -190,6 +221,7 @@ def dispatch(
         target = build_target(role, status, task_name, goal, reason)
         sessions = build_sessions(goal, role, status, task_name, reason)
     launch_commands = build_launch_commands(root, sessions, launcher, agent_template)
+    session_manifest = build_session_manifest(state, role, status, task_name, reason, sessions)
 
     return {
         "state": state,
@@ -205,6 +237,7 @@ def dispatch(
         "boundary": T0_BOUNDARY,
         "managed_sessions": sessions,
         "launch_commands": launch_commands,
+        "session_manifest": session_manifest,
     }
 
 
@@ -233,6 +266,10 @@ def format_text(payload: dict[str, str]) -> str:
         lines.append("launch_commands:")
         for command in launch_commands:
             lines.append(f"- {command}")
+    manifest = payload.get("session_manifest")
+    if manifest:
+        lines.append("session_manifest:")
+        lines.append(json.dumps(manifest, ensure_ascii=False, sort_keys=True))
     return "\n".join(lines)
 
 
