@@ -465,6 +465,44 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("--task TASK-009.v2.T1-decision.md", progress["decision_command"])
         self.assertIn('--decision "<user answer>"', progress["decision_command"])
 
+    def test_progress_recovers_stop_gate_from_taskboard_without_snapshot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            taskboard = root / "docs" / "taskboard"
+            taskboard.mkdir(parents=True)
+            (taskboard / "TASK-010.v1.T1-decision.md").write_text(
+                """# Decide rollout
+
+**Wave**: 1
+**Gate**: Product decision
+**Question**: Should the new T0 workflow be enabled by default?
+**Options**:
+- A: Enable by default
+- B: Keep opt-in
+**Recommended**: B
+""",
+                encoding="utf-8",
+            )
+            self.run_json(
+                LOOP_SCRIPT,
+                root,
+                "--goal",
+                "Ship demo",
+                "--no-state-file",
+            )
+
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertFalse((root / ".taskboard" / "t0" / "latest.json").exists())
+        self.assertEqual(progress["state"], "stop-gate")
+        self.assertEqual(progress["stop_gate_count"], 1)
+        self.assertIn("T0 stop gate requires user decision", progress["user_action"])
+        self.assertIn("new T0 workflow", progress["user_summary"])
+        self.assertIn("taskboard_decide.py", progress["decision_command"])
+        self.assertIn("state=stop-gate", text)
+        self.assertIn("decision_command=", text)
+
     def test_progress_surfaces_completion_audit_when_t0_is_complete(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -188,6 +188,8 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("top-level JSON progress", readme)
         self.assertIn("latest event `auto_mode`, `starter_mode`, `next_role`, `task`, and `assignment_*`", readme)
         self.assertIn("confirm one-command T0 auto entry", readme)
+        self.assertIn("current taskboard has a stop gate", readme)
+        self.assertIn("state=stop-gate", readme)
         self.assertIn("current completion audit is ready", readme)
         self.assertIn("state=complete", readme)
         self.assertIn("dispatch_state=needs-goal", readme)

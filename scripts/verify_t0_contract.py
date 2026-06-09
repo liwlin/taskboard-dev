@@ -269,6 +269,8 @@ def verify_t0_contract() -> None:
     require_contains("README.md", "top-level JSON progress")
     require_contains("README.md", "latest event `auto_mode`, `starter_mode`, `next_role`, `task`, and `assignment_*`")
     require_contains("README.md", "confirm one-command T0 auto entry")
+    require_contains("README.md", "current taskboard has a stop gate")
+    require_contains("README.md", "state=stop-gate")
     require_contains("README.md", "current completion audit is ready")
     require_contains("README.md", "state=complete")
     require_contains("README.md", "dispatch_state=needs-goal")

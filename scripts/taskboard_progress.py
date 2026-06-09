@@ -295,6 +295,8 @@ def report_progress(root: Path) -> dict[str, object]:
         latest_event_dispatch_state = str(latest_event_payload.get("dispatch_state") or "")
         if latest_event_dispatch_state == "needs-goal":
             fallback_state = "needs-goal"
+        if stop_gate_count:
+            fallback_state = "stop-gate"
         if bool(completion_audit.get("completion_ready")):
             fallback_state = "complete"
         latest_event_next_role = str(latest_event_payload.get("next_role") or "T0")
