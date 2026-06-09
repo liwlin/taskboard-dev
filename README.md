@@ -101,7 +101,7 @@ python scripts/taskboard_start.py --goal "完成 <你的开发目标>" --auto
 python scripts/taskboard_progress.py --root .
 ```
 
-这个摘要只汇报目标、T0 状态、下一受控角色、当前任务和是否需要用户动作；它不会让用户去管理 T1/T2/T3。JSON 输出还包含 `queue_metrics`，汇总 active task 数、stalled task 数、T1/T2/T3 队列计数和下一受控角色，让用户只看目标级状态。遇到 stop gate 时，摘要会给出 `decision_command`，T0 用它记录用户回答并恢复 T1。
+这个摘要只汇报目标、T0 状态、下一受控角色、当前任务和是否需要用户动作；它不会让用户去管理 T1/T2/T3。默认文本输出包含 `queue_metrics_active_count`、`queue_metrics_stalled_count`、`queue_metrics_role_counts` 和 `queue_metrics_next_role`；JSON 输出还包含完整 `queue_metrics`，汇总 active task 数、stalled task 数、T1/T2/T3 队列计数和下一受控角色，让用户只看目标级状态。遇到 stop gate 时，摘要会给出 `decision_command`，T0 用它记录用户回答并恢复 T1。
 
 如果摘要显示 `T0 launch/recovery failed`，表示 T0 自己的终端启动/恢复命令失败，例如 launcher 不存在或 agent template 不适配。用户仍不需要接管 T1/T2/T3；应修正 T0 的 `--launcher` / `--agent-template` 配置，或让 T0 用另一种 launcher 重新恢复。
 

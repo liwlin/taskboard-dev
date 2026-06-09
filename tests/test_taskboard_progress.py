@@ -21,6 +21,18 @@ T1_REVISE = ROLE_PRIORITY["T0"][6][1]
 
 
 class TaskboardProgressTest(unittest.TestCase):
+    def run_text(self, script: Path, root: Path, *args: str) -> str:
+        result = subprocess.run(
+            [sys.executable, str(script), "--root", str(root), *args],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout)
+        return result.stdout
+
     def run_json(self, script: Path, root: Path, *args: str):
         result = subprocess.run(
             [sys.executable, str(script), "--root", str(root), "--format", "json", *args],
@@ -293,6 +305,37 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertFalse(metrics["user_action_required"])
         self.assertIn("queue metrics", metrics["boundary"])
         self.assertIn("queue_metrics", progress["user_summary"])
+
+    def test_progress_text_prints_queue_metrics_lines(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            taskboard = root / "docs" / "taskboard"
+            taskboard.mkdir(parents=True)
+            (taskboard / f"TASK-001.v1.{T1_REVISE}.md").write_text(
+                "# revise\n\n**Wave**: 3\n", encoding="utf-8"
+            )
+            (taskboard / f"TASK-002.v1.{T2_CODE_REVIEW}.md").write_text(
+                "# review\n\n**Wave**: 1\n", encoding="utf-8"
+            )
+            stale_task = taskboard / f"TASK-003.v1.{T3_EXECUTE}.md"
+            stale_task.write_text("# execute\n\n**Wave**: 2\n", encoding="utf-8")
+            old_time = stale_task.stat().st_mtime - (45 * 60)
+            os.utime(stale_task, (old_time, old_time))
+
+            self.run_json(
+                LOOP_SCRIPT,
+                root,
+                "--goal",
+                "Ship dashboard",
+                "--stale-minutes",
+                "30",
+            )
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertIn("queue_metrics_active_count=3", text)
+        self.assertIn("queue_metrics_stalled_count=1", text)
+        self.assertIn("queue_metrics_role_counts=T1:1,T2:1,T3:1", text)
+        self.assertIn("queue_metrics_next_role=T2", text)
 
 
 if __name__ == "__main__":

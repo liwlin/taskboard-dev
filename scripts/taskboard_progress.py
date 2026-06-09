@@ -379,12 +379,21 @@ def report_progress(root: Path) -> dict[str, object]:
 
 
 def format_text(payload: dict[str, object]) -> str:
+    queue_metrics = payload.get("queue_metrics", {})
+    metrics_payload = queue_metrics if isinstance(queue_metrics, dict) else {}
+    role_counts = metrics_payload.get("role_counts", {})
+    role_count_payload = role_counts if isinstance(role_counts, dict) else {}
     lines = [
         f"state={payload['state']}",
         f"goal={payload['goal']}",
         f"next_role={payload['next_role']}",
         f"task={payload['task']}",
         f"assignment_state={payload['assignment_state']}",
+        f"queue_metrics_active_count={metrics_payload.get('active_count', 0)}",
+        f"queue_metrics_stalled_count={metrics_payload.get('stalled_count', 0)}",
+        "queue_metrics_role_counts="
+        + ",".join(f"{role}:{role_count_payload.get(role, 0)}" for role in ROLES),
+        f"queue_metrics_next_role={metrics_payload.get('next_role', payload['next_role'])}",
         f"starter_mode={payload.get('starter_mode')}",
         f"user_action={payload['user_action']}",
         f"summary={payload['user_summary']}",
