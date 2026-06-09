@@ -172,6 +172,11 @@ def render_agent_command(session: dict[str, str], agent_template: Optional[str])
     if not agent_template:
         target = session["target"].replace("\n", "`n")
         return f"Write-Host {powershell_quote(target)}"
+    if "{target_file}" in agent_template and not session.get("target_file"):
+        raise ValueError(
+            "agent-template references {target_file}, but target files are disabled; "
+            "enable target files or use {target}"
+        )
 
     compact_target = " ".join(session["target"].splitlines())
     return agent_template.format(

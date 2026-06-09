@@ -57,6 +57,36 @@ class TaskboardStartTest(unittest.TestCase):
         self.assertEqual(events[0]["kind"], "taskboard-t0-supervisor-event")
         self.assertEqual(events[0]["goal"], "Ship demo")
 
+    def test_starter_rejects_target_file_template_when_targets_are_disabled(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--root",
+                    str(root),
+                    "--format",
+                    "json",
+                    "--goal",
+                    "Ship demo",
+                    "--iterations",
+                    "1",
+                    "--no-target-files",
+                ],
+                cwd=ROOT,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("agent-template references {target_file}", result.stdout)
+        self.assertIn("enable target files or use {target}", result.stdout)
+
     def test_starter_resumes_saved_goal_without_retyping_it(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

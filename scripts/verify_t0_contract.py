@@ -109,6 +109,9 @@ def verify_t0_contract() -> None:
     require_contains("README.md", "assigned_role")
     require_contains("README.md", "managed_by: T0")
     require_contains("README.md", "do not rely on another role's chat context")
+    require_contains("README.md", "agent-template references {target_file}")
+    require_contains("README.md", "enable target files")
+    require_contains("README.md", "use `--launcher none` for no-write dry checks")
     require_contains("README.md", "python scripts/taskboard_next.py --role T0 --root .")
 
     require_contains("references/taskboard-template.md", "# TASKBOARD v4.3 Templates")
@@ -324,6 +327,8 @@ def verify_t0_contract() -> None:
     require_contains("scripts/taskboard_t0.py", "T0 manager-only")
     require_contains("scripts/taskboard_t0.py", "--launcher")
     require_contains("scripts/taskboard_t0.py", "{target_file}")
+    require_contains("scripts/taskboard_t0.py", "agent-template references {target_file}")
+    require_contains("scripts/taskboard_t0.py", "enable target files or use {target}")
     require_contains("scripts/taskboard_t0.py", "default_target_dir")
     require_contains("scripts/taskboard_t0.py", "build_launch_commands")
     require_contains("scripts/taskboard_t0.py", "build_session_manifest")
