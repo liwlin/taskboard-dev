@@ -249,6 +249,24 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertEqual(progress["completion_audit"]["state"], "complete-ready")
         self.assertIn("Review T0's completion summary", progress["user_action"])
 
+    def test_progress_text_prints_missing_completion_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+            (root / "docs" / "PROJECT.md").write_text("# PROJECT\n\nShip demo\n", encoding="utf-8")
+            (root / "docs" / "STATE.md").write_text(
+                "# STATE\n\n**Goal Complete**: yes\n", encoding="utf-8"
+            )
+            (root / "docs" / "dev-log.md").write_text("# Development Log\n", encoding="utf-8")
+            self.run_json(LOOP_SCRIPT, root, "--goal", "Ship demo")
+
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertIn("completion_ready=False", text)
+        self.assertIn("completion_audit_state=incomplete", text)
+        self.assertIn("completion_missing_evidence=no archived TASK evidence", text)
+        self.assertIn("dev-log has no completion entries", text)
+
     def test_progress_surfaces_t0_event_log_summary(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -383,6 +383,10 @@ def format_text(payload: dict[str, object]) -> str:
     metrics_payload = queue_metrics if isinstance(queue_metrics, dict) else {}
     role_counts = metrics_payload.get("role_counts", {})
     role_count_payload = role_counts if isinstance(role_counts, dict) else {}
+    completion_audit = payload.get("completion_audit", {})
+    completion_payload = completion_audit if isinstance(completion_audit, dict) else {}
+    completion_missing = payload.get("completion_missing_evidence", [])
+    completion_missing_list = completion_missing if isinstance(completion_missing, list) else []
     lines = [
         f"state={payload['state']}",
         f"goal={payload['goal']}",
@@ -394,11 +398,15 @@ def format_text(payload: dict[str, object]) -> str:
         "queue_metrics_role_counts="
         + ",".join(f"{role}:{role_count_payload.get(role, 0)}" for role in ROLES),
         f"queue_metrics_next_role={metrics_payload.get('next_role', payload['next_role'])}",
+        f"completion_ready={payload.get('completion_ready')}",
+        f"completion_audit_state={completion_payload.get('state', '')}",
         f"starter_mode={payload.get('starter_mode')}",
         f"user_action={payload['user_action']}",
         f"summary={payload['user_summary']}",
         f"boundary={payload['boundary']}",
     ]
+    if completion_missing_list:
+        lines.insert(-3, "completion_missing_evidence=" + "; ".join(str(item) for item in completion_missing_list))
     if payload.get("decision_command"):
         lines.insert(-1, f"decision_command={payload['decision_command']}")
     return "\n".join(lines)

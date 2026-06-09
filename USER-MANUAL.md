@@ -82,7 +82,7 @@ python scripts/taskboard_start.py --goal "完成 <你的开发目标>" --auto
 python scripts/taskboard_progress.py --root .
 ```
 
-这个摘要只汇报目标、T0 状态、下一受控角色、当前任务和是否需要用户动作；它不会让用户去管理 T1/T2/T3。默认文本输出包含 `queue_metrics_active_count`、`queue_metrics_stalled_count`、`queue_metrics_role_counts` 和 `queue_metrics_next_role`；JSON 输出还包含完整 `queue_metrics`，汇总 active task 数、stalled task 数、T1/T2/T3 队列计数和下一受控角色，让用户只看目标级状态。遇到 stop gate 时，摘要会给出 `decision_command`，T0 用它记录用户回答并恢复 T1。
+这个摘要只汇报目标、T0 状态、下一受控角色、当前任务和是否需要用户动作；它不会让用户去管理 T1/T2/T3。默认文本输出包含 `queue_metrics_active_count`、`queue_metrics_stalled_count`、`queue_metrics_role_counts`、`queue_metrics_next_role`、`completion_ready`、`completion_audit_state` 和 `completion_missing_evidence`；JSON 输出还包含完整 `queue_metrics` 和 completion audit，汇总 active task 数、stalled task 数、T1/T2/T3 队列计数、下一受控角色和完成前缺失证据，让用户只看目标级状态。遇到 stop gate 时，摘要会给出 `decision_command`，T0 用它记录用户回答并恢复 T1。
 
 查看 T0 汇总的停止门：
 
