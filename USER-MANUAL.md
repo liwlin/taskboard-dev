@@ -183,6 +183,8 @@ T0 只有在 active TASK 队列为空，并且 `docs/STATE.md` 写有 `**Goal Co
 
 默认情况下，loop 会在第一轮 `stop-gate` 后停下，让 T0 等待用户回答，而不是继续轮询同一个停止门。只有监控/调试需要持续报告同一停止门时，才使用 `--no-stop-on-stop-gate`。
 
+停止门 loop 输出会包含 `decision_command`，指向带有当前任务名的 `taskboard_decide.py` 命令。T0 可以在用户回答后直接使用该命令记录答案，不需要用户查看 TASKBOARD 文件名。
+
 可重复 dry-run demo：
 
 ```bash

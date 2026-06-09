@@ -139,6 +139,7 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("asks the summarized question through T0 only", readme)
         self.assertIn("--no-stop-on-stop-gate", readme)
         self.assertIn("stops after one `stop-gate` iteration", readme)
+        self.assertIn("The stop-gate loop output includes `decision_command`", readme)
         self.assertIn("python scripts/taskboard_completion.py --root .", readme)
         self.assertIn("python scripts/taskboard_progress.py --root .", readme)
         self.assertIn("python scripts/taskboard_stopgates.py --root .", readme)

@@ -193,6 +193,8 @@ When T0 sees a `T1-待决策` / stop-gate TASK, the supervisor enters `stop-gate
 
 By default, the loop stops after the first `stop-gate` iteration so T0 can wait for the user's answer instead of continuing to poll. Use `--no-stop-on-stop-gate` only for monitoring/debugging when T0 should keep reporting the same gate.
 
+The stop-gate loop output includes `decision_command`, pointing at `taskboard_decide.py` with the selected task. T0 can show that command directly after the user answers, without asking the user to inspect TASKBOARD filenames.
+
 可重复 dry-run demo：
 
 ```bash

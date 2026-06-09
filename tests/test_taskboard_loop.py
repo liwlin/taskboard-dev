@@ -168,6 +168,9 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertEqual(payload["launch_commands"], [])
         self.assertEqual(payload["target_files"], [])
         self.assertEqual(payload["stop_gate_report"]["stop_gate_count"], 1)
+        self.assertIn("taskboard_decide.py", payload["decision_command"])
+        self.assertIn("--task TASK-001.v1.T1-待决策.md", payload["decision_command"])
+        self.assertIn('--decision "<user answer>"', payload["decision_command"])
         self.assertIn("Should T0 continue with option A?", " ".join(payload["actions"]))
         self.assertNotIn("reissue target to taskboard-T1", " ".join(payload["actions"]))
 
@@ -201,6 +204,36 @@ class TaskboardLoopTest(unittest.TestCase):
 
         self.assertEqual(len(output), 1)
         self.assertEqual(output[0]["state"], "stop-gate")
+
+    def test_loop_text_output_includes_stop_gate_decision_command(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            taskboard = root / "docs" / "taskboard"
+            taskboard.mkdir(parents=True)
+            (taskboard / "TASK-001.v1.T1-待决策.md").write_text(
+                "# Decide scope\n\n**Wave**: 1\n**Gate**: Product decision\n**Question**: Continue?\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--root",
+                    str(root),
+                    "--goal",
+                    "Ship demo",
+                ],
+                cwd=ROOT,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("decision_command:", result.stdout)
+        self.assertIn("taskboard_decide.py", result.stdout)
 
     def test_loop_can_continue_after_stop_gate_when_requested(self):
         with tempfile.TemporaryDirectory() as tmp:

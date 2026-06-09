@@ -254,6 +254,16 @@ def build_stop_gate_actions(stop_gate_report: dict[str, object]) -> list[str]:
     ]
 
 
+def build_decision_command(root: Path, first_stop_gate: dict[str, object]) -> str:
+    task = str(first_stop_gate.get("task") or "")
+    if not task:
+        return ""
+    return (
+        f'python scripts/taskboard_decide.py --root "{root}" '
+        f'--task {task} --decision "<user answer>"'
+    )
+
+
 def execute_commands(commands: list[str]) -> list[dict[str, object]]:
     results = []
     for command in commands:
@@ -345,6 +355,7 @@ def run_once(
         stop_gates = stop_gate_report.get("stop_gates", [])
         first_gate = stop_gates[0] if isinstance(stop_gates, list) and stop_gates else {}
         task = str(first_gate.get("task") or "none") if isinstance(first_gate, dict) else "none"
+        decision_command = build_decision_command(root, first_gate if isinstance(first_gate, dict) else {})
         return {
             "state": "stop-gate",
             "goal": goal or "",
@@ -367,6 +378,7 @@ def run_once(
             "launch_commands": [],
             "suppressed_launches": [],
             "executed_commands": [],
+            "decision_command": decision_command,
             "actions": build_stop_gate_actions(stop_gate_report),
         }
 
@@ -610,6 +622,10 @@ def format_text(results: list[dict[str, object]]) -> str:
                 lines.append(
                     f"- role={item['role']} reason={item['reason']} remaining_seconds={item['remaining_seconds']}"
                 )
+        decision_command = payload.get("decision_command")
+        if decision_command:
+            lines.append("decision_command:")
+            lines.append(f"- {decision_command}")
     return "\n".join(lines)
 
 
