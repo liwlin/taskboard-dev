@@ -31,6 +31,18 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout)
         return json.loads(result.stdout)
 
+    def run_loop_text(self, root: Path, *args: str) -> str:
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--root", str(root), *args],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout)
+        return result.stdout
+
     def test_once_combines_session_probe_health_and_dispatch(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -811,6 +823,25 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertEqual(events[0]["event_index"], 1)
         self.assertEqual(events[1]["event_index"], 2)
         self.assertEqual(events[1]["goal"], "Ship demo")
+
+    def test_loop_text_output_lists_written_role_target_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            text = self.run_loop_text(
+                root,
+                "--goal",
+                "Ship demo",
+                "--launcher",
+                "windows-terminal",
+                "--agent-template",
+                'codex --prompt-file "{target_file}"',
+            )
+
+        self.assertIn("target_files:", text)
+        self.assertIn("T1 path=", text)
+        self.assertIn("taskboard-T1.md", text)
 
     def test_loop_writes_isolated_role_target_files_by_default(self):
         with tempfile.TemporaryDirectory() as tmp:

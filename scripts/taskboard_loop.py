@@ -720,6 +720,12 @@ def format_text(results: list[dict[str, object]]) -> str:
             lines.append("launch_commands:")
             for command in launch_commands:
                 lines.append(f"- {command}")
+        target_files = payload.get("target_files", [])
+        if target_files:
+            lines.append("target_files:")
+            for item in target_files:
+                if isinstance(item, dict):
+                    lines.append(f"- {item.get('role')} path={item.get('path')}")
         suppressed_launches = payload.get("suppressed_launches", [])
         if suppressed_launches:
             lines.append("suppressed_launches:")
