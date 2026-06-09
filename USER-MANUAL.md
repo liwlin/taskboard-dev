@@ -88,9 +88,10 @@ python scripts/taskboard_progress.py --root .
 
 ```bash
 python scripts/taskboard_stopgates.py --root .
+python scripts/taskboard_decide.py --root . --decision "<用户对 T0 问题的回答>"
 ```
 
-这个报告只读取任务板并汇总真正需要用户决策的问题，例如 `T1-待决策` / `T1-decision` 任务里的 Gate、Question、Options、Recommended。T0 只把汇总后的问题交给用户；它不做 T1 的设计、不做 T2 的审核、不做 T3 的实现/验证/提交。
+这个报告只读取任务板并汇总真正需要用户决策的问题，例如 `T1-待决策` / `T1-decision` 任务里的 Gate、Question、Options、Recommended。T0 只把汇总后的问题交给用户；它不做 T1 的设计、不做 T2 的审核、不做 T3 的实现/验证/提交。用户回答后，`taskboard_decide.py` 由 T0 控制面记录答案、写入 `STATE.md`，并把任务恢复为 `T1-方案需修改`，让 T1 根据用户决策继续修订。
 
 查看 T0 完成前证据审计：
 

@@ -24,6 +24,8 @@ STOP_GATE_MARKERS = (
     "Gate:",
 )
 
+RESOLVED_DECISION_MARKER = "kind: taskboard-t0-user-decision"
+
 
 def field_value(lines: list[str], field: str) -> str:
     markers = (f"**{field}**:", f"{field}:")
@@ -56,6 +58,10 @@ def list_after_field(lines: list[str], field: str) -> list[str]:
 
 def task_has_stop_gate(task: Task, text: str) -> bool:
     lowered = text.lower()
+    if RESOLVED_DECISION_MARKER in lowered and not any(
+        marker.lower() in task.status.lower() for marker in ("T1-待决策", "T1-decision")
+    ):
+        return False
     return any(marker.lower() in task.status.lower() or marker.lower() in lowered for marker in STOP_GATE_MARKERS)
 
 

@@ -35,6 +35,7 @@
     ├── taskboard_sessions.py        # T0 managed role heartbeat probe/recovery report
     ├── taskboard_progress.py        # 用户侧 T0 progress summary
     ├── taskboard_stopgates.py       # T0 stop-gate aggregation for user decisions
+    ├── taskboard_decide.py          # T0 records user stop-gate decisions and resumes T1
     ├── taskboard_next.py            # 根据文件名状态选择下一个角色/任务
     └── verify_t0_contract.py        # 校验 T0 协议和发布文档
 ```
@@ -108,9 +109,10 @@ python scripts/taskboard_progress.py --root .
 
 ```bash
 python scripts/taskboard_stopgates.py --root .
+python scripts/taskboard_decide.py --root . --decision "<用户对 T0 问题的回答>"
 ```
 
-这个报告只聚合真正需要用户决策的 stop gates，例如 `T1-待决策` / `T1-decision` 任务中的 Gate、Question、Options、Recommended。用户只回答 T0 汇总的问题，不直接管理 T1/T2/T3。
+这个报告只聚合真正需要用户决策的 stop gates，例如 `T1-待决策` / `T1-decision` 任务中的 Gate、Question、Options、Recommended。用户只回答 T0 汇总的问题，不直接管理 T1/T2/T3。用户回答后，`taskboard_decide.py` 由 T0 控制面记录答案、写入 `STATE.md`，并把任务恢复为 `T1-方案需修改`，让 T1 根据用户决策继续修订。
 
 查看 T0 完成前证据审计：
 
