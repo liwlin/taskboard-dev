@@ -519,6 +519,26 @@ def append_event_log(
     session_payload = session_probe if isinstance(session_probe, dict) else {}
     actions = payload.get("actions", [])
     action_list = actions if isinstance(actions, list) else []
+    launch_commands = payload.get("launch_commands", [])
+    launch_command_list = launch_commands if isinstance(launch_commands, list) else []
+    executed_commands = payload.get("executed_commands", [])
+    executed_command_list = executed_commands if isinstance(executed_commands, list) else []
+    suppressed_launches = payload.get("suppressed_launches", [])
+    suppressed_launch_list = suppressed_launches if isinstance(suppressed_launches, list) else []
+    stop_gate_report = payload.get("stop_gate_report", {})
+    stop_gate_payload = stop_gate_report if isinstance(stop_gate_report, dict) else {}
+    completion_audit = payload.get("completion_audit", {})
+    completion_payload = completion_audit if isinstance(completion_audit, dict) else {}
+    launch_failure_count = 0
+    for item in executed_command_list:
+        if not isinstance(item, dict):
+            continue
+        try:
+            returncode = int(item.get("returncode", 0))
+        except (TypeError, ValueError):
+            returncode = 0
+        if returncode != 0:
+            launch_failure_count += 1
     event = {
         "kind": "taskboard-t0-supervisor-event",
         "version": 1,
@@ -535,6 +555,12 @@ def append_event_log(
         "queue_state": str(queue_payload.get("state") or ""),
         "session_state": str(session_payload.get("state") or ""),
         "action_count": len(action_list),
+        "launch_command_count": len(launch_command_list),
+        "executed_command_count": len(executed_command_list),
+        "launch_failure_count": launch_failure_count,
+        "suppressed_launch_count": len(suppressed_launch_list),
+        "stop_gate_count": int(stop_gate_payload.get("stop_gate_count") or 0),
+        "completion_ready": bool(completion_payload.get("completion_ready")),
         "boundary": (
             "T0 append-only event log: record supervisor decisions for audit/recovery; "
             "do not treat events as TASKBOARD state or worker memory."

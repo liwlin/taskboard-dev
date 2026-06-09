@@ -567,6 +567,51 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertIn("next_role", events[0])
         self.assertIn("append-only", events[0]["boundary"])
 
+    def test_loop_event_log_records_launch_failure_counts(self):
+        def fake_execute(commands):
+            return [
+                {
+                    "command": command,
+                    "returncode": 1 if index == 0 else 0,
+                    "output": "launcher failed" if index == 0 else "",
+                }
+                for index, command in enumerate(commands)
+            ]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            with patch("taskboard_loop.execute_commands", fake_execute):
+                loop_module.run_loop(
+                    root,
+                    "Ship demo",
+                    30,
+                    300,
+                    "windows-terminal",
+                    'codex --prompt-file "{target_file}"',
+                    True,
+                    1,
+                    0,
+                    300,
+                    True,
+                    root / ".taskboard" / "t0" / "latest.json",
+                    root / ".taskboard" / "targets",
+                    300,
+                    root / ".taskboard" / "t0" / "events.jsonl",
+                )
+            event_log = root / ".taskboard" / "t0" / "events.jsonl"
+            events = [
+                json.loads(line)
+                for line in event_log.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(events[0]["launch_command_count"], 3)
+        self.assertEqual(events[0]["launch_failure_count"], 1)
+        self.assertEqual(events[0]["executed_command_count"], 3)
+        self.assertEqual(events[0]["suppressed_launch_count"], 0)
+
     def test_loop_can_disable_t0_event_log(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

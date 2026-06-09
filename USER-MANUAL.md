@@ -173,7 +173,7 @@ python scripts/taskboard_loop.py --root . --goal "完成 <你的开发目标>" -
 
 每轮 loop 默认会把最新 T0 supervisor 运行态快照写入 `.taskboard/t0/latest.json`。这个 `taskboard-t0-supervisor-state` 文件只记录 T0 的管理视图，方便中断后恢复判断；它不是任务状态、不是 worker 记忆，也不能替代 TASKBOARD 文件名、history、dev-log、HANDOFF 或完成 sentinel。需要自定义路径时使用 `--state-file <path>`；只想 dry check 且不留下运行态快照时使用 `--no-state-file`。
 
-每轮 loop 还会默认向 `.taskboard/t0/events.jsonl` 追加一条 compact supervisor event。这个 append-only `taskboard-t0-supervisor-event` 日志保留 T0 每轮 dispatch、queue、session、assignment 和 action 摘要，方便审计 T0 是否持续运行和自动调度；它不是 TASKBOARD 状态，也不是 worker 记忆。需要自定义路径时使用 `--event-log-file <path>`；只想 dry check 且不留下事件轨迹时使用 `--no-event-log`。
+每轮 loop 还会默认向 `.taskboard/t0/events.jsonl` 追加一条 compact supervisor event。这个 append-only `taskboard-t0-supervisor-event` 日志保留 T0 每轮 dispatch、queue、session、assignment、action 摘要、`launch_failure_count`、`suppressed_launch_count`、`executed_command_count`、stop-gate count 和 completion readiness，方便审计 T0 是否持续运行、自动调度，以及是否发生过控制面启动/恢复失败；它不是 TASKBOARD 状态，也不是 worker 记忆。需要自定义路径时使用 `--event-log-file <path>`；只想 dry check 且不留下事件轨迹时使用 `--no-event-log`。
 
 启用 `--execute-launches` 时，T0 还会把最近成功的角色启动/恢复尝试写入 `.taskboard/t0/launches.json`，类型为 `taskboard-t0-launch-state`。它只用于 launch lease 去重，避免重复创建同一角色终端；它不是 worker 状态，也不是任务状态。
 
