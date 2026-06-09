@@ -108,6 +108,18 @@ class TaskboardStartTest(unittest.TestCase):
         self.assertEqual(output[0]["starter_mode"], "auto")
         self.assertIn("T0 one-command auto mode", output[0]["starter_boundary"])
 
+    def test_starter_auto_mode_stops_when_goal_is_missing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            output = self.run_start(root, "--auto", "--launcher", "none")
+
+        self.assertEqual(len(output), 1)
+        self.assertEqual(output[0]["state"], "needs-goal")
+        self.assertEqual(output[0]["dispatch"]["state"], "needs-goal")
+        self.assertIn("ask user for one T0 goal", output[0]["actions"])
+
     def test_starter_auto_mode_persists_in_latest_snapshot(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

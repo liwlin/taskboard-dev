@@ -47,6 +47,40 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertIn("T0 supervisor-only", payload["boundary"])
         self.assertIn("recover taskboard-T1", " ".join(payload["actions"]))
 
+    def test_loop_stops_after_needs_goal_iteration_without_sleeping(self):
+        payload = {
+            "state": "needs-goal",
+            "goal": "",
+            "boundary": "T0 supervisor-only",
+            "dispatch": {"state": "needs-goal"},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with patch("taskboard_loop.run_once", return_value=payload), patch(
+                "taskboard_loop.time.sleep",
+                side_effect=AssertionError("T0 must not sleep-loop without a user goal"),
+            ):
+                output = loop_module.run_loop(
+                    root,
+                    None,
+                    30,
+                    300,
+                    "none",
+                    None,
+                    False,
+                    None,
+                    0,
+                    300,
+                    True,
+                    None,
+                    None,
+                    300,
+                    None,
+                )
+
+        self.assertEqual(len(output), 1)
+        self.assertEqual(output[0]["dispatch"]["state"], "needs-goal")
+
     def test_loop_generates_recovery_commands_without_executing_by_default(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

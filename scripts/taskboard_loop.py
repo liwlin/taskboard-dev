@@ -687,6 +687,8 @@ def run_loop(
             write_state_snapshot(state_file, root, effective_goal, results, stop_on_complete)
         if event_log_file is not None:
             append_event_log(event_log_file, root, effective_goal, count, payload)
+        if payload["dispatch"].get("state") == "needs-goal":
+            break
         if stop_on_stop_gate and payload.get("state") == "stop-gate":
             break
         if stop_on_complete and payload["dispatch"].get("state") == "complete":
