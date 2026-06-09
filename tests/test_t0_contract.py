@@ -163,6 +163,7 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("launch_failure_count", readme)
         self.assertIn("suppressed_launch_count", readme)
         self.assertIn("events.jsonl` also records `auto_mode`", readme)
+        self.assertIn("queue_metrics", readme)
         self.assertIn("--no-event-log", readme)
         self.assertIn(".taskboard/t0/goal.json", readme)
         self.assertIn("--no-state-file", readme)

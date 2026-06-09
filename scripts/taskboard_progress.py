@@ -13,6 +13,7 @@ from taskboard_stopgates import report_stop_gates
 from taskboard_t0 import read_goal
 
 
+ROLES = ("T1", "T2", "T3")
 T0_PROGRESS_BOUNDARY = (
     "T0 manager-only progress: summarize goal, queue, session, and assignment state for the user; "
     "do not perform design, review, implementation, verification, or commit work."
@@ -90,6 +91,7 @@ def build_user_summary(
     suppressed_launch_count: int = 0,
     stop_gate_count: int = 0,
     stop_gate_question: str = "",
+    queue_metrics: Optional[dict[str, object]] = None,
 ) -> str:
     if stop_gate_count:
         return (
@@ -114,10 +116,21 @@ def build_user_summary(
     if state == "complete":
         return f"T0 sees the goal '{goal}' as complete and is ready to summarize completion to the user."
     if next_role and next_role != "T0":
+        metrics_suffix = ""
+        if queue_metrics:
+            role_counts = queue_metrics.get("role_counts", {})
+            role_count_payload = role_counts if isinstance(role_counts, dict) else {}
+            metrics_suffix = (
+                " queue_metrics: "
+                f"T1={role_count_payload.get('T1', 0)}, "
+                f"T2={role_count_payload.get('T2', 0)}, "
+                f"T3={role_count_payload.get('T3', 0)}, "
+                f"stalled={queue_metrics.get('stalled_count', 0)}."
+            )
         return (
             f"T0 is managing T1/T2/T3 for goal '{goal}'. "
             f"Next managed role: {next_role}; task: {task}; active tasks: {active_count}; "
-            f"assignment: {assignment_state}."
+            f"assignment: {assignment_state}.{metrics_suffix}"
         )
     return f"T0 is managing the goal '{goal}' and monitoring for the next role action."
 
@@ -144,6 +157,49 @@ def build_user_action(
     return "No user action required."
 
 
+def safe_int(value: object, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def build_queue_metrics(
+    queue_payload: dict[str, object],
+    next_role: str,
+    user_action_required: bool,
+) -> dict[str, object]:
+    role_counts = {role: 0 for role in ROLES}
+    queues = queue_payload.get("queues", {})
+    if isinstance(queues, dict):
+        for role in ROLES:
+            role_queue = queues.get(role, {})
+            if not isinstance(role_queue, dict):
+                continue
+            role_counts[role] = sum(
+                safe_int(entry.get("count")) for entry in role_queue.values() if isinstance(entry, dict)
+            )
+
+    stalled_tasks = queue_payload.get("stalled_tasks", [])
+    stalled_count = len(stalled_tasks) if isinstance(stalled_tasks, list) else 0
+    active_count = safe_int(queue_payload.get("active_count"), sum(role_counts.values()))
+    if not active_count:
+        active_count = sum(role_counts.values())
+
+    return {
+        "active_count": active_count,
+        "stalled_count": stalled_count,
+        "role_counts": role_counts,
+        "next_role": next_role,
+        "queue_state": str(queue_payload.get("state") or ""),
+        "user_action_required": user_action_required,
+        "boundary": (
+            "T0 queue metrics summarize controlled role queues for the user; "
+            "they are not TASKBOARD state or worker memory."
+        ),
+    }
+
+
 def report_progress(root: Path) -> dict[str, object]:
     event_summary = read_event_log_summary(root)
     completion_audit = report_completion(root)
@@ -159,6 +215,7 @@ def report_progress(root: Path) -> dict[str, object]:
     snapshot = read_latest_snapshot(root)
     if snapshot is None:
         goal = read_goal(root, "")
+        queue_metrics = build_queue_metrics({}, "T0", bool(stop_gate_count))
         return {
             "kind": "taskboard-t0-progress",
             "state": "needs-supervisor-run",
@@ -182,6 +239,7 @@ def report_progress(root: Path) -> dict[str, object]:
             "completion_audit": completion_audit,
             "completion_ready": bool(completion_audit.get("completion_ready")),
             "completion_missing_evidence": completion_missing_list,
+            "queue_metrics": queue_metrics,
             **event_summary,
             "user_summary": build_user_summary(
                 "needs-supervisor-run",
@@ -194,6 +252,7 @@ def report_progress(root: Path) -> dict[str, object]:
                 0,
                 stop_gate_count,
                 first_stop_gate_question,
+                queue_metrics,
             ),
             "user_action": build_user_action(
                 "needs-supervisor-run",
@@ -262,6 +321,8 @@ def report_progress(root: Path) -> dict[str, object]:
         active_count = int(queue_payload.get("active_count") or 0)
     except (TypeError, ValueError):
         active_count = 0
+    user_action_required = bool(stop_gate_count or launch_failures)
+    queue_metrics = build_queue_metrics(queue_payload, next_role, user_action_required)
 
     return {
         "kind": "taskboard-t0-progress",
@@ -290,6 +351,7 @@ def report_progress(root: Path) -> dict[str, object]:
         "completion_audit": completion_audit,
         "completion_ready": bool(completion_audit.get("completion_ready")),
         "completion_missing_evidence": completion_missing_list,
+        "queue_metrics": queue_metrics,
         **event_summary,
         "user_summary": build_user_summary(
             state,
@@ -302,6 +364,7 @@ def report_progress(root: Path) -> dict[str, object]:
             len(suppressed_launch_list),
             stop_gate_count,
             first_stop_gate_question,
+            queue_metrics,
         ),
         "user_action": build_user_action(
             state,

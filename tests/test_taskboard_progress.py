@@ -1,5 +1,6 @@
 from pathlib import Path
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -15,6 +16,8 @@ from taskboard_next import ROLE_PRIORITY  # noqa: E402
 
 
 T2_CODE_REVIEW = ROLE_PRIORITY["T0"][1][1]
+T3_EXECUTE = ROLE_PRIORITY["T0"][5][1]
+T1_REVISE = ROLE_PRIORITY["T0"][6][1]
 
 
 class TaskboardProgressTest(unittest.TestCase):
@@ -255,6 +258,41 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertEqual(progress["latest_event"]["kind"], "taskboard-t0-supervisor-event")
         self.assertEqual(progress["latest_event"]["iteration"], 2)
         self.assertIn("append-only", progress["event_log_boundary"])
+
+    def test_progress_surfaces_queue_metrics_for_user_dashboard(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            taskboard = root / "docs" / "taskboard"
+            taskboard.mkdir(parents=True)
+            (taskboard / f"TASK-001.v1.{T1_REVISE}.md").write_text(
+                "# revise\n\n**Wave**: 3\n", encoding="utf-8"
+            )
+            (taskboard / f"TASK-002.v1.{T2_CODE_REVIEW}.md").write_text(
+                "# review\n\n**Wave**: 1\n", encoding="utf-8"
+            )
+            stale_task = taskboard / f"TASK-003.v1.{T3_EXECUTE}.md"
+            stale_task.write_text("# execute\n\n**Wave**: 2\n", encoding="utf-8")
+            old_time = stale_task.stat().st_mtime - (45 * 60)
+            os.utime(stale_task, (old_time, old_time))
+
+            self.run_json(
+                LOOP_SCRIPT,
+                root,
+                "--goal",
+                "Ship dashboard",
+                "--stale-minutes",
+                "30",
+            )
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+
+        metrics = progress["queue_metrics"]
+        self.assertEqual(metrics["active_count"], 3)
+        self.assertEqual(metrics["stalled_count"], 1)
+        self.assertEqual(metrics["role_counts"], {"T1": 1, "T2": 1, "T3": 1})
+        self.assertEqual(metrics["next_role"], "T2")
+        self.assertFalse(metrics["user_action_required"])
+        self.assertIn("queue metrics", metrics["boundary"])
+        self.assertIn("queue_metrics", progress["user_summary"])
 
 
 if __name__ == "__main__":
