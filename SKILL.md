@@ -630,6 +630,8 @@ Use `scripts/taskboard_progress.py --root .` for a concise user-facing T0 progre
 If the progress summary reports `T0 launch/recovery failed`, treat it as a T0 control-plane launcher/configuration issue. Do not ask the user to take over T1/T2/T3; adjust `--launcher` / `--agent-template` or retry T0 with another launcher.
 If the progress summary reports suppressed launches, T0 is intentionally waiting for recent role launches to heartbeat instead of opening duplicate terminals.
 
+Use `scripts/taskboard_stopgates.py --root .` to aggregate true stop gates for the user. This is a read-only T0 control-plane report: it extracts Gate, Question, Options, and Recommended fields from T1 decision / stop-gate tasks, then asks the user one summarized question through T0 only. It must not execute design, review, implementation, verification, commit, or release work.
+
 Use `scripts/taskboard_sessions.py` for managed role liveness. Each T1/T2/T3 role should write a heartbeat at loop start and after each TASKBOARD handoff:
 
 ```bash

@@ -159,6 +159,33 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("waiting for recent T0 launch", progress["user_summary"])
         self.assertIn("No user action required", progress["user_action"])
 
+    def test_progress_surfaces_t0_stop_gate_summary(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            taskboard = root / "docs" / "taskboard"
+            taskboard.mkdir(parents=True)
+            (taskboard / "TASK-009.v2.T1-decision.md").write_text(
+                """# Decide release behavior
+
+**Wave**: 2
+**Gate**: Product decision
+**Question**: Should the beta banner be visible to all users?
+**Options**:
+- A: Show to everyone
+- B: Show only to admins
+**Recommended**: B
+""",
+                encoding="utf-8",
+            )
+            self.run_json(LOOP_SCRIPT, root, "--goal", "Ship demo")
+
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+
+        self.assertEqual(progress["stop_gate_count"], 1)
+        self.assertIn("Product decision", progress["stop_gates"][0]["gate"])
+        self.assertIn("T0 stop gate requires user decision", progress["user_action"])
+        self.assertIn("beta banner", progress["user_summary"])
+
 
 if __name__ == "__main__":
     unittest.main()

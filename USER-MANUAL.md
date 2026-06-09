@@ -82,6 +82,14 @@ python scripts/taskboard_progress.py --root .
 
 这个摘要只汇报目标、T0 状态、下一受控角色、当前任务和是否需要用户动作；它不会让用户去管理 T1/T2/T3。
 
+查看 T0 汇总的停止门：
+
+```bash
+python scripts/taskboard_stopgates.py --root .
+```
+
+这个报告只读取任务板并汇总真正需要用户决策的问题，例如 `T1-待决策` / `T1-decision` 任务里的 Gate、Question、Options、Recommended。T0 只把汇总后的问题交给用户；它不做 T1 的设计、不做 T2 的审核、不做 T3 的实现/验证/提交。
+
 如果摘要显示 `T0 launch/recovery failed`，这不是让用户去手动管理 T1/T2/T3，而是表示 T0 控制面的终端启动/恢复命令失败。处理方式是修正 T0 的 `--launcher` / `--agent-template`，或让 T0 换一种 launcher 重新恢复受控角色。
 
 #### T0 启动器脚本

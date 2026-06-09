@@ -8,6 +8,7 @@ import sys
 from typing import Optional
 
 from taskboard_loop import default_state_file
+from taskboard_stopgates import report_stop_gates
 from taskboard_t0 import read_goal
 
 
@@ -37,7 +38,14 @@ def build_user_summary(
     active_count: int,
     launch_failure_count: int = 0,
     suppressed_launch_count: int = 0,
+    stop_gate_count: int = 0,
+    stop_gate_question: str = "",
 ) -> str:
+    if stop_gate_count:
+        return (
+            f"T0 has {stop_gate_count} stop gate(s) for goal '{goal}'. "
+            f"First question: {stop_gate_question}"
+        )
     if launch_failure_count:
         return (
             f"T0 could not launch or recover {launch_failure_count} managed role command(s) "
@@ -69,7 +77,10 @@ def build_user_action(
     dispatch_state: str,
     actions: list[str],
     launch_failure_count: int = 0,
+    stop_gate_count: int = 0,
 ) -> str:
+    if stop_gate_count:
+        return "T0 stop gate requires user decision; answer T0's summarized question, not T1/T2/T3."
     if launch_failure_count:
         return "T0 launch/recovery failed; fix the T0 launcher configuration or rerun T0 with another launcher."
     if state == "needs-supervisor-run":
@@ -84,6 +95,12 @@ def build_user_action(
 
 
 def report_progress(root: Path) -> dict[str, object]:
+    stop_gate_report = report_stop_gates(root)
+    stop_gates = stop_gate_report.get("stop_gates", [])
+    stop_gate_list = stop_gates if isinstance(stop_gates, list) else []
+    stop_gate_count = int(stop_gate_report.get("stop_gate_count") or 0)
+    first_stop_gate = stop_gate_list[0] if stop_gate_list and isinstance(stop_gate_list[0], dict) else {}
+    first_stop_gate_question = str(first_stop_gate.get("question") or "")
     snapshot = read_latest_snapshot(root)
     if snapshot is None:
         goal = read_goal(root, "")
@@ -101,8 +118,27 @@ def report_progress(root: Path) -> dict[str, object]:
             "launch_failure_count": 0,
             "suppressed_launches": [],
             "suppressed_launch_count": 0,
-            "user_summary": build_user_summary("needs-supervisor-run", goal, "T0", "none", "none", 0),
-            "user_action": build_user_action("needs-supervisor-run", "needs-supervisor-run", []),
+            "stop_gates": stop_gate_list,
+            "stop_gate_count": stop_gate_count,
+            "user_summary": build_user_summary(
+                "needs-supervisor-run",
+                goal,
+                "T0",
+                "none",
+                "none",
+                0,
+                0,
+                0,
+                stop_gate_count,
+                first_stop_gate_question,
+            ),
+            "user_action": build_user_action(
+                "needs-supervisor-run",
+                "needs-supervisor-run",
+                [],
+                0,
+                stop_gate_count,
+            ),
             "boundary": T0_PROGRESS_BOUNDARY,
         }
 
@@ -179,6 +215,8 @@ def report_progress(root: Path) -> dict[str, object]:
         "launch_failure_count": len(launch_failures),
         "suppressed_launches": suppressed_launch_list,
         "suppressed_launch_count": len(suppressed_launch_list),
+        "stop_gates": stop_gate_list,
+        "stop_gate_count": stop_gate_count,
         "user_summary": build_user_summary(
             state,
             goal,
@@ -188,12 +226,15 @@ def report_progress(root: Path) -> dict[str, object]:
             active_count,
             len(launch_failures),
             len(suppressed_launch_list),
+            stop_gate_count,
+            first_stop_gate_question,
         ),
         "user_action": build_user_action(
             state,
             str(dispatch_payload.get("state") or ""),
             action_list,
             len(launch_failures),
+            stop_gate_count,
         ),
         "actions": action_list,
         "boundary": T0_PROGRESS_BOUNDARY,

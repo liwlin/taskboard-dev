@@ -33,6 +33,7 @@
     ├── taskboard_health.py          # T0 queue health and stalled-task report
     ├── taskboard_sessions.py        # T0 managed role heartbeat probe/recovery report
     ├── taskboard_progress.py        # 用户侧 T0 progress summary
+    ├── taskboard_stopgates.py       # T0 stop-gate aggregation for user decisions
     ├── taskboard_next.py            # 根据文件名状态选择下一个角色/任务
     └── verify_t0_contract.py        # 校验 T0 协议和发布文档
 ```
@@ -99,6 +100,14 @@ python scripts/taskboard_progress.py --root .
 这个摘要只汇报目标、T0 状态、下一受控角色、当前任务和是否需要用户动作；它不会让用户去管理 T1/T2/T3。
 
 如果摘要显示 `T0 launch/recovery failed`，表示 T0 自己的终端启动/恢复命令失败，例如 launcher 不存在或 agent template 不适配。用户仍不需要接管 T1/T2/T3；应修正 T0 的 `--launcher` / `--agent-template` 配置，或让 T0 用另一种 launcher 重新恢复。
+
+查看 T0 汇总的停止门：
+
+```bash
+python scripts/taskboard_stopgates.py --root .
+```
+
+这个报告只聚合真正需要用户决策的 stop gates，例如 `T1-待决策` / `T1-decision` 任务中的 Gate、Question、Options、Recommended。用户只回答 T0 汇总的问题，不直接管理 T1/T2/T3。
 
 ### T0 — 用户入口 + 编排器
 
@@ -207,6 +216,7 @@ python scripts/taskboard_loop.py --root . --goal "完成示例目标" --iteratio
 python scripts/taskboard_health.py --root . --stale-minutes 30
 python scripts/taskboard_sessions.py --root . probe --stale-seconds 300
 python scripts/taskboard_next.py --role T0 --root .
+python scripts/taskboard_stopgates.py --root .
 python scripts/verify_t0_contract.py
 python -m unittest
 ```
@@ -244,6 +254,7 @@ VERSION=v4.3 ./scripts/package.sh
 - [ ] `python scripts/taskboard_health.py --root . --stale-minutes 30`
 - [ ] `python scripts/taskboard_sessions.py --root . probe --stale-seconds 300`
 - [ ] `python scripts/taskboard_next.py --role T0 --root .`
+- [ ] `python scripts/taskboard_stopgates.py --root .`
 - [ ] `python scripts/verify_t0_contract.py`
 - [ ] `python -m unittest`
 - [ ] `./scripts/package.sh`
