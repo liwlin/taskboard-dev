@@ -285,6 +285,13 @@ def report_progress(root: Path) -> dict[str, object]:
         goal = read_goal(root, "") or str(latest_event_payload.get("goal") or "")
         latest_event_state = str(latest_event_payload.get("state") or "")
         fallback_state = "interrupted" if latest_event_state == "interrupted" else "needs-supervisor-run"
+        latest_event_next_role = str(latest_event_payload.get("next_role") or "T0")
+        latest_event_task = str(latest_event_payload.get("task") or "none")
+        latest_event_assignment_state = str(latest_event_payload.get("assignment_state") or "none")
+        latest_event_assignment_role = str(latest_event_payload.get("assignment_role") or "")
+        latest_event_assignment_task = str(latest_event_payload.get("assignment_task") or "none")
+        latest_event_assignment_reason = str(latest_event_payload.get("assignment_reason") or "")
+        latest_event_assignment_expected_id = str(latest_event_payload.get("assignment_expected_id") or "")
         latest_event_failures = latest_event_payload.get("launch_failures", [])
         latest_event_failure_list: list[dict[str, object]] = []
         if isinstance(latest_event_failures, list):
@@ -323,6 +330,12 @@ def report_progress(root: Path) -> dict[str, object]:
         )
         if fallback_state == "needs-supervisor-run" and latest_event_suppressed_count:
             fallback_state = "attention"
+        if (
+            fallback_state == "needs-supervisor-run"
+            and latest_event_assignment_state in {"pending-ack", "unassigned", "lease-expired"}
+            and latest_event_assignment_role
+        ):
+            fallback_state = "attention"
         latest_event_resume_config = latest_event_payload.get("resume_config", {})
         latest_event_resume_config_payload = (
             latest_event_resume_config if isinstance(latest_event_resume_config, dict) else {}
@@ -339,13 +352,13 @@ def report_progress(root: Path) -> dict[str, object]:
             "kind": "taskboard-t0-progress",
             "state": fallback_state,
             "goal": goal,
-            "next_role": "T0",
-            "task": "none",
-            "assignment_state": "none",
-            "assignment_role": "",
-            "assignment_task": "none",
-            "assignment_reason": "",
-            "assignment_expected_id": "",
+            "next_role": latest_event_next_role,
+            "task": latest_event_task,
+            "assignment_state": latest_event_assignment_state,
+            "assignment_role": latest_event_assignment_role,
+            "assignment_task": latest_event_assignment_task,
+            "assignment_reason": latest_event_assignment_reason,
+            "assignment_expected_id": latest_event_assignment_expected_id,
             "auto_mode": False,
             "starter_mode": "",
             "starter_boundary": "",
@@ -368,9 +381,9 @@ def report_progress(root: Path) -> dict[str, object]:
             "user_summary": build_user_summary(
                 fallback_state,
                 goal,
-                "T0",
-                "none",
-                "none",
+                latest_event_next_role,
+                latest_event_task,
+                latest_event_assignment_state,
                 0,
                 latest_event_launch_failure_count,
                 latest_event_suppressed_count,
@@ -385,8 +398,8 @@ def report_progress(root: Path) -> dict[str, object]:
                 latest_event_launch_failure_count,
                 stop_gate_count,
                 completion_missing_list,
-                "none",
-                "",
+                latest_event_assignment_state,
+                latest_event_assignment_role,
             ),
             "boundary": T0_PROGRESS_BOUNDARY,
         }

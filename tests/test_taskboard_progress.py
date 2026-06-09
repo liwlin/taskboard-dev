@@ -519,8 +519,17 @@ class TaskboardProgressTest(unittest.TestCase):
             )
 
             text = self.run_text(PROGRESS_SCRIPT, root)
+            progress = self.run_json(PROGRESS_SCRIPT, root)
 
         self.assertIn("event_count=1", text)
+        self.assertEqual(progress["next_role"], "T3")
+        self.assertEqual(progress["task"], task_name)
+        self.assertEqual(progress["assignment_state"], "unassigned")
+        self.assertEqual(progress["assignment_role"], "T3")
+        self.assertEqual(progress["assignment_task"], task_name)
+        self.assertEqual(progress["assignment_reason"], "taskboard-T3 is missing")
+        self.assertEqual(progress["assignment_expected_id"], f"T3:{task_name}")
+        self.assertIn("T0 will reissue target to taskboard-T3", progress["user_action"])
         self.assertIn("latest_event_state=attention", text)
         self.assertIn("latest_event_next_role=T3", text)
         self.assertIn(f"latest_event_task={task_name}", text)
