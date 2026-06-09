@@ -102,6 +102,25 @@ def has_goal_context(root: Path) -> bool:
     return False
 
 
+def has_goal_complete_sentinel(root: Path) -> bool:
+    path = root / "docs" / "STATE.md"
+    if not path.exists():
+        return False
+    try:
+        text = path.read_text(encoding="utf-8").lower()
+    except (OSError, UnicodeDecodeError):
+        return False
+    return any(
+        marker in text
+        for marker in (
+            "**goal complete**: yes",
+            "goal complete: yes",
+            "**goal complete**: true",
+            "goal complete: true",
+        )
+    )
+
+
 def select_task(role: str, root: Path) -> tuple[str, str, Optional[Task], str]:
     role = role.upper()
     if role not in ROLE_PRIORITY:
@@ -117,6 +136,9 @@ def select_task(role: str, root: Path) -> tuple[str, str, Optional[Task], str]:
         if candidates:
             selected = sorted(candidates, key=lambda item: (item.wave, item.path.stat().st_mtime, item.path.name))[0]
             return target_role, target_status, selected, "matched-active-task"
+
+    if role == "T0" and has_goal_complete_sentinel(root):
+        return "T0", "complete", None, "goal-complete-sentinel"
 
     if role == "T0" and has_goal_context(root):
         return "T1", "T1-create-or-revise", None, "no-active-tasks-goal-incomplete"

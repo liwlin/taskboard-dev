@@ -79,6 +79,23 @@ class TaskboardNextTest(unittest.TestCase):
         self.assertIn("role=T0", output)
         self.assertIn("status=complete", output)
 
+    def test_t0_reports_complete_when_state_marks_goal_complete(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+            (root / "docs" / "PROJECT.md").write_text(
+                "# PROJECT\n\n## Goal\nShip demo\n", encoding="utf-8"
+            )
+            (root / "docs" / "STATE.md").write_text(
+                "# STATE\n\n**Goal Complete**: yes\n", encoding="utf-8"
+            )
+
+            output = self.run_next("T0", root)
+
+        self.assertIn("role=T0", output)
+        self.assertIn("status=complete", output)
+        self.assertIn("reason=goal-complete-sentinel", output)
+
 
 if __name__ == "__main__":
     unittest.main()

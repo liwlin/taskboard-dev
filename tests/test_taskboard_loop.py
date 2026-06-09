@@ -77,6 +77,20 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertEqual(output[0]["dispatch"]["state"], "needs-goal")
         self.assertIn("ask user for one T0 goal", output[0]["actions"])
 
+    def test_loop_stops_when_goal_complete_sentinel_exists(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+            (root / "docs" / "PROJECT.md").write_text("# PROJECT\n\n## Goal\nShip demo\n", encoding="utf-8")
+            (root / "docs" / "STATE.md").write_text("# STATE\n\n**Goal Complete**: yes\n", encoding="utf-8")
+
+            output = self.run_loop(root, "--goal", "Ship demo")
+
+        self.assertEqual(output[0]["state"], "idle")
+        self.assertEqual(output[0]["dispatch"]["state"], "complete")
+        self.assertEqual(output[0]["dispatch"]["reason"], "goal-complete-sentinel")
+        self.assertIn("summarize completion to the user", output[0]["actions"])
+
     def test_iterations_runs_multiple_bounded_cycles(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

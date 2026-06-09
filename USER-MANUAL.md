@@ -128,6 +128,8 @@ python scripts/taskboard_loop.py --root . --goal "完成 <你的开发目标>" -
 
 默认只输出恢复/启动命令，不执行。只有 T0 明确需要实际创建或恢复受控角色终端时才加 `--execute-launches`。`--assignment-lease-seconds` 控制 T0 在任务已认领后等待多久；超过该租约仍没有新的 assignment heartbeat 时，T0 标记 `lease-expired` 并重新下发角色目标。该选项只执行 manager launch/reissue commands；T0 仍不能做 T1/T2/T3 的开发任务。
 
+T0 只有在 active TASK 队列为空，并且 `docs/STATE.md` 写有 `**Goal Complete**: yes` 或 `Goal Complete: yes` 时才收口。空队列但没有完成 sentinel，表示目标仍未证明完成，T0 会唤醒 T1 创建或修订下一批 TASK 文件。
+
 可重复 dry-run demo：
 
 ```bash

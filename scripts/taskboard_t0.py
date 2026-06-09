@@ -211,7 +211,7 @@ def dispatch(
     role, status, task, reason = select_task("T0", root)
     task_name = task.path.name if task is not None else "none"
 
-    if role == "T0" and status == "complete" and goal_arg:
+    if role == "T0" and status == "complete" and goal_arg and reason != "goal-complete-sentinel":
         role = "T1"
         status = "T1-create-or-revise"
         task_name = "none"

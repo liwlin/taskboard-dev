@@ -22,6 +22,8 @@ T0_BOUNDARY = (
 
 
 def choose_launch_commands(session_probe: dict[str, object], dispatch_plan: dict[str, object]) -> list[str]:
+    if dispatch_plan.get("state") == "complete":
+        return []
     recovery_commands = session_probe.get("recovery_commands", [])
     if recovery_commands:
         return list(recovery_commands)
@@ -99,6 +101,9 @@ def build_actions(
     assignment: dict[str, object],
 ) -> list[str]:
     actions: list[str] = []
+    if dispatch_plan.get("state") == "complete":
+        return ["summarize completion to the user"]
+
     actions.extend(str(action) for action in session_probe.get("recovery_actions", []))
     actions.extend(str(action) for action in queue_health.get("actions", []))
 
@@ -176,6 +181,8 @@ def run_once(
     state = "attention"
     if dispatch_plan.get("state") == "needs-goal":
         state = "needs-goal"
+    elif dispatch_plan.get("state") == "complete":
+        state = "idle"
     elif executed_commands and any(item["returncode"] != 0 for item in executed_commands):
         state = "attention"
     elif session_probe.get("state") == "healthy" and queue_health.get("state") in {"empty"}:

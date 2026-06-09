@@ -100,6 +100,19 @@ class TaskboardHealthTest(unittest.TestCase):
         self.assertEqual(output["next"]["role"], "T1")
         self.assertEqual(output["next"]["reason"], "explicit-goal-no-active-tasks")
 
+    def test_goal_complete_sentinel_reports_complete_health(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+            (root / "docs" / "PROJECT.md").write_text("# PROJECT\n\n## Goal\nShip demo\n", encoding="utf-8")
+            (root / "docs" / "STATE.md").write_text("# STATE\n\n**Goal Complete**: yes\n", encoding="utf-8")
+
+            output = self.run_health(root, "--goal", "Ship demo")
+
+        self.assertEqual(output["state"], "complete")
+        self.assertEqual(output["next"]["role"], "T0")
+        self.assertEqual(output["next"]["reason"], "goal-complete-sentinel")
+
 
 if __name__ == "__main__":
     unittest.main()

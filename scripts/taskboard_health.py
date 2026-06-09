@@ -39,7 +39,7 @@ def build_queues(tasks: list[Task]) -> dict[str, dict[str, dict[str, object]]]:
 
 def build_next(root: Path, explicit_goal: Optional[str]) -> dict[str, str]:
     role, status, task, reason = select_task("T0", root)
-    if role == "T0" and status == "complete" and explicit_goal and explicit_goal.strip():
+    if role == "T0" and status == "complete" and explicit_goal and explicit_goal.strip() and reason != "goal-complete-sentinel":
         role = "T1"
         status = "T1-create-or-revise"
         reason = "explicit-goal-no-active-tasks"
@@ -98,6 +98,8 @@ def build_state(active_count: int, next_item: dict[str, str], stalled_tasks: lis
         return "attention"
     if active_count:
         return "active"
+    if next_item["role"] == "T0" and next_item["status"] == "complete":
+        return "complete"
     if next_item["role"] == "T1" and next_item["status"] == "T1-create-or-revise":
         return "ready-for-next-task"
     if has_goal_context(root):
