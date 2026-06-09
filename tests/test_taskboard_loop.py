@@ -759,6 +759,11 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertIn(f"--assignment-id T2:{task_name}", t2_text)
         self.assertIn("managed-loop", t1_text)
         self.assertIn("T0 writes role targets only", t2_text)
+        self.assertIn("Role runtime contract", t2_text)
+        self.assertIn("assigned_role: T2", t2_text)
+        self.assertIn("managed_by: T0", t2_text)
+        self.assertIn("do not execute T0/T1/T3 responsibilities", t2_text)
+        self.assertIn("do not rely on another role's chat context", t2_text)
 
     def test_loop_can_disable_role_target_files(self):
         with tempfile.TemporaryDirectory() as tmp:

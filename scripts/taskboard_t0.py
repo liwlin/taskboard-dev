@@ -127,12 +127,22 @@ def build_session(
     if role == next_role and task_name != "none":
         heartbeat_command += f" --task {task_name} --assignment-id {role}:{task_name}"
     heartbeat = f"Session heartbeat: run `{heartbeat_command}` at loop start and after each TASKBOARD handoff."
+    other_roles = "/".join(item for item in ("T0", "T1", "T2", "T3") if item != role)
+    role_contract = (
+        "Role runtime contract:\n"
+        f"assigned_role: {role}\n"
+        "managed_by: T0\n"
+        f"- Execute only {role} responsibilities; do not execute {other_roles} responsibilities.\n"
+        "- do not rely on another role's chat context; use this target file, TASKBOARD filenames, stable docs, history, and HANDOFF only.\n"
+        "- Write the heartbeat before work and after each TASKBOARD handoff using the command above.\n"
+        "- Return work through TASKBOARD filename state transitions; do not ask the user to manage routine T1/T2/T3 flow."
+    )
     title = f"taskboard-{role}"
     session = {
         "role": role,
         "title": title,
         "command": f"/taskboard-dev {role}",
-        "target": f"{target}\n{heartbeat}",
+        "target": f"{target}\n{heartbeat}\n{role_contract}",
     }
     if target_dir is not None:
         session["target_file"] = str(role_target_file(target_dir, title))

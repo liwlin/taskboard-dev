@@ -173,6 +173,7 @@ python scripts/taskboard_loop.py --root . --goal "完成 <你的开发目标>" -
 默认只输出恢复/启动命令，不执行。只有 T0 明确需要实际创建或恢复受控角色终端时才加 `--execute-launches`。执行模式下，T0 只执行 missing/stale 角色的恢复命令；如果某个角色 heartbeat healthy，即使 dispatch plan 中仍有完整 starter plan，T0 也不会重新打开该角色终端。`--assignment-lease-seconds` 控制 T0 在任务已认领后等待多久；超过该租约仍没有新的 assignment heartbeat 时，T0 标记 `lease-expired` 并重新下发角色目标。`--launch-lease-seconds 300` 控制 T0 成功启动/恢复某个 `taskboard-T1/T2/T3` 后等待 worker heartbeat 的时间；lease 生效期间 T0 不会重复打开同一个角色终端。该选项只执行 manager launch/reissue commands；T0 仍不能做 T1/T2/T3 的开发任务。
 
 每轮 loop 默认会把隔离的角色目标写入 `.taskboard/targets/taskboard-T1.md`、`.taskboard/targets/taskboard-T2.md`、`.taskboard/targets/taskboard-T3.md`。这些文件是 T0 发给每个受控角色的运行态 inbox，让 worker 只读取自己的目标文件，不共享隐藏 chat context；它不是任务状态，也不是共享记忆。需要自定义目录时使用 `--target-dir <path>`；只想 dry check 且不写角色目标时使用 `--no-target-files`。
+每个生成的目标都会包含 `Role runtime contract`，写明 `assigned_role`、`managed_by: T0`、不要执行其他角色职责，以及不要依赖另一个角色的 chat context；无论是 inline prompt 还是 `{target_file}` 启动，都保持同一份角色隔离契约。
 
 每轮 loop 默认会把最新 T0 supervisor 运行态快照写入 `.taskboard/t0/latest.json`。这个 `taskboard-t0-supervisor-state` 文件只记录 T0 的管理视图，方便中断后恢复判断；它不是任务状态、不是 worker 记忆，也不能替代 TASKBOARD 文件名、history、dev-log、HANDOFF 或完成 sentinel。需要自定义路径时使用 `--state-file <path>`；只想 dry check 且不留下运行态快照时使用 `--no-state-file`。
 

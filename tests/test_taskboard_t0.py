@@ -45,6 +45,11 @@ class TaskboardT0Test(unittest.TestCase):
         self.assertIn("T2", output["target"])
         self.assertIn("--task TASK-001.v1.", output["target"])
         self.assertIn("--assignment-id T2:TASK-001.v1.", output["target"])
+        self.assertIn("Role runtime contract", output["target"])
+        self.assertIn("assigned_role: T2", output["target"])
+        self.assertIn("managed_by: T0", output["target"])
+        self.assertIn("do not execute T0/T1/T3 responsibilities", output["target"])
+        self.assertIn("do not rely on another role's chat context", output["target"])
         self.assertIn("T0 manager-only", output["boundary"])
         self.assertIn("不直接执行开发任务", output["boundary"])
         self.assertEqual(
