@@ -29,6 +29,7 @@
     ├── package.sh                   # 生成发布包
     ├── taskboard_t0.py              # 生成 T0 自动创建/恢复角色终端的调度计划
     ├── taskboard_health.py          # T0 queue health and stalled-task report
+    ├── taskboard_sessions.py        # T0 managed role heartbeat probe/recovery report
     ├── taskboard_next.py            # 根据文件名状态选择下一个角色/任务
     └── verify_t0_contract.py        # 校验 T0 协议和发布文档
 ```
@@ -108,6 +109,20 @@ python scripts/taskboard_health.py --root . --stale-minutes 30
 The health check reports active queues, stalled tasks, the next role to wake, and manager-only actions. It does not let T0 perform design, review, implementation, verification, or commit work.
 Use `--goal "<user goal>"` when the user goal has not yet been written to `docs/PROJECT.md`.
 
+T0 can also probe managed T1/T2/T3 session heartbeats:
+
+```bash
+python scripts/taskboard_sessions.py --root . probe --stale-seconds 300
+```
+
+Each managed role should write a heartbeat at loop start and after each TASKBOARD handoff:
+
+```bash
+python scripts/taskboard_sessions.py --root . heartbeat --role T1
+```
+
+Heartbeat files live under `.taskboard/sessions/` and are runtime liveness signals only. They are not task state, not shared role memory, and not a replacement for TASKBOARD filenames, history, or HANDOFF.
+
 高级用户仍可手动运行 T1/T2/T3；这是兼容模式，不是默认用法：
 
 ```text
@@ -137,6 +152,7 @@ Use `--goal "<user goal>"` when the user goal has not yet been written to `docs/
 ```bash
 python scripts/taskboard_t0.py --goal "完成示例目标" --root .
 python scripts/taskboard_health.py --root . --stale-minutes 30
+python scripts/taskboard_sessions.py --root . probe --stale-seconds 300
 python scripts/taskboard_next.py --role T0 --root .
 python scripts/verify_t0_contract.py
 python -m unittest
@@ -171,6 +187,7 @@ VERSION=v4.3 ./scripts/package.sh
 - [ ] `git diff --check`
 - [ ] `python scripts/taskboard_t0.py --goal "完成示例目标" --root .`
 - [ ] `python scripts/taskboard_health.py --root . --stale-minutes 30`
+- [ ] `python scripts/taskboard_sessions.py --root . probe --stale-seconds 300`
 - [ ] `python scripts/taskboard_next.py --role T0 --root .`
 - [ ] `python scripts/verify_t0_contract.py`
 - [ ] `python -m unittest`

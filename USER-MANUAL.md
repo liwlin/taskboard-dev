@@ -105,6 +105,20 @@ python scripts/taskboard_health.py --root . --stale-minutes 30
 该检查只汇报 active queues、stalled tasks、next role/task 和 wake/recover actions。它不允许 T0 直接做设计、审核、实现、验证或提交；T0 只能据此唤醒或恢复对应的 T1/T2/T3。
 如果用户目标还没写入 `docs/PROJECT.md`，T0 应传入 `--goal "<user goal>"`；空队列加显式目标时，健康检查会建议唤醒 T1 创建或修订 TASK 文件。
 
+T0 受控角色 heartbeat 检查入口：
+
+```bash
+python scripts/taskboard_sessions.py --root . probe --stale-seconds 300
+```
+
+每个受控角色在 loop 开始和 TASKBOARD handoff 后写一次 heartbeat：
+
+```bash
+python scripts/taskboard_sessions.py --root . heartbeat --role T1
+```
+
+Heartbeat 文件位于 `.taskboard/sessions/`，只表示运行时 liveness。它不是任务状态、不是共享记忆，也不能替代 TASKBOARD 文件名、history、dev-log 或 HANDOFF。
+
 #### 兼容：手动启动 T1/T2/T3
 
 高级用户仍可手动打开 3 个 agent CLI 终端，分别运行 T1/T2/T3。T0 模式下不需要用户这样做。
@@ -353,11 +367,12 @@ T0 的调度逻辑是：
 1. **三角色常驻**：T0 启动或恢复 `taskboard-T1/T2/T3`，让每个角色都在自己的队列上循环。
 2. **文件名即事件队列**：T0 不读完整任务正文来轮询；先看 `TASK-*.T*.md` 文件名判断哪个队列有事件。
 3. **健康检查入口**：T0 用 `python scripts/taskboard_health.py --root . --stale-minutes 30` 汇总 active queues、stalled tasks 和下一步 wake action。
-4. **阻塞优先**：先处理会阻塞整个目标的事项，例如用户决策、代码审核、方案审核、修复退回。
-5. **交付闭环优先**：已经实现完等待审核的工作优先于新建更多工作；否则会堆积未验收代码。
-6. **修复优先于新执行**：T3 的 `需修复` 和 `待验证` 优先于 `待执行`，避免反复开新任务但旧任务不闭环。
-7. **T1 按需介入**：T1 主要处理目标拆解、方案修订、可自主决策；没有活跃任务但目标未完成时，T0 再让 T1 创建下一批任务。
-8. **空队列不退出**：某个角色暂时没任务是正常状态，T0 保持它的受控终端可恢复，等待后续 handoff。
+4. **会话 heartbeat 入口**：T0 用 `python scripts/taskboard_sessions.py --root . probe --stale-seconds 300` 检测受控 T1/T2/T3 loop 是否 missing/stale。
+5. **阻塞优先**：先处理会阻塞整个目标的事项，例如用户决策、代码审核、方案审核、修复退回。
+6. **交付闭环优先**：已经实现完等待审核的工作优先于新建更多工作；否则会堆积未验收代码。
+7. **修复优先于新执行**：T3 的 `需修复` 和 `待验证` 优先于 `待执行`，避免反复开新任务但旧任务不闭环。
+8. **T1 按需介入**：T1 主要处理目标拆解、方案修订、可自主决策；没有活跃任务但目标未完成时，T0 再让 T1 创建下一批任务。
+9. **空队列不退出**：某个角色暂时没任务是正常状态，T0 保持它的受控终端可恢复，等待后续 handoff。
 
 ### 与常见 multi-agent 调度方法对比
 

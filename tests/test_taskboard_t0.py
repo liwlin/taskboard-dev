@@ -73,6 +73,7 @@ class TaskboardT0Test(unittest.TestCase):
         self.assertEqual(output["status"], "T1-create-or-revise")
         self.assertEqual(len(output["managed_sessions"]), 3)
         self.assertEqual(output["managed_sessions"][0]["command"], "/taskboard-dev T1")
+        self.assertIn("taskboard_sessions.py --root . heartbeat --role T1", output["target"])
         self.assertIn("创建或修订", output["target"])
 
     def test_empty_board_without_goal_requests_t0_goal(self):

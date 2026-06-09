@@ -68,11 +68,16 @@ def build_session(role: str, goal: str, next_role: str, status: str, task_name: 
     target_status = status if role == next_role else "managed-loop"
     target_task = task_name if role == next_role else "none"
     target_reason = reason if role == next_role else "t0-managed-background-role"
+    target = build_target(role, target_status, target_task, goal, target_reason)
+    heartbeat = (
+        f"Session heartbeat: run `python scripts/taskboard_sessions.py --root . heartbeat --role {role}` "
+        "at loop start and after each TASKBOARD handoff."
+    )
     return {
         "role": role,
         "title": f"taskboard-{role}",
         "command": f"/taskboard-dev {role}",
-        "target": build_target(role, target_status, target_task, goal, target_reason),
+        "target": f"{target}\n{heartbeat}",
     }
 
 
@@ -166,6 +171,7 @@ def build_session_manifest(
         "recovery_order": recovery_order,
         "sync_contract": "TASKBOARD filenames + stable context files + history/HANDOFF; no shared chat context",
         "health_checks": [
+            'python scripts/taskboard_sessions.py --root . probe --stale-seconds 300 --goal "<user goal>"',
             'python scripts/taskboard_health.py --root . --stale-minutes 30 --goal "<user goal>"',
             "python scripts/taskboard_next.py --role T0 --root .",
             "check managed terminal titles: taskboard-T1, taskboard-T2, taskboard-T3",
@@ -219,8 +225,8 @@ def dispatch(
     else:
         state = "dispatch"
         command = f"start managed terminals: /taskboard-dev T1, /taskboard-dev T2, /taskboard-dev T3"
-        target = build_target(role, status, task_name, goal, reason)
         sessions = build_sessions(goal, role, status, task_name, reason)
+        target = next(session["target"] for session in sessions if session["role"] == role)
     launch_commands = build_launch_commands(root, sessions, launcher, agent_template)
     session_manifest = build_session_manifest(state, role, status, task_name, reason, sessions)
 

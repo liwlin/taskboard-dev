@@ -614,6 +614,15 @@ python scripts/taskboard_health.py --root . --stale-minutes 30
 The health report includes active queue counts, stalled TASK files, the next role/task selected by T0 priority, and manager-only wake/recover actions. It does not authorize T0 to do design, review, implementation, verification, or commit work.
 Pass `--goal "<user goal>"` when T0 has received a user goal that has not yet been written to `PROJECT.md`; empty queues plus an explicit goal should wake T1 to create or revise TASK files.
 
+Use `scripts/taskboard_sessions.py` for managed role liveness. Each T1/T2/T3 role should write a heartbeat at loop start and after each TASKBOARD handoff:
+
+```bash
+python scripts/taskboard_sessions.py --root . heartbeat --role T1
+python scripts/taskboard_sessions.py --root . probe --stale-seconds 300 --goal "<user goal>"
+```
+
+Heartbeat files live under `.taskboard/sessions/` and are runtime liveness signals only. They are not task state, not shared role memory, and not a replacement for TASKBOARD filenames, `history/`, `dev-log.md`, or `HANDOFF.md`.
+
 ### Multi-Agent Synchronization
 
 Use blackboard synchronization, not chat-context synchronization:
@@ -655,6 +664,7 @@ T0 schedules by event priority, not by arbitrary rotation:
 T0 uses lightweight filesystem signals, not a new database:
 
 - Run `python scripts/taskboard_health.py --root . --stale-minutes 30` to inspect active queues, stalled TASK files, next role, and wake/recovery actions.
+- Run `python scripts/taskboard_sessions.py --root . probe --stale-seconds 300 --goal "<user goal>"` to detect missing or stale managed role loops before reissuing targets.
 - **Healthy**: a role reports progress, a task file mtime changes, a task status advances, or `dev-log.md` receives a completion entry.
 - **Idle**: a role queue is empty while other queues still have work. T0 keeps the role available and checks again after the loop interval.
 - **Stalled**: a task file mtime is older than 30 minutes while the user's goal is incomplete. T0 runs `/taskboard-progress`, then re-issues the durable target for the owning role.

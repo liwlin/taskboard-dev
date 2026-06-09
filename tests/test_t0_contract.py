@@ -37,6 +37,7 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn('cp "$ROOT_DIR/scripts/package.sh"', package_script)
         self.assertIn('cp "$ROOT_DIR/scripts/taskboard_t0.py"', package_script)
         self.assertIn('cp "$ROOT_DIR/scripts/taskboard_health.py"', package_script)
+        self.assertIn('cp "$ROOT_DIR/scripts/taskboard_sessions.py"', package_script)
         self.assertIn('cp "$ROOT_DIR/scripts/taskboard_next.py"', package_script)
         self.assertIn('cp "$ROOT_DIR/scripts/verify_t0_contract.py"', package_script)
 
@@ -124,6 +125,7 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("tmux", manual)
         self.assertIn("--launcher windows-terminal", readme)
         self.assertIn("python scripts/taskboard_health.py --root . --stale-minutes 30", readme)
+        self.assertIn("python scripts/taskboard_sessions.py --root . probe --stale-seconds 300", readme)
 
     def test_session_manifest_contract_is_documented(self):
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
