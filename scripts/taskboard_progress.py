@@ -156,6 +156,11 @@ def build_user_summary(
             f"T0 has the goal '{goal}' but no supervisor snapshot yet. "
             "Start or resume T0; this does not ask you to manage T1/T2/T3."
         )
+    if state == "interrupted":
+        return (
+            f"T0 was interrupted while managing goal '{goal}'. "
+            "Resume T0 from the recorded command; this does not ask you to manage T1/T2/T3."
+        )
     if state == "complete":
         return f"T0 sees the goal '{goal}' as complete and is ready to summarize completion to the user."
     if next_role and next_role != "T0":
@@ -274,10 +279,12 @@ def report_progress(root: Path) -> dict[str, object]:
     decision_command = build_decision_command(root, first_stop_gate)
     snapshot = read_latest_snapshot(root)
     if snapshot is None:
-        goal = read_goal(root, "")
         queue_metrics = build_queue_metrics({}, "T0", bool(stop_gate_count))
         latest_event = event_summary.get("latest_event", {})
         latest_event_payload = latest_event if isinstance(latest_event, dict) else {}
+        goal = read_goal(root, "") or str(latest_event_payload.get("goal") or "")
+        latest_event_state = str(latest_event_payload.get("state") or "")
+        fallback_state = "interrupted" if latest_event_state == "interrupted" else "needs-supervisor-run"
         latest_event_resume_config = latest_event_payload.get("resume_config", {})
         latest_event_resume_config_payload = (
             latest_event_resume_config if isinstance(latest_event_resume_config, dict) else {}
@@ -285,14 +292,14 @@ def report_progress(root: Path) -> dict[str, object]:
         resume_command = build_resume_command(
             root,
             goal,
-            "needs-supervisor-run",
+            fallback_state,
             stop_gate_count,
             bool(completion_audit.get("completion_ready")),
             latest_event_resume_config_payload,
         )
         return {
             "kind": "taskboard-t0-progress",
-            "state": "needs-supervisor-run",
+            "state": fallback_state,
             "goal": goal,
             "next_role": "T0",
             "task": "none",
@@ -321,7 +328,7 @@ def report_progress(root: Path) -> dict[str, object]:
             "queue_metrics": queue_metrics,
             **event_summary,
             "user_summary": build_user_summary(
-                "needs-supervisor-run",
+                fallback_state,
                 goal,
                 "T0",
                 "none",
@@ -334,8 +341,8 @@ def report_progress(root: Path) -> dict[str, object]:
                 queue_metrics,
             ),
             "user_action": build_user_action(
-                "needs-supervisor-run",
-                "needs-supervisor-run",
+                fallback_state,
+                fallback_state,
                 [],
                 0,
                 stop_gate_count,

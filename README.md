@@ -95,7 +95,7 @@ python scripts/taskboard_start.py --goal "完成 <你的开发目标>" --auto
 
 `taskboard_start.py` 使用和 supervisor loop 相同的运行态文件：默认写 `.taskboard/t0/latest.json`、`.taskboard/t0/events.jsonl` 和 `.taskboard/targets/taskboard-T*.md`。`--auto` 会把 `auto_mode`、`starter_mode` 和 `resume_config` 持久写入 latest snapshot 和 event log，并由 `taskboard_progress.py` 读出，方便恢复后确认当前 T0 是一键自动入口而不是 dry check，并保留上次 T0 的 launcher、agent template、lease 和 interval 配置。需要 dry check 且不留下事件日志时使用 `--no-event-log`。调试时可以给 `--auto --iterations 1 --launcher none`，验证自动模式路径但不打开 worker 终端。
 
-如果用户按 Ctrl-C 或终端向 `taskboard_start.py --auto` 发送 `KeyboardInterrupt`，入口会返回 130，并输出 `taskboard-t0-interruption`、`state=interrupted`、`resume_command` 和 `user_action`。这个中断报告也会持久写入 `.taskboard/t0/latest.json` 和 `.taskboard/t0/events.jsonl`，所以即使终端输出丢失，`taskboard_progress.py` 仍能从最新 T0 控制面状态重建恢复命令。这个恢复命令仍然恢复 T0 自己，并保留上次 launcher、agent template、lease 和 interval 配置；用户不需要改去手动管理 T1/T2/T3。
+如果用户按 Ctrl-C 或终端向 `taskboard_start.py --auto` 发送 `KeyboardInterrupt`，入口会返回 130，并输出 `taskboard-t0-interruption`、`state=interrupted`、`resume_command` 和 `user_action`。这个中断报告也会持久写入 `.taskboard/t0/latest.json` 和 `.taskboard/t0/events.jsonl`，所以即使终端输出丢失，`taskboard_progress.py` 仍能从最新 T0 控制面状态重建恢复命令。如果 latest snapshot 被禁用或丢失，progress 会把 latest event 的 `interrupted` 状态提升为用户可见的 T0 恢复状态，并继续从 event `resume_config` 重建命令。这个恢复命令仍然恢复 T0 自己，并保留上次 launcher、agent template、lease 和 interval 配置；用户不需要改去手动管理 T1/T2/T3。
 
 查看 T0 给用户的进度摘要：
 

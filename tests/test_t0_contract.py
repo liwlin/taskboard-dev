@@ -173,6 +173,7 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("taskboard-t0-interruption", readme)
         self.assertIn("KeyboardInterrupt", readme)
         self.assertIn("即使终端输出丢失", readme)
+        self.assertIn("latest event 的 `interrupted` 状态", readme)
         self.assertIn("用户不需要改去手动管理 T1/T2/T3", readme)
         self.assertIn("latest event", readme)
         self.assertIn("suppressed_launch_count", readme)

@@ -17,7 +17,7 @@ from taskboard_loop import (
     write_state_snapshot,
 )
 from taskboard_progress import build_resume_command
-from taskboard_t0 import default_target_dir, read_goal
+from taskboard_t0 import default_target_dir, read_goal, write_runtime_goal
 
 
 DEFAULT_AGENT_TEMPLATE = 'codex --prompt-file "{target_file}"'
@@ -250,6 +250,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             write_state_snapshot(state_file, root, snapshot_goal, results, not args.no_stop_on_complete)
     except KeyboardInterrupt:
         effective_goal = read_goal(root, args.goal)
+        write_runtime_goal(root, effective_goal)
         payload = build_interruption_payload(
             root,
             effective_goal,
