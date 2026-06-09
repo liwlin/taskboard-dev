@@ -885,6 +885,56 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertEqual(output[0]["target_files"], [])
         self.assertFalse((root / ".taskboard" / "targets").exists())
 
+    def test_loop_persists_config_error_before_first_iteration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--root",
+                    str(root),
+                    "--format",
+                    "json",
+                    "--goal",
+                    "Ship demo",
+                    "--launcher",
+                    "windows-terminal",
+                    "--agent-template",
+                    'codex --prompt-file "{target_file}"',
+                    "--no-target-files",
+                ],
+                cwd=ROOT,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+            state_file = root / ".taskboard" / "t0" / "latest.json"
+            event_log = root / ".taskboard" / "t0" / "events.jsonl"
+
+            self.assertTrue(state_file.exists(), result.stdout)
+            self.assertTrue(event_log.exists(), result.stdout)
+            snapshot = json.loads(state_file.read_text(encoding="utf-8"))
+            events = [
+                json.loads(line)
+                for line in event_log.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("agent-template references {target_file}", result.stdout)
+        self.assertEqual(snapshot["latest"]["kind"], "taskboard-t0-config-error")
+        self.assertEqual(snapshot["latest"]["state"], "config-error")
+        self.assertIn("agent-template references {target_file}", snapshot["latest"]["error"])
+        self.assertIn("fix T0 launcher configuration", snapshot["latest"]["user_action"])
+        self.assertIn("do not ask the user to manage T1/T2/T3 directly", snapshot["latest"]["boundary"])
+        self.assertEqual(events[0]["state"], "config-error")
+        self.assertEqual(events[0]["dispatch_state"], "config-error")
+        self.assertIn("agent-template references {target_file}", events[0]["error"])
+
     def test_assignment_moves_from_pending_to_acknowledged_by_worker_heartbeat(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

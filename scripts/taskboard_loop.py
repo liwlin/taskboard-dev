@@ -500,6 +500,61 @@ def build_resume_config(
     return payload
 
 
+def build_config_error_payload(
+    root: Path,
+    goal: str,
+    error: str,
+    launcher: str,
+    agent_template: Optional[str],
+    stale_minutes: int,
+    stale_seconds: int,
+    interval_seconds: int,
+    assignment_lease_seconds: int,
+    launch_lease_seconds: int,
+    target_dir: Optional[Path],
+) -> dict[str, object]:
+    return {
+        "kind": "taskboard-t0-config-error",
+        "state": "config-error",
+        "goal": goal,
+        "error": error,
+        "boundary": (
+            "T0 configuration error report: fix the T0 launcher/template configuration; "
+            "do not ask the user to manage T1/T2/T3 directly."
+        ),
+        "resume_config": build_resume_config(
+            launcher,
+            agent_template,
+            stale_minutes,
+            stale_seconds,
+            interval_seconds,
+            assignment_lease_seconds,
+            launch_lease_seconds,
+            target_dir,
+        ),
+        "resume_command": "",
+        "user_action": "T0 configuration failed; fix T0 launcher configuration before resuming.",
+        "dispatch": {"state": "config-error", "next_role": "T0", "task": "none"},
+        "assignment": {
+            "state": "none",
+            "role": "T0",
+            "task": "none",
+            "assignment_id": "",
+            "reason": "t0-config-error",
+        },
+        "queue_health": {"state": "unknown", "active_count": 0},
+        "session_probe": {"state": "unknown", "missing_roles": [], "stale_roles": []},
+        "stop_gate_report": {"stop_gate_count": 0, "stop_gates": []},
+        "actions": ["fix T0 launcher configuration"],
+        "target_files": [],
+        "planned_launch_commands": [],
+        "requested_launch_commands": [],
+        "launch_commands": [],
+        "suppressed_launches": [],
+        "executed_commands": [],
+    }
+
+
 def next_event_index(event_log_file: Path) -> int:
     if not event_log_file.exists():
         return 1
@@ -848,6 +903,25 @@ def main(argv: Optional[list[str]] = None) -> int:
             not args.no_stop_on_stop_gate,
         )
     except ValueError as exc:
+        effective_goal = read_goal(root, args.goal)
+        write_runtime_goal(root, effective_goal)
+        payload = build_config_error_payload(
+            root,
+            effective_goal,
+            str(exc),
+            args.launcher,
+            args.agent_template,
+            args.stale_minutes,
+            args.stale_seconds,
+            args.interval_seconds,
+            args.assignment_lease_seconds,
+            args.launch_lease_seconds,
+            target_dir,
+        )
+        if state_file is not None:
+            write_state_snapshot(state_file, root, effective_goal, [payload], not args.no_stop_on_complete)
+        if event_log_file is not None:
+            append_event_log(event_log_file, root, effective_goal, 1, payload)
         print(exc, file=sys.stderr)
         return 2
 
