@@ -233,6 +233,9 @@ class TaskboardProgressTest(unittest.TestCase):
             text = self.run_text(PROGRESS_SCRIPT, root)
 
         self.assertEqual(progress["state"], "needs-supervisor-run")
+        self.assertTrue(progress["auto_mode"])
+        self.assertEqual(progress["starter_mode"], "auto")
+        self.assertIn("one-command", progress["starter_boundary"])
         self.assertIn("--launcher tmux", progress["resume_command"])
         self.assertIn('--agent-template "custom-agent --file \\"{target_file}\\""', progress["resume_command"])
         self.assertIn("--stale-minutes 12", progress["resume_command"])
@@ -241,6 +244,7 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("--launch-lease-seconds 78", progress["resume_command"])
         self.assertIn("--interval-seconds 9", progress["resume_command"])
         self.assertIn(progress["resume_command"], text)
+        self.assertIn("starter_mode=auto", text)
 
     def test_progress_resumes_t0_from_persisted_interruption_snapshot(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -20,6 +20,11 @@ T0_PROGRESS_BOUNDARY = (
     "T0 manager-only progress: summarize goal, queue, session, and assignment state for the user; "
     "do not perform design, review, implementation, verification, or commit work."
 )
+STARTER_AUTO_BOUNDARY = (
+    "T0 one-command auto mode: run the supervisor as the user-facing manager, "
+    "launch or recover T1/T2/T3 when needed, and keep T0 out of worker tasks."
+)
+STARTER_DRY_CHECK_BOUNDARY = "T0 starter dry-check mode: report orchestration without launching workers."
 
 
 def build_decision_command(root: Path, first_stop_gate: dict[str, object]) -> str:
@@ -299,6 +304,13 @@ def report_progress(root: Path) -> dict[str, object]:
         latest_event_assignment_task = str(latest_event_payload.get("assignment_task") or "none")
         latest_event_assignment_reason = str(latest_event_payload.get("assignment_reason") or "")
         latest_event_assignment_expected_id = str(latest_event_payload.get("assignment_expected_id") or "")
+        latest_event_auto_mode = bool(latest_event_payload.get("auto_mode"))
+        latest_event_starter_mode = str(latest_event_payload.get("starter_mode") or "")
+        latest_event_starter_boundary = ""
+        if latest_event_auto_mode:
+            latest_event_starter_boundary = STARTER_AUTO_BOUNDARY
+        elif latest_event_starter_mode == "dry-check":
+            latest_event_starter_boundary = STARTER_DRY_CHECK_BOUNDARY
         latest_event_failures = latest_event_payload.get("launch_failures", [])
         latest_event_failure_list: list[dict[str, object]] = []
         if isinstance(latest_event_failures, list):
@@ -366,9 +378,9 @@ def report_progress(root: Path) -> dict[str, object]:
             "assignment_task": latest_event_assignment_task,
             "assignment_reason": latest_event_assignment_reason,
             "assignment_expected_id": latest_event_assignment_expected_id,
-            "auto_mode": False,
-            "starter_mode": "",
-            "starter_boundary": "",
+            "auto_mode": latest_event_auto_mode,
+            "starter_mode": latest_event_starter_mode,
+            "starter_boundary": latest_event_starter_boundary,
             "active_count": 0,
             "missing_roles": [],
             "stale_roles": [],
