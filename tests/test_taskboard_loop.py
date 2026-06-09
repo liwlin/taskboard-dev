@@ -102,6 +102,31 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertIn("taskboard-T2", payload["launch_commands"][1])
         self.assertIn("codex --prompt", payload["launch_commands"][1])
 
+    def test_execute_commands_stops_after_first_launcher_failure(self):
+        calls = []
+
+        def fake_run(command, **kwargs):
+            calls.append(command)
+
+            class Completed:
+                returncode = 1 if "taskboard-T1" in command else 0
+                stdout = "launcher failed" if returncode else ""
+
+            return Completed()
+
+        commands = [
+            "wt -w taskboard new-tab --title taskboard-T1",
+            "wt -w taskboard new-tab --title taskboard-T2",
+            "wt -w taskboard new-tab --title taskboard-T3",
+        ]
+        with patch("taskboard_loop.subprocess.run", fake_run):
+            results = loop_module.execute_commands(commands)
+
+        self.assertEqual(calls, [commands[0]])
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["returncode"], 1)
+        self.assertEqual(results[0]["output"], "launcher failed")
+
     def test_loop_recovery_commands_can_reference_written_target_files(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -306,6 +306,8 @@ def execute_commands(commands: list[str]) -> list[dict[str, object]]:
                 "output": completed.stdout.strip(),
             }
         )
+        if completed.returncode != 0:
+            break
     return results
 
 
