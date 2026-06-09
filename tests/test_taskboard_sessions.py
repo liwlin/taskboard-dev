@@ -166,6 +166,41 @@ class TaskboardSessionsTest(unittest.TestCase):
         self.assertIn("assigned_role: T1", target_text)
         self.assertIn("Ship demo", target_text)
 
+    def test_probe_default_dry_check_does_not_write_target_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            probe = self.run_sessions(root, "probe", "--expected", "T1", "--goal", "Ship demo")
+            target_dir_exists = (root / ".taskboard" / "targets").exists()
+
+        self.assertEqual(probe["missing_roles"], ["T1"])
+        self.assertEqual(probe["recovery_commands"], [])
+        self.assertEqual(probe["target_files"], [])
+        self.assertFalse(target_dir_exists)
+
+    def test_probe_inline_recovery_command_does_not_write_target_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            probe = self.run_sessions(
+                root,
+                "probe",
+                "--expected",
+                "T1",
+                "--goal",
+                "Ship demo",
+                "--launcher",
+                "windows-terminal",
+                "--agent-template",
+                'codex --prompt "{target}"',
+            )
+            target_dir_exists = (root / ".taskboard" / "targets").exists()
+
+        self.assertEqual(probe["missing_roles"], ["T1"])
+        self.assertEqual(len(probe["recovery_commands"]), 1)
+        self.assertEqual(probe["target_files"], [])
+        self.assertFalse(target_dir_exists)
+
 
 if __name__ == "__main__":
     unittest.main()

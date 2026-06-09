@@ -125,6 +125,10 @@ def build_recovery_sessions(
     return sessions
 
 
+def recovery_needs_target_files(agent_template: Optional[str]) -> bool:
+    return bool(agent_template and "{target_file}" in agent_template)
+
+
 def probe_sessions(
     root: Path,
     stale_seconds: int,
@@ -160,7 +164,11 @@ def probe_sessions(
         "session-missing-or-stale",
         target_dir,
     )
-    target_files = write_role_target_files(recovery_sessions) if target_dir is not None else []
+    target_files = (
+        write_role_target_files(recovery_sessions)
+        if target_dir is not None and recovery_needs_target_files(agent_template)
+        else []
+    )
     return {
         "state": "attention" if recovery_roles else "healthy",
         "expected_roles": normalized_roles,
