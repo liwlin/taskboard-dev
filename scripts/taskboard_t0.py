@@ -23,6 +23,11 @@ ROLE_TARGETS = {
     "T3": "T3: 完成未阻塞 T3 任务，在任务 Files/Acceptance 范围内实现、验证并提交。",
 }
 
+T0_BOUNDARY = (
+    "T0 manager-only: T0 是管理员/调度器，不直接执行开发任务；"
+    "开发、设计、审核、实现、验证、提交分别交给 T1/T2/T3。"
+)
+
 
 def read_goal(root: Path, explicit_goal: Optional[str]) -> str:
     if explicit_goal and explicit_goal.strip():
@@ -91,6 +96,7 @@ def dispatch(root: Path, goal_arg: Optional[str], mode: str) -> dict[str, str]:
             "reason": "missing-user-goal",
             "command": "/taskboard-dev T0",
             "target": build_target("T0", "needs-goal", "none", goal, "missing-user-goal"),
+            "boundary": T0_BOUNDARY,
             "managed_sessions": [],
         }
 
@@ -124,6 +130,7 @@ def dispatch(root: Path, goal_arg: Optional[str], mode: str) -> dict[str, str]:
         "reason": reason,
         "command": command,
         "target": target,
+        "boundary": T0_BOUNDARY,
         "managed_sessions": sessions,
     }
 
@@ -139,6 +146,7 @@ def format_text(payload: dict[str, str]) -> str:
             payload["reason"],
         ).replace("task=none", f"task={payload['task']}"),
         f"command={payload['command']}",
+        f"boundary={payload['boundary']}",
         "target:",
         payload["target"],
     ]

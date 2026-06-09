@@ -101,6 +101,15 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("交付闭环优先", manual)
         self.assertIn("修复优先于新执行", manual)
 
+    def test_t0_manager_only_boundary_is_documented(self):
+        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
+
+        self.assertIn("T0 is manager-only", skill)
+        self.assertIn("must not directly execute development tasks", skill)
+        self.assertIn("T0 是管理员，不是开发执行者", manual)
+        self.assertIn("T0 不直接执行开发任务", manual)
+
     def test_user_program_development_fit_is_documented(self):
         manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
 

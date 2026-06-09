@@ -43,6 +43,8 @@ class TaskboardT0Test(unittest.TestCase):
         self.assertEqual(output["task"], "TASK-001.v1.T2-待审核代码-L2.md")
         self.assertIn("完成登录功能", output["target"])
         self.assertIn("T2", output["target"])
+        self.assertIn("T0 manager-only", output["boundary"])
+        self.assertIn("不直接执行开发任务", output["boundary"])
         self.assertEqual(
             [session["role"] for session in output["managed_sessions"]],
             ["T1", "T2", "T3"],
@@ -78,6 +80,7 @@ class TaskboardT0Test(unittest.TestCase):
         self.assertEqual(output["command"], "/taskboard-dev T0")
         self.assertEqual(output["task"], "none")
         self.assertIn("用户目标", output["target"])
+        self.assertIn("T0 manager-only", output["boundary"])
         self.assertEqual(output["managed_sessions"], [])
 
 

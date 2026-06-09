@@ -548,6 +548,8 @@ Without an explicit override, stay inside your lane, but do not ask the user to 
 
 Own the user's goal from intake to completion. T0 is the only role that should routinely talk to the user. T0 initializes or resumes the board, assigns durable targets to T1/T2/T3, monitors queue health, restarts or nudges idle/stalled role loops, and escalates only true stop gates. T0 does not replace the task file state machine.
 
+T0 is manager-only. It must not directly execute development tasks. Design belongs to T1, review and verification belong to T2, and implementation, local verification, and code commits belong to T3. T0 manages these roles; it does not become them.
+
 ### Boundaries (read at session init)
 
 **T0 MAY** (normal work):
@@ -567,6 +569,7 @@ Own the user's goal from intake to completion. T0 is the only role that should r
 - Record any stop gate decision in `STATE.md` or the relevant task file before resuming role loops.
 
 **T0 MUST NOT** (without user override):
+- Directly execute development tasks that belong to T1/T2/T3.
 - Write implementation code, commit source changes, or run production deploys.
 - Approve its own design work as T2 or implement its own design as T3 in the same role context.
 - Archive tasks without T2 approval.
