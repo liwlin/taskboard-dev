@@ -393,6 +393,10 @@ def default_state_file(root: Path) -> Path:
     return root / ".taskboard" / "t0" / "latest.json"
 
 
+def default_event_log_file(root: Path) -> Path:
+    return root / ".taskboard" / "t0" / "events.jsonl"
+
+
 def write_state_snapshot(
     state_file: Path,
     root: Path,
@@ -418,6 +422,59 @@ def write_state_snapshot(
     state_file.write_text(json.dumps(snapshot, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def next_event_index(event_log_file: Path) -> int:
+    if not event_log_file.exists():
+        return 1
+    try:
+        with event_log_file.open("r", encoding="utf-8-sig") as handle:
+            return sum(1 for line in handle if line.strip()) + 1
+    except OSError:
+        return 1
+
+
+def append_event_log(
+    event_log_file: Path,
+    root: Path,
+    goal: Optional[str],
+    iteration: int,
+    payload: dict[str, object],
+) -> None:
+    dispatch = payload.get("dispatch", {})
+    dispatch_payload = dispatch if isinstance(dispatch, dict) else {}
+    assignment = payload.get("assignment", {})
+    assignment_payload = assignment if isinstance(assignment, dict) else {}
+    queue_health = payload.get("queue_health", {})
+    queue_payload = queue_health if isinstance(queue_health, dict) else {}
+    session_probe = payload.get("session_probe", {})
+    session_payload = session_probe if isinstance(session_probe, dict) else {}
+    actions = payload.get("actions", [])
+    action_list = actions if isinstance(actions, list) else []
+    event = {
+        "kind": "taskboard-t0-supervisor-event",
+        "version": 1,
+        "event_index": next_event_index(event_log_file),
+        "iteration": iteration,
+        "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "root": str(root),
+        "goal": goal or "",
+        "state": str(payload.get("state") or ""),
+        "next_role": str(dispatch_payload.get("next_role") or ""),
+        "task": str(dispatch_payload.get("task") or "none"),
+        "dispatch_state": str(dispatch_payload.get("state") or ""),
+        "assignment_state": str(assignment_payload.get("state") or "none"),
+        "queue_state": str(queue_payload.get("state") or ""),
+        "session_state": str(session_payload.get("state") or ""),
+        "action_count": len(action_list),
+        "boundary": (
+            "T0 append-only event log: record supervisor decisions for audit/recovery; "
+            "do not treat events as TASKBOARD state or worker memory."
+        ),
+    }
+    event_log_file.parent.mkdir(parents=True, exist_ok=True)
+    with event_log_file.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(event, ensure_ascii=False, sort_keys=True) + "\n")
+
+
 def run_loop(
     root: Path,
     goal: Optional[str],
@@ -433,6 +490,7 @@ def run_loop(
     state_file: Optional[Path],
     target_dir: Optional[Path],
     launch_lease_seconds: int = 300,
+    event_log_file: Optional[Path] = None,
 ) -> list[dict[str, object]]:
     if interval_seconds < 0:
         raise ValueError("--interval-seconds must be >= 0")
@@ -466,6 +524,8 @@ def run_loop(
         count += 1
         if state_file is not None:
             write_state_snapshot(state_file, root, effective_goal, results, stop_on_complete)
+        if event_log_file is not None:
+            append_event_log(event_log_file, root, effective_goal, count, payload)
         if stop_on_complete and payload["dispatch"].get("state") == "complete":
             break
         if iterations is not None and count >= iterations:
@@ -536,6 +596,15 @@ def main(argv: Optional[list[str]] = None) -> int:
         help="Disable writing the latest T0 supervisor runtime snapshot.",
     )
     parser.add_argument(
+        "--event-log-file",
+        help="Path for the append-only T0 supervisor event log. Defaults to .taskboard/t0/events.jsonl.",
+    )
+    parser.add_argument(
+        "--no-event-log",
+        action="store_true",
+        help="Disable writing the append-only T0 supervisor event log.",
+    )
+    parser.add_argument(
         "--target-dir",
         help="Directory for per-role T1/T2/T3 target files. Defaults to .taskboard/targets.",
     )
@@ -565,6 +634,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     state_file = None
     if not args.no_state_file:
         state_file = Path(args.state_file).resolve() if args.state_file else default_state_file(root)
+    event_log_file = None
+    if not args.no_event_log:
+        event_log_file = Path(args.event_log_file).resolve() if args.event_log_file else default_event_log_file(root)
     target_dir = None
     if not args.no_target_files:
         target_dir = Path(args.target_dir).resolve() if args.target_dir else default_target_dir(root)
@@ -585,6 +657,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             state_file,
             target_dir,
             args.launch_lease_seconds,
+            event_log_file,
         )
     except ValueError as exc:
         print(exc, file=sys.stderr)

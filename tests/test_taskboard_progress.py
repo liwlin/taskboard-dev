@@ -209,6 +209,28 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertEqual(progress["completion_audit"]["state"], "complete-ready")
         self.assertIn("Review T0's completion summary", progress["user_action"])
 
+    def test_progress_surfaces_t0_event_log_summary(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+            self.run_json(
+                LOOP_SCRIPT,
+                root,
+                "--goal",
+                "Ship demo",
+                "--iterations",
+                "2",
+                "--interval-seconds",
+                "0",
+            )
+
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+
+        self.assertEqual(progress["event_count"], 2)
+        self.assertEqual(progress["latest_event"]["kind"], "taskboard-t0-supervisor-event")
+        self.assertEqual(progress["latest_event"]["iteration"], 2)
+        self.assertIn("append-only", progress["event_log_boundary"])
+
 
 if __name__ == "__main__":
     unittest.main()

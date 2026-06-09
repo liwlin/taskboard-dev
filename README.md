@@ -179,6 +179,8 @@ Each loop iteration writes isolated per-role targets to `.taskboard/targets/task
 
 Each loop iteration writes the latest T0 supervisor runtime snapshot to `.taskboard/t0/latest.json` by default. This `taskboard-t0-supervisor-state` file records T0's management view for recovery after interruption; it is not task state, not worker memory, and not a replacement for TASKBOARD filenames, history, dev-log, HANDOFF, or the completion sentinel. Use `--state-file <path>` to choose another snapshot path, or `--no-state-file` for dry checks that should leave no runtime snapshot.
 
+Each loop iteration also appends a compact supervisor event to `.taskboard/t0/events.jsonl` by default. This append-only `taskboard-t0-supervisor-event` log preserves T0's dispatch, queue, session, assignment, and action summary across runs for audit/recovery. It is not TASKBOARD state or worker memory. Use `--event-log-file <path>` to choose another log path, or `--no-event-log` for no-write dry checks.
+
 When launch execution is enabled, T0 also writes `.taskboard/t0/launches.json` as `taskboard-t0-launch-state`. It records recent successful launcher attempts only so T0 can suppress duplicate terminal launches during the launch lease; it is not worker state or TASKBOARD task state.
 
 T0 stops the loop only when there are no active TASK files and `docs/STATE.md` contains `**Goal Complete**: yes` or `Goal Complete: yes`. Without that completion sentinel, an empty queue plus a user goal wakes T1 to create or revise the next TASK files. `--forever` runs until completion or interruption; use `--no-stop-on-complete` only for monitoring/debugging after completion.
@@ -261,6 +263,7 @@ VERSION=v4.3 ./scripts/package.sh
 - [ ] `python scripts/taskboard_t0.py --goal "完成示例目标" --root .`
 - [ ] `python scripts/taskboard_demo.py --root .taskboard-demo --with-heartbeats`
 - [ ] `python scripts/taskboard_loop.py --root . --goal "完成示例目标" --iterations 1`
+- [ ] `.taskboard/t0/events.jsonl` contains `taskboard-t0-supervisor-event` entries after a loop run
 - [ ] `python scripts/taskboard_health.py --root . --stale-minutes 30`
 - [ ] `python scripts/taskboard_sessions.py --root . probe --stale-seconds 300`
 - [ ] `python scripts/taskboard_next.py --role T0 --root .`

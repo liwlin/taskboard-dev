@@ -326,6 +326,63 @@ class TaskboardLoopTest(unittest.TestCase):
 
         self.assertFalse((root / ".taskboard" / "t0" / "latest.json").exists())
 
+    def test_loop_appends_t0_event_log_by_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            self.run_loop(
+                root,
+                "--goal",
+                "Ship demo",
+                "--iterations",
+                "2",
+                "--interval-seconds",
+                "0",
+            )
+            event_log = root / ".taskboard" / "t0" / "events.jsonl"
+            events = [
+                json.loads(line)
+                for line in event_log.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(len(events), 2)
+        self.assertEqual(events[0]["kind"], "taskboard-t0-supervisor-event")
+        self.assertEqual(events[0]["iteration"], 1)
+        self.assertEqual(events[1]["iteration"], 2)
+        self.assertEqual(events[0]["goal"], "Ship demo")
+        self.assertIn("next_role", events[0])
+        self.assertIn("append-only", events[0]["boundary"])
+
+    def test_loop_can_disable_t0_event_log(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            self.run_loop(root, "--goal", "Ship demo", "--no-event-log")
+
+        self.assertFalse((root / ".taskboard" / "t0" / "events.jsonl").exists())
+
+    def test_loop_appends_event_log_across_runs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            self.run_loop(root, "--goal", "Ship demo")
+            self.run_loop(root)
+            event_log = root / ".taskboard" / "t0" / "events.jsonl"
+            events = [
+                json.loads(line)
+                for line in event_log.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(len(events), 2)
+        self.assertEqual(events[0]["event_index"], 1)
+        self.assertEqual(events[1]["event_index"], 2)
+        self.assertEqual(events[1]["goal"], "Ship demo")
+
     def test_loop_writes_isolated_role_target_files_by_default(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

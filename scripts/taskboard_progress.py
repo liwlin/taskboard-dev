@@ -8,7 +8,7 @@ import sys
 from typing import Optional
 
 from taskboard_completion import report_completion
-from taskboard_loop import default_state_file
+from taskboard_loop import default_event_log_file, default_state_file
 from taskboard_stopgates import report_stop_gates
 from taskboard_t0 import read_goal
 
@@ -28,6 +28,45 @@ def read_latest_snapshot(root: Path) -> Optional[dict[str, object]]:
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
     return payload if isinstance(payload, dict) else None
+
+
+def read_event_log_summary(root: Path) -> dict[str, object]:
+    path = default_event_log_file(root)
+    if not path.exists():
+        return {
+            "event_count": 0,
+            "latest_event": {},
+            "event_log_boundary": "T0 append-only event log not found.",
+        }
+
+    count = 0
+    latest: dict[str, object] = {}
+    try:
+        for line in path.read_text(encoding="utf-8-sig").splitlines():
+            if not line.strip():
+                continue
+            count += 1
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(payload, dict):
+                latest = payload
+    except (OSError, UnicodeDecodeError):
+        return {
+            "event_count": 0,
+            "latest_event": {},
+            "event_log_boundary": "T0 append-only event log could not be read.",
+        }
+
+    return {
+        "event_count": count,
+        "latest_event": latest,
+        "event_log_boundary": (
+            "T0 append-only event log summarizes supervisor decisions; "
+            "it is not TASKBOARD state or worker memory."
+        ),
+    }
 
 
 def build_user_summary(
@@ -96,6 +135,7 @@ def build_user_action(
 
 
 def report_progress(root: Path) -> dict[str, object]:
+    event_summary = read_event_log_summary(root)
     completion_audit = report_completion(root)
     completion_missing = completion_audit.get("missing_evidence", [])
     completion_missing_list = completion_missing if isinstance(completion_missing, list) else []
@@ -127,6 +167,7 @@ def report_progress(root: Path) -> dict[str, object]:
             "completion_audit": completion_audit,
             "completion_ready": bool(completion_audit.get("completion_ready")),
             "completion_missing_evidence": completion_missing_list,
+            **event_summary,
             "user_summary": build_user_summary(
                 "needs-supervisor-run",
                 goal,
@@ -227,6 +268,7 @@ def report_progress(root: Path) -> dict[str, object]:
         "completion_audit": completion_audit,
         "completion_ready": bool(completion_audit.get("completion_ready")),
         "completion_missing_evidence": completion_missing_list,
+        **event_summary,
         "user_summary": build_user_summary(
             state,
             goal,
