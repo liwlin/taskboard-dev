@@ -113,6 +113,31 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("Start or resume T0", progress["user_action"])
         self.assertIn("not ask you to manage T1/T2/T3", progress["user_summary"])
 
+    def test_progress_recovers_needs_goal_from_latest_event_without_snapshot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            self.run_json(
+                START_SCRIPT,
+                root,
+                "--auto",
+                "--no-state-file",
+                "--launcher",
+                "none",
+            )
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertFalse((root / ".taskboard" / "t0" / "latest.json").exists())
+        self.assertEqual(progress["latest_event"]["dispatch_state"], "needs-goal")
+        self.assertEqual(progress["state"], "needs-goal")
+        self.assertEqual(progress["resume_command"], "")
+        self.assertEqual(progress["user_action"], "Provide one user goal to T0.")
+        self.assertIn("needs one user goal", progress["user_summary"])
+        self.assertIn("state=needs-goal", text)
+        self.assertIn("latest_event_dispatch_state=needs-goal", text)
+
     def test_progress_surfaces_one_command_auto_mode(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

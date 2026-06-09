@@ -156,6 +156,8 @@ def build_user_summary(
             f"T0 has the goal '{goal}' but no supervisor snapshot yet. "
             "Start or resume T0; this does not ask you to manage T1/T2/T3."
         )
+    if state == "needs-goal":
+        return "T0 needs one user goal before it can manage T1/T2/T3."
     if state == "interrupted":
         return (
             f"T0 was interrupted while managing goal '{goal}'. "
@@ -285,6 +287,9 @@ def report_progress(root: Path) -> dict[str, object]:
         goal = read_goal(root, "") or str(latest_event_payload.get("goal") or "")
         latest_event_state = str(latest_event_payload.get("state") or "")
         fallback_state = "interrupted" if latest_event_state == "interrupted" else "needs-supervisor-run"
+        latest_event_dispatch_state = str(latest_event_payload.get("dispatch_state") or "")
+        if latest_event_dispatch_state == "needs-goal":
+            fallback_state = "needs-goal"
         if bool(completion_audit.get("completion_ready")):
             fallback_state = "complete"
         latest_event_next_role = str(latest_event_payload.get("next_role") or "T0")
@@ -395,7 +400,7 @@ def report_progress(root: Path) -> dict[str, object]:
             ),
             "user_action": build_user_action(
                 fallback_state,
-                fallback_state,
+                latest_event_dispatch_state or fallback_state,
                 ["wait for recent T0 launch lease"] if latest_event_suppressed_count else [],
                 latest_event_launch_failure_count,
                 stop_gate_count,
@@ -579,6 +584,7 @@ def format_text(payload: dict[str, object]) -> str:
         f"queue_metrics_next_role={metrics_payload.get('next_role', payload['next_role'])}",
         f"event_count={payload.get('event_count', 0)}",
         f"latest_event_state={latest_event_payload.get('state', '')}",
+        f"latest_event_dispatch_state={latest_event_payload.get('dispatch_state', '')}",
         f"latest_event_next_role={latest_event_payload.get('next_role', '')}",
         f"latest_event_task={latest_event_payload.get('task', '')}",
         f"latest_event_assignment_role={latest_event_payload.get('assignment_role', '')}",
