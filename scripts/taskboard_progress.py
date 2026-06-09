@@ -142,6 +142,8 @@ def build_user_action(
     launch_failure_count: int = 0,
     stop_gate_count: int = 0,
     completion_missing_evidence: Optional[list[str]] = None,
+    assignment_state: str = "",
+    assignment_role: str = "",
 ) -> str:
     if stop_gate_count:
         return "T0 stop gate requires user decision; answer T0's summarized question, not T1/T2/T3."
@@ -153,7 +155,17 @@ def build_user_action(
         return "Provide one user goal to T0."
     if dispatch_state == "complete":
         return "Review T0's completion summary."
-    if completion_missing_evidence:
+    has_active_completion_gap = any(
+        "active TASK files remain" in str(item)
+        for item in (completion_missing_evidence or [])
+    )
+    if (
+        assignment_state in {"pending-ack", "unassigned", "lease-expired"}
+        and assignment_role
+        and (has_active_completion_gap or not completion_missing_evidence)
+    ):
+        return f"No user action required; T0 will reissue target to taskboard-{assignment_role} until assignment is acknowledged."
+    if completion_missing_evidence and not has_active_completion_gap:
         return "No user action required; T0 will wake T1 to record or revise missing completion evidence."
     if actions:
         return "No user action required; T0 is handling routine role recovery or dispatch."
@@ -226,6 +238,10 @@ def report_progress(root: Path) -> dict[str, object]:
             "next_role": "T0",
             "task": "none",
             "assignment_state": "none",
+            "assignment_role": "",
+            "assignment_task": "none",
+            "assignment_reason": "",
+            "assignment_expected_id": "",
             "auto_mode": False,
             "starter_mode": "",
             "starter_boundary": "",
@@ -264,6 +280,8 @@ def report_progress(root: Path) -> dict[str, object]:
                 0,
                 stop_gate_count,
                 completion_missing_list,
+                "none",
+                "",
             ),
             "boundary": T0_PROGRESS_BOUNDARY,
         }
@@ -318,6 +336,10 @@ def report_progress(root: Path) -> dict[str, object]:
     next_role = str(dispatch_payload.get("next_role") or "T0")
     task = str(dispatch_payload.get("task") or "none")
     assignment_state = str(assignment_payload.get("state") or "none")
+    assignment_role = str(assignment_payload.get("role") or "")
+    assignment_task = str(assignment_payload.get("task") or "none")
+    assignment_reason = str(assignment_payload.get("reason") or "")
+    assignment_expected_id = str(assignment_payload.get("expected_assignment_id") or "")
     auto_mode = bool(latest_payload.get("auto_mode"))
     starter_mode = str(latest_payload.get("starter_mode") or "")
     starter_boundary = str(latest_payload.get("starter_boundary") or "")
@@ -335,6 +357,10 @@ def report_progress(root: Path) -> dict[str, object]:
         "next_role": next_role,
         "task": task,
         "assignment_state": assignment_state,
+        "assignment_role": assignment_role,
+        "assignment_task": assignment_task,
+        "assignment_reason": assignment_reason,
+        "assignment_expected_id": assignment_expected_id,
         "auto_mode": auto_mode,
         "starter_mode": starter_mode,
         "starter_boundary": starter_boundary,
@@ -377,6 +403,8 @@ def report_progress(root: Path) -> dict[str, object]:
             len(launch_failures),
             stop_gate_count,
             completion_missing_list,
+            assignment_state,
+            assignment_role,
         ),
         "actions": action_list,
         "boundary": T0_PROGRESS_BOUNDARY,
@@ -400,6 +428,10 @@ def format_text(payload: dict[str, object]) -> str:
         f"next_role={payload['next_role']}",
         f"task={payload['task']}",
         f"assignment_state={payload['assignment_state']}",
+        f"assignment_role={payload.get('assignment_role', '')}",
+        f"assignment_task={payload.get('assignment_task', '')}",
+        f"assignment_reason={payload.get('assignment_reason', '')}",
+        f"assignment_expected_id={payload.get('assignment_expected_id', '')}",
         f"queue_metrics_active_count={metrics_payload.get('active_count', 0)}",
         f"queue_metrics_stalled_count={metrics_payload.get('stalled_count', 0)}",
         "queue_metrics_role_counts="

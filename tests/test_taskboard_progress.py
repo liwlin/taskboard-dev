@@ -66,6 +66,26 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("No user action required", progress["user_action"])
         self.assertIn("manager-only", progress["boundary"])
 
+    def test_progress_surfaces_assignment_recovery_without_user_role_management(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            taskboard = root / "docs" / "taskboard"
+            taskboard.mkdir(parents=True)
+            task_name = f"TASK-005.v1.{T2_CODE_REVIEW}-L2.md"
+            (taskboard / task_name).write_text("# review\n\n**Wave**: 1\n", encoding="utf-8")
+
+            self.run_json(LOOP_SCRIPT, root, "--goal", "Ship demo")
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertEqual(progress["assignment_role"], "T2")
+        self.assertEqual(progress["assignment_task"], task_name)
+        self.assertIn("missing", progress["assignment_reason"])
+        self.assertIn("T0 will reissue target to taskboard-T2", progress["user_action"])
+        self.assertIn("assignment_role=T2", text)
+        self.assertIn(f"assignment_task={task_name}", text)
+        self.assertIn("assignment_reason=taskboard-T2 is missing", text)
+
     def test_progress_uses_saved_goal_when_no_snapshot_exists(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
