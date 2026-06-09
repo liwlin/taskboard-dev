@@ -561,7 +561,12 @@ class TaskboardProgressTest(unittest.TestCase):
             )
 
             text = self.run_text(PROGRESS_SCRIPT, root)
+            progress = self.run_json(PROGRESS_SCRIPT, root)
 
+        self.assertEqual(progress["launch_failure_count"], 1)
+        self.assertIn("wt was not found", progress["launch_failures"][0]["output"])
+        self.assertIn("T0 launch/recovery failed", progress["user_action"])
+        self.assertIn("T0 could not launch or recover", progress["user_summary"])
         self.assertIn("latest_event_launch_failure_count=1", text)
         self.assertIn(
             "latest_event_launch_failure_command=wt -w taskboard new-tab --title taskboard-T1",

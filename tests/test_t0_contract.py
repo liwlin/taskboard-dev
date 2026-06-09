@@ -168,6 +168,7 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("launch_failures", readme)
         self.assertIn("latest_event_launch_failure_count", readme)
         self.assertIn("latest_event_launch_failure_output", readme)
+        self.assertIn("latest event 的 `launch_failures`", readme)
         self.assertIn("resume_command", readme)
         self.assertIn("agent-template", readme)
         self.assertIn("taskboard-t0-interruption", readme)

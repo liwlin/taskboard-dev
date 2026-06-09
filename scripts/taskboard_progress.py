@@ -285,6 +285,24 @@ def report_progress(root: Path) -> dict[str, object]:
         goal = read_goal(root, "") or str(latest_event_payload.get("goal") or "")
         latest_event_state = str(latest_event_payload.get("state") or "")
         fallback_state = "interrupted" if latest_event_state == "interrupted" else "needs-supervisor-run"
+        latest_event_failures = latest_event_payload.get("launch_failures", [])
+        latest_event_failure_list: list[dict[str, object]] = []
+        if isinstance(latest_event_failures, list):
+            for item in latest_event_failures:
+                if not isinstance(item, dict):
+                    continue
+                latest_event_failure_list.append(
+                    {
+                        "command": str(item.get("command") or ""),
+                        "returncode": safe_int(item.get("returncode"), 0),
+                        "output": str(item.get("output") or ""),
+                    }
+                )
+        latest_event_launch_failure_count = (
+            len(latest_event_failure_list)
+            if latest_event_failure_list
+            else safe_int(latest_event_payload.get("launch_failure_count"), 0)
+        )
         latest_event_resume_config = latest_event_payload.get("resume_config", {})
         latest_event_resume_config_payload = (
             latest_event_resume_config if isinstance(latest_event_resume_config, dict) else {}
@@ -314,8 +332,8 @@ def report_progress(root: Path) -> dict[str, object]:
             "active_count": 0,
             "missing_roles": [],
             "stale_roles": [],
-            "launch_failures": [],
-            "launch_failure_count": 0,
+            "launch_failures": latest_event_failure_list,
+            "launch_failure_count": latest_event_launch_failure_count,
             "suppressed_launches": [],
             "suppressed_launch_count": 0,
             "stop_gates": stop_gate_list,
@@ -334,7 +352,7 @@ def report_progress(root: Path) -> dict[str, object]:
                 "none",
                 "none",
                 0,
-                0,
+                latest_event_launch_failure_count,
                 0,
                 stop_gate_count,
                 first_stop_gate_question,
@@ -344,7 +362,7 @@ def report_progress(root: Path) -> dict[str, object]:
                 fallback_state,
                 fallback_state,
                 [],
-                0,
+                latest_event_launch_failure_count,
                 stop_gate_count,
                 completion_missing_list,
                 "none",
