@@ -27,6 +27,7 @@
 │   └── test_t0_contract.py          # T0 协议 smoke test
 └── scripts/
     ├── package.sh                   # 生成发布包
+    ├── taskboard_next.py            # 根据文件名状态选择下一个角色/任务
     └── verify_t0_contract.py        # 校验 T0 协议和发布文档
 ```
 
@@ -102,6 +103,14 @@ dist/taskboard-dev-v4.3.zip
 
 完整用法见 [`USER-MANUAL.md`](USER-MANUAL.md)。
 
+## 本地协议检查
+
+```bash
+python scripts/taskboard_next.py --role T0 --root .
+python scripts/verify_t0_contract.py
+python -m unittest
+```
+
 ## 停止门
 
 agent 应自动执行常规开发动作，只在以下情况停下来请求用户确认：
@@ -129,7 +138,9 @@ VERSION=v4.3 ./scripts/package.sh
 ## 发布检查清单
 
 - [ ] `git diff --check`
+- [ ] `python scripts/taskboard_next.py --role T0 --root .`
 - [ ] `python scripts/verify_t0_contract.py`
+- [ ] `python -m unittest`
 - [ ] `./scripts/package.sh`
 - [ ] 解压 `dist/taskboard-dev-v*.tar.gz`，确认包含 `SKILL.md`、`USER-MANUAL.md`、`README.md`、`references/taskboard-template.md`
 - [ ] 推送到 GitHub

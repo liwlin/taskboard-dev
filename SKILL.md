@@ -870,6 +870,12 @@ Last completed: TASK-006 — 舵机控制模块 (12min ago)
 
 Deterministic selection rules. No model discretion. In autonomous long-run mode, T0 repeatedly chooses which managed role to run next, while T1/T2/T3 repeatedly execute `/taskboard-next` until their queue is empty, the goal is complete, or a stop gate is hit.
 
+Local smoke-test equivalent:
+
+```bash
+python scripts/taskboard_next.py --role T0 --root .
+```
+
 **T0 next** (priority order):
 1. Any `T1-待决策` stop gate (surface to user only if T1 cannot resolve safely)
 2. `T2-待审核代码-L{N}` (delivery is waiting for review)

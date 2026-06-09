@@ -35,6 +35,7 @@ class T0ContractTest(unittest.TestCase):
 
         self.assertIn('mkdir -p "$STAGE_DIR/references" "$STAGE_DIR/scripts"', package_script)
         self.assertIn('cp "$ROOT_DIR/scripts/package.sh"', package_script)
+        self.assertIn('cp "$ROOT_DIR/scripts/taskboard_next.py"', package_script)
         self.assertIn('cp "$ROOT_DIR/scripts/verify_t0_contract.py"', package_script)
 
     def test_multi_agent_patterns_are_explicit(self):
