@@ -4,6 +4,7 @@
 from argparse import ArgumentParser
 from pathlib import Path
 import json
+import shlex
 import sys
 from typing import Optional
 
@@ -82,7 +83,75 @@ def build_sessions(goal: str, next_role: str, status: str, task_name: str, reaso
     ]
 
 
-def dispatch(root: Path, goal_arg: Optional[str], mode: str) -> dict[str, str]:
+def powershell_quote(value: str) -> str:
+    escaped = value.replace("`", "``").replace('"', '`"').replace("$", "`$")
+    return f'"{escaped}"'
+
+
+def render_agent_command(session: dict[str, str], agent_template: Optional[str]) -> str:
+    if not agent_template:
+        target = session["target"].replace("\n", "`n")
+        return f"Write-Host {powershell_quote(target)}"
+
+    compact_target = " ".join(session["target"].splitlines())
+    return agent_template.format(
+        role=session["role"],
+        title=session["title"],
+        command=session["command"],
+        target=compact_target,
+    )
+
+
+def build_launch_commands(
+    root: Path,
+    sessions: list[dict[str, str]],
+    launcher: str,
+    agent_template: Optional[str],
+) -> list[str]:
+    if launcher == "none" or not sessions:
+        return []
+
+    commands = []
+    root_text = str(root)
+    for index, session in enumerate(sessions):
+        agent_command = render_agent_command(session, agent_template)
+        if launcher == "windows-terminal":
+            commands.append(
+                "wt -w taskboard new-tab "
+                f"--title {powershell_quote(session['title'])} "
+                f"-d {powershell_quote(root_text)} "
+                f"powershell -NoExit -Command {powershell_quote(agent_command)}"
+            )
+        elif launcher == "powershell":
+            commands.append(
+                "Start-Process powershell "
+                f"-WorkingDirectory {powershell_quote(root_text)} "
+                f"-ArgumentList '-NoExit','-Command',{powershell_quote(agent_command)}"
+            )
+        elif launcher == "tmux":
+            shell_command = f"cd {shlex.quote(root_text)} && {agent_command}"
+            if index == 0:
+                commands.append(
+                    "tmux new-session -d -s taskboard "
+                    f"-n {session['title']} {shlex.quote(shell_command)}"
+                )
+            else:
+                commands.append(
+                    "tmux new-window -t taskboard "
+                    f"-n {session['title']} {shlex.quote(shell_command)}"
+                )
+        else:
+            raise ValueError(f"unknown launcher: {launcher}")
+    return commands
+
+
+def dispatch(
+    root: Path,
+    goal_arg: Optional[str],
+    mode: str,
+    launcher: str = "none",
+    agent_template: Optional[str] = None,
+) -> dict[str, str]:
     goal = read_goal(root, goal_arg)
 
     if not goal:
@@ -98,6 +167,7 @@ def dispatch(root: Path, goal_arg: Optional[str], mode: str) -> dict[str, str]:
             "target": build_target("T0", "needs-goal", "none", goal, "missing-user-goal"),
             "boundary": T0_BOUNDARY,
             "managed_sessions": [],
+            "launch_commands": [],
         }
 
     role, status, task, reason = select_task("T0", root)
@@ -119,10 +189,12 @@ def dispatch(root: Path, goal_arg: Optional[str], mode: str) -> dict[str, str]:
         command = f"start managed terminals: /taskboard-dev T1, /taskboard-dev T2, /taskboard-dev T3"
         target = build_target(role, status, task_name, goal, reason)
         sessions = build_sessions(goal, role, status, task_name, reason)
+    launch_commands = build_launch_commands(root, sessions, launcher, agent_template)
 
     return {
         "state": state,
         "mode": mode,
+        "launcher": launcher,
         "next_role": role,
         "role_label": ROLE_LABELS[role],
         "status": status,
@@ -132,6 +204,7 @@ def dispatch(root: Path, goal_arg: Optional[str], mode: str) -> dict[str, str]:
         "target": target,
         "boundary": T0_BOUNDARY,
         "managed_sessions": sessions,
+        "launch_commands": launch_commands,
     }
 
 
@@ -155,6 +228,11 @@ def format_text(payload: dict[str, str]) -> str:
         lines.append("managed_sessions:")
         for session in sessions:
             lines.append(f"- title={session['title']} command={session['command']}")
+    launch_commands = payload.get("launch_commands", [])
+    if launch_commands:
+        lines.append("launch_commands:")
+        for command in launch_commands:
+            lines.append(f"- {command}")
     return "\n".join(lines)
 
 
@@ -168,10 +246,24 @@ def main(argv: Optional[list[str]] = None) -> int:
         default="terminal",
         help="Dispatch execution mode to describe in the output",
     )
+    parser.add_argument(
+        "--launcher",
+        choices=("none", "windows-terminal", "powershell", "tmux"),
+        default="none",
+        help="Optional shell launcher command family to emit for managed role sessions",
+    )
+    parser.add_argument(
+        "--agent-template",
+        help="Command template used inside each launched role terminal. Supports {role}, {title}, {command}, and {target}.",
+    )
     parser.add_argument("--format", choices=("text", "json"), default="text")
     args = parser.parse_args(argv)
 
-    payload = dispatch(Path(args.root).resolve(), args.goal, args.mode)
+    try:
+        payload = dispatch(Path(args.root).resolve(), args.goal, args.mode, args.launcher, args.agent_template)
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
+        return 2
     if args.format == "json":
         print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
     else:

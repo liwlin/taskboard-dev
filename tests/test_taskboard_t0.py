@@ -83,6 +83,53 @@ class TaskboardT0Test(unittest.TestCase):
         self.assertIn("T0 manager-only", output["boundary"])
         self.assertEqual(output["managed_sessions"], [])
 
+    def test_windows_terminal_launcher_commands_use_agent_template(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            output = self.run_t0(
+                root,
+                "--goal",
+                "完成支付模块",
+                "--launcher",
+                "windows-terminal",
+                "--agent-template",
+                'codex --prompt "{target}"',
+            )
+
+        commands = output["launch_commands"]
+        self.assertEqual(len(commands), 3)
+        self.assertIn("wt -w taskboard", commands[0])
+        self.assertIn('--title "taskboard-T1"', commands[0])
+        self.assertIn("codex --prompt", commands[0])
+        self.assertIn('`"用户目标', commands[0])
+        self.assertIn("完成支付模块", commands[0])
+        self.assertIn("taskboard-T2", commands[1])
+        self.assertIn("taskboard-T3", commands[2])
+
+    def test_tmux_launcher_commands_create_isolated_role_windows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            output = self.run_t0(
+                root,
+                "--goal",
+                "完成支付模块",
+                "--launcher",
+                "tmux",
+                "--agent-template",
+                'codex --prompt "{target}"',
+            )
+
+        commands = output["launch_commands"]
+        self.assertEqual(commands[0].split()[0:3], ["tmux", "new-session", "-d"])
+        self.assertIn("-n taskboard-T1", commands[0])
+        self.assertIn("tmux new-window", commands[1])
+        self.assertIn("-n taskboard-T2", commands[1])
+        self.assertIn("-n taskboard-T3", commands[2])
+
 
 if __name__ == "__main__":
     unittest.main()

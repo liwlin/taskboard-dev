@@ -584,6 +584,26 @@ Each managed role MUST run in a separate terminal session and isolated agent con
 
 If the client cannot create terminals, T0 may degrade to native subagents if they provide isolated contexts. If neither managed terminals nor isolated subagents are available, T0 may use inline sequential mode only as a compatibility fallback, and must explicitly enforce the role boundary section before every role switch.
 
+### T0 Terminal Launcher
+
+Use `scripts/taskboard_t0.py` to generate managed role sessions and optional launch commands. T0 may execute these commands when the active client allows terminal/process creation; the user should not manually manage T1/T2/T3.
+
+```bash
+python scripts/taskboard_t0.py --goal "<user goal>" --root .
+python scripts/taskboard_t0.py --goal "<user goal>" --root . --launcher windows-terminal --agent-template 'codex --prompt "{target}"'
+python scripts/taskboard_t0.py --goal "<user goal>" --root . --launcher powershell --agent-template 'codex --prompt "{target}"'
+python scripts/taskboard_t0.py --goal "<user goal>" --root . --launcher tmux --agent-template 'codex --prompt "{target}"'
+```
+
+Launcher rules:
+
+- `--launcher windows-terminal` emits `wt` commands for managed `taskboard-T1/T2/T3` tabs.
+- `--launcher powershell` emits `Start-Process powershell` commands for separate managed windows.
+- `--launcher tmux` emits `tmux new-session/new-window` commands for Unix-like terminals.
+- `--agent-template` is the client-specific command T0 runs inside each role terminal. It supports `{role}`, `{title}`, `{command}`, and `{target}` placeholders.
+- T0 must inject the generated role target. Users should not write separate T1/T2/T3 prompts.
+- If no launcher is requested, the script emits a dry orchestration plan only.
+
 ### Multi-Agent Synchronization
 
 Use blackboard synchronization, not chat-context synchronization:

@@ -110,6 +110,19 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("T0 是管理员，不是开发执行者", manual)
         self.assertIn("T0 不直接执行开发任务", manual)
 
+    def test_terminal_launcher_contract_is_documented(self):
+        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn("### T0 Terminal Launcher", skill)
+        self.assertIn("--launcher windows-terminal", skill)
+        self.assertIn("--agent-template", skill)
+        self.assertIn("### T0 启动器脚本", manual)
+        self.assertIn("Windows Terminal", manual)
+        self.assertIn("tmux", manual)
+        self.assertIn("--launcher windows-terminal", readme)
+
     def test_user_program_development_fit_is_documented(self):
         manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
 
