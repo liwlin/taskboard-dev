@@ -30,6 +30,12 @@ def build_decision_command(root: Path, first_stop_gate: dict[str, object]) -> st
     )
 
 
+def build_resume_command(root: Path, goal: str, state: str, stop_gate_count: int, completion_ready: bool) -> str:
+    if not goal or state == "complete" or completion_ready or stop_gate_count:
+        return ""
+    return f'python scripts/taskboard_start.py --root "{root}" --auto'
+
+
 def read_latest_snapshot(root: Path) -> Optional[dict[str, object]]:
     path = default_state_file(root)
     if not path.exists():
@@ -231,6 +237,13 @@ def report_progress(root: Path) -> dict[str, object]:
     if snapshot is None:
         goal = read_goal(root, "")
         queue_metrics = build_queue_metrics({}, "T0", bool(stop_gate_count))
+        resume_command = build_resume_command(
+            root,
+            goal,
+            "needs-supervisor-run",
+            stop_gate_count,
+            bool(completion_audit.get("completion_ready")),
+        )
         return {
             "kind": "taskboard-t0-progress",
             "state": "needs-supervisor-run",
@@ -255,6 +268,7 @@ def report_progress(root: Path) -> dict[str, object]:
             "stop_gates": stop_gate_list,
             "stop_gate_count": stop_gate_count,
             "decision_command": decision_command,
+            "resume_command": resume_command,
             "completion_audit": completion_audit,
             "completion_ready": bool(completion_audit.get("completion_ready")),
             "completion_missing_evidence": completion_missing_list,
@@ -349,6 +363,13 @@ def report_progress(root: Path) -> dict[str, object]:
         active_count = 0
     user_action_required = bool(stop_gate_count or launch_failures)
     queue_metrics = build_queue_metrics(queue_payload, next_role, user_action_required)
+    resume_command = build_resume_command(
+        root,
+        goal,
+        state,
+        stop_gate_count,
+        bool(completion_audit.get("completion_ready")),
+    )
 
     return {
         "kind": "taskboard-t0-progress",
@@ -378,6 +399,7 @@ def report_progress(root: Path) -> dict[str, object]:
         "stop_gates": stop_gate_list,
         "stop_gate_count": stop_gate_count,
         "decision_command": decision_command,
+        "resume_command": resume_command,
         "completion_audit": completion_audit,
         "completion_ready": bool(completion_audit.get("completion_ready")),
         "completion_missing_evidence": completion_missing_list,
@@ -470,6 +492,8 @@ def format_text(payload: dict[str, object]) -> str:
         lines.insert(-3, "completion_missing_evidence=" + "; ".join(str(item) for item in completion_missing_list))
     if payload.get("decision_command"):
         lines.insert(-1, f"decision_command={payload['decision_command']}")
+    if payload.get("resume_command"):
+        lines.insert(-1, f"resume_command={payload['resume_command']}")
     return "\n".join(lines)
 
 

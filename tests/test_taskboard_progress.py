@@ -61,6 +61,10 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertEqual(progress["state"], "attention")
         self.assertEqual(progress["next_role"], "T2")
         self.assertEqual(progress["task"], task_name)
+        self.assertEqual(
+            progress["resume_command"],
+            f'python scripts/taskboard_start.py --root "{root}" --auto',
+        )
         self.assertEqual(progress["assignment_state"], "unassigned")
         self.assertIn("T0 is managing T1/T2/T3", progress["user_summary"])
         self.assertIn("No user action required", progress["user_action"])
@@ -93,9 +97,15 @@ class TaskboardProgressTest(unittest.TestCase):
 
             self.run_json(START_SCRIPT, root, "--goal", "Ship demo", "--iterations", "1", "--no-state-file")
             progress = self.run_json(PROGRESS_SCRIPT, root)
+            text = self.run_text(PROGRESS_SCRIPT, root)
 
         self.assertEqual(progress["goal"], "Ship demo")
         self.assertEqual(progress["state"], "needs-supervisor-run")
+        self.assertEqual(
+            progress["resume_command"],
+            f'python scripts/taskboard_start.py --root "{root}" --auto',
+        )
+        self.assertIn(f'resume_command=python scripts/taskboard_start.py --root "{root}" --auto', text)
         self.assertIn("Start or resume T0", progress["user_action"])
         self.assertIn("not ask you to manage T1/T2/T3", progress["user_summary"])
 
@@ -267,6 +277,7 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertTrue(progress["completion_ready"])
         self.assertEqual(progress["completion_missing_evidence"], [])
         self.assertEqual(progress["completion_audit"]["state"], "complete-ready")
+        self.assertEqual(progress["resume_command"], "")
         self.assertIn("Review T0's completion summary", progress["user_action"])
 
     def test_progress_text_prints_missing_completion_evidence(self):

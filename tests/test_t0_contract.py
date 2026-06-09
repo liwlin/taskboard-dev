@@ -166,6 +166,7 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("launch_failures", readme)
         self.assertIn("latest_event_launch_failure_count", readme)
         self.assertIn("latest_event_launch_failure_output", readme)
+        self.assertIn("resume_command", readme)
         self.assertIn("suppressed_launch_count", readme)
         self.assertIn("events.jsonl` also records `auto_mode`", readme)
         self.assertIn("completion_missing_evidence", readme)
