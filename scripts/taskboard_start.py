@@ -7,8 +7,16 @@ import json
 import sys
 from typing import Optional
 
-from taskboard_loop import default_event_log_file, default_state_file, format_text, run_loop, write_state_snapshot
-from taskboard_t0 import default_target_dir
+from taskboard_loop import (
+    build_resume_config,
+    default_event_log_file,
+    default_state_file,
+    format_text,
+    run_loop,
+    write_state_snapshot,
+)
+from taskboard_progress import build_resume_command
+from taskboard_t0 import default_target_dir, read_goal
 
 
 DEFAULT_AGENT_TEMPLATE = 'codex --prompt-file "{target_file}"'
@@ -38,6 +46,58 @@ def starter_metadata(auto_mode: bool) -> dict[str, object]:
 def option_was_provided(argv: Optional[list[str]], option: str) -> bool:
     args = argv if argv is not None else sys.argv[1:]
     return any(item == option or item.startswith(f"{option}=") for item in args)
+
+
+def build_interruption_payload(
+    root: Path,
+    goal: str,
+    launcher: str,
+    agent_template: str,
+    stale_minutes: int,
+    stale_seconds: int,
+    interval_seconds: int,
+    assignment_lease_seconds: int,
+    launch_lease_seconds: int,
+    target_dir: Optional[Path],
+    auto_mode: bool,
+) -> dict[str, object]:
+    resume_config = build_resume_config(
+        launcher,
+        agent_template,
+        stale_minutes,
+        stale_seconds,
+        interval_seconds,
+        assignment_lease_seconds,
+        launch_lease_seconds,
+        target_dir,
+    )
+    metadata = starter_metadata(auto_mode)
+    return {
+        "kind": "taskboard-t0-interruption",
+        "state": "interrupted",
+        "goal": goal,
+        "boundary": (
+            "T0 interruption report: user-facing resume guidance only; "
+            "T0 does not ask the user to manage T1/T2/T3."
+        ),
+        "resume_config": resume_config,
+        "resume_command": build_resume_command(root, goal, "interrupted", 0, False, resume_config),
+        "user_action": "Resume T0 with resume_command; do not manage T1/T2/T3 directly.",
+        **metadata,
+    }
+
+
+def format_interruption_text(payload: dict[str, object]) -> str:
+    lines = [
+        f"state={payload['state']}",
+        f"goal={payload['goal']}",
+        f"boundary={payload['boundary']}",
+        f"user_action={payload['user_action']}",
+    ]
+    resume_command = payload.get("resume_command")
+    if resume_command:
+        lines.append(f"resume_command={resume_command}")
+    return "\n".join(lines)
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -155,6 +215,26 @@ def main(argv: Optional[list[str]] = None) -> int:
         if state_file is not None and results:
             snapshot_goal = str(results[-1].get("goal") or args.goal or "")
             write_state_snapshot(state_file, root, snapshot_goal, results, not args.no_stop_on_complete)
+    except KeyboardInterrupt:
+        effective_goal = read_goal(root, args.goal)
+        payload = build_interruption_payload(
+            root,
+            effective_goal,
+            args.launcher,
+            args.agent_template,
+            args.stale_minutes,
+            args.stale_seconds,
+            args.interval_seconds,
+            args.assignment_lease_seconds,
+            args.launch_lease_seconds,
+            target_dir,
+            args.auto,
+        )
+        if args.format == "json":
+            print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+        else:
+            print(format_interruption_text(payload))
+        return 130
     except ValueError as exc:
         print(exc, file=sys.stderr)
         return 2

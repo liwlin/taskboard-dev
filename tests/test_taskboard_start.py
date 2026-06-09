@@ -269,6 +269,52 @@ class TaskboardStartTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertFalse(captured["stop_on_stop_gate"])
 
+    def test_starter_reports_t0_resume_command_on_keyboard_interrupt_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+            stdout = io.StringIO()
+            with patch("taskboard_start.run_loop", side_effect=KeyboardInterrupt):
+                with contextlib.redirect_stdout(stdout):
+                    code = start_module.main(
+                        [
+                            "--root",
+                            str(root),
+                            "--goal",
+                            "Ship demo",
+                            "--auto",
+                            "--launcher",
+                            "tmux",
+                            "--stale-minutes",
+                            "12",
+                            "--stale-seconds",
+                            "34",
+                            "--assignment-lease-seconds",
+                            "56",
+                            "--launch-lease-seconds",
+                            "78",
+                            "--interval-seconds",
+                            "9",
+                            "--format",
+                            "json",
+                        ]
+                    )
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(code, 130)
+        self.assertEqual(payload["kind"], "taskboard-t0-interruption")
+        self.assertEqual(payload["state"], "interrupted")
+        self.assertEqual(payload["goal"], "Ship demo")
+        self.assertIn(f'python scripts/taskboard_start.py --root "{root}" --auto', payload["resume_command"])
+        self.assertIn("--launcher tmux", payload["resume_command"])
+        self.assertIn("--stale-minutes 12", payload["resume_command"])
+        self.assertIn("--stale-seconds 34", payload["resume_command"])
+        self.assertIn("--assignment-lease-seconds 56", payload["resume_command"])
+        self.assertIn("--launch-lease-seconds 78", payload["resume_command"])
+        self.assertIn("--interval-seconds 9", payload["resume_command"])
+        self.assertIn("Resume T0", payload["user_action"])
+        self.assertIn("do not manage T1/T2/T3", payload["user_action"])
+
 
 if __name__ == "__main__":
     unittest.main()
