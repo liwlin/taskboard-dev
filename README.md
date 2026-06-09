@@ -155,11 +155,13 @@ T0 supervisor loop entry:
 python scripts/taskboard_loop.py --root . --goal "完成 <你的开发目标>" --forever --assignment-lease-seconds 300 --launcher windows-terminal --agent-template 'codex --prompt "{target}"'
 ```
 
-By default the loop reports generated launcher commands without executing them. Add `--execute-launches` only when T0 should actually launch or recover managed role terminals. `--assignment-lease-seconds` controls how long T0 waits after a task assignment heartbeat before treating the assignment as expired and reissuing the role target. This executes manager launch/reissue commands only; T0 still does not perform T1/T2/T3 worker tasks.
+By default the loop reports generated launcher commands without executing them. Add `--execute-launches` only when T0 should actually launch or recover managed role terminals. `--assignment-lease-seconds` controls how long T0 waits after a task assignment heartbeat before treating the assignment as expired and reissuing the role target. `--launch-lease-seconds 300` prevents T0 from repeatedly opening duplicate `taskboard-T1/T2/T3` terminals after a successful launch while it waits for worker heartbeats. This executes manager launch/reissue commands only; T0 still does not perform T1/T2/T3 worker tasks.
 
 Each loop iteration writes isolated per-role targets to `.taskboard/targets/taskboard-T1.md`, `.taskboard/targets/taskboard-T2.md`, and `.taskboard/targets/taskboard-T3.md` by default. These files are runtime inboxes from T0 to each managed role, so workers can read only their own target without sharing hidden chat context. They are not task state or shared memory. Use `--target-dir <path>` to choose another target directory, or `--no-target-files` for no-write dry checks.
 
 Each loop iteration writes the latest T0 supervisor runtime snapshot to `.taskboard/t0/latest.json` by default. This `taskboard-t0-supervisor-state` file records T0's management view for recovery after interruption; it is not task state, not worker memory, and not a replacement for TASKBOARD filenames, history, dev-log, HANDOFF, or the completion sentinel. Use `--state-file <path>` to choose another snapshot path, or `--no-state-file` for dry checks that should leave no runtime snapshot.
+
+When launch execution is enabled, T0 also writes `.taskboard/t0/launches.json` as `taskboard-t0-launch-state`. It records recent successful launcher attempts only so T0 can suppress duplicate terminal launches during the launch lease; it is not worker state or TASKBOARD task state.
 
 T0 stops the loop only when there are no active TASK files and `docs/STATE.md` contains `**Goal Complete**: yes` or `Goal Complete: yes`. Without that completion sentinel, an empty queue plus a user goal wakes T1 to create or revise the next TASK files. `--forever` runs until completion or interruption; use `--no-stop-on-complete` only for monitoring/debugging after completion.
 

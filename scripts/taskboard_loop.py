@@ -4,6 +4,7 @@
 from argparse import ArgumentParser
 from pathlib import Path
 import json
+import re
 import subprocess
 import sys
 import time
@@ -20,6 +21,8 @@ T0_BOUNDARY = (
     "implementation, verification, or commit work in T0."
 )
 
+LAUNCH_ROLE_RE = re.compile(r"taskboard-(T[123])")
+
 
 def choose_launch_commands(session_probe: dict[str, object], dispatch_plan: dict[str, object]) -> list[str]:
     if dispatch_plan.get("state") == "complete":
@@ -28,6 +31,101 @@ def choose_launch_commands(session_probe: dict[str, object], dispatch_plan: dict
     if recovery_commands:
         return list(recovery_commands)
     return list(dispatch_plan.get("launch_commands", []))
+
+
+def default_launch_state_file(root: Path) -> Path:
+    return root / ".taskboard" / "t0" / "launches.json"
+
+
+def read_launch_state(root: Path) -> dict[str, object]:
+    path = default_launch_state_file(root)
+    if not path.exists():
+        return {"kind": "taskboard-t0-launch-state", "version": 1, "roles": {}}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return {"kind": "taskboard-t0-launch-state", "version": 1, "roles": {}}
+    if not isinstance(payload, dict):
+        return {"kind": "taskboard-t0-launch-state", "version": 1, "roles": {}}
+    if not isinstance(payload.get("roles"), dict):
+        payload["roles"] = {}
+    return payload
+
+
+def write_launch_state(root: Path, launch_state: dict[str, object], launch_lease_seconds: int) -> None:
+    path = default_launch_state_file(root)
+    launch_state["kind"] = "taskboard-t0-launch-state"
+    launch_state["version"] = 1
+    launch_state["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    launch_state["launch_lease_seconds"] = launch_lease_seconds
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(launch_state, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def command_role(command: str) -> str:
+    match = LAUNCH_ROLE_RE.search(command)
+    return match.group(1) if match else ""
+
+
+def filter_launch_commands(
+    commands: list[str],
+    launch_state: dict[str, object],
+    launch_lease_seconds: int,
+    current_time: float,
+) -> tuple[list[str], list[dict[str, object]]]:
+    roles = launch_state.get("roles", {})
+    role_payloads = roles if isinstance(roles, dict) else {}
+    executable: list[str] = []
+    suppressed: list[dict[str, object]] = []
+
+    for command in commands:
+        role = command_role(command)
+        role_state = role_payloads.get(role, {}) if role else {}
+        last_success_at = role_state.get("last_success_at") if isinstance(role_state, dict) else None
+        try:
+            age_seconds = current_time - float(last_success_at) if last_success_at is not None else None
+        except (TypeError, ValueError):
+            age_seconds = None
+        if role and age_seconds is not None and age_seconds < launch_lease_seconds:
+            suppressed.append(
+                {
+                    "role": role,
+                    "command": command,
+                    "reason": "launch-lease-active",
+                    "age_seconds": int(age_seconds),
+                    "remaining_seconds": int(max(0, launch_lease_seconds - age_seconds)),
+                }
+            )
+            continue
+        executable.append(command)
+    return executable, suppressed
+
+
+def record_launch_successes(
+    launch_state: dict[str, object],
+    executed_commands: list[dict[str, object]],
+    current_time: float,
+) -> None:
+    roles = launch_state.setdefault("roles", {})
+    if not isinstance(roles, dict):
+        roles = {}
+        launch_state["roles"] = roles
+
+    for item in executed_commands:
+        try:
+            returncode = int(item.get("returncode", 1))
+        except (TypeError, ValueError):
+            returncode = 1
+        if returncode != 0:
+            continue
+        command = str(item.get("command") or "")
+        role = command_role(command)
+        if not role:
+            continue
+        roles[role] = {
+            "last_success_at": current_time,
+            "last_command": command,
+        }
 
 
 def build_assignment(
@@ -99,6 +197,7 @@ def build_actions(
     dispatch_plan: dict[str, object],
     launch_commands: list[str],
     assignment: dict[str, object],
+    suppressed_launches: list[dict[str, object]],
 ) -> list[str]:
     actions: list[str] = []
     if dispatch_plan.get("state") == "complete":
@@ -109,6 +208,9 @@ def build_actions(
 
     if launch_commands:
         actions.append("launch/recover managed role sessions with generated commands")
+    elif suppressed_launches:
+        roles = ", ".join(str(item.get("role")) for item in suppressed_launches)
+        actions.append(f"wait for {roles} launch lease active; do not duplicate managed terminals")
     elif dispatch_plan.get("state") == "needs-goal":
         actions.append("ask user for one T0 goal")
     elif dispatch_plan.get("state") == "dispatch":
@@ -204,6 +306,8 @@ def run_once(
     execute_launches: bool,
     assignment_lease_seconds: int,
     target_dir: Optional[Path],
+    launch_state: Optional[dict[str, object]] = None,
+    launch_lease_seconds: int = 300,
 ) -> dict[str, object]:
     session_probe = probe_sessions(
         root,
@@ -217,8 +321,23 @@ def run_once(
     queue_health = report_health(root, stale_minutes, goal)
     dispatch_plan = dispatch(root, goal, "terminal", launcher, agent_template, target_dir)
     target_files = write_role_target_files(dispatch_plan) if target_dir is not None else []
-    launch_commands = choose_launch_commands(session_probe, dispatch_plan)
-    executed_commands = execute_commands(launch_commands) if execute_launches else []
+    requested_launch_commands = choose_launch_commands(session_probe, dispatch_plan)
+    current_time = time.time()
+    launch_state_payload = launch_state if launch_state is not None else read_launch_state(root)
+    if execute_launches:
+        launch_commands, suppressed_launches = filter_launch_commands(
+            requested_launch_commands,
+            launch_state_payload,
+            launch_lease_seconds,
+            current_time,
+        )
+    else:
+        launch_commands = requested_launch_commands
+        suppressed_launches = []
+    executed_commands = execute_commands(launch_commands) if execute_launches and launch_commands else []
+    if execute_launches and executed_commands:
+        record_launch_successes(launch_state_payload, executed_commands, current_time)
+        write_launch_state(root, launch_state_payload, launch_lease_seconds)
     assignment = build_assignment(session_probe, dispatch_plan, assignment_lease_seconds)
 
     state = "attention"
@@ -242,9 +361,18 @@ def run_once(
         "dispatch": dispatch_plan,
         "assignment": assignment,
         "target_files": target_files,
+        "requested_launch_commands": requested_launch_commands,
         "launch_commands": launch_commands,
+        "suppressed_launches": suppressed_launches,
         "executed_commands": executed_commands,
-        "actions": build_actions(session_probe, queue_health, dispatch_plan, launch_commands, assignment),
+        "actions": build_actions(
+            session_probe,
+            queue_health,
+            dispatch_plan,
+            launch_commands,
+            assignment,
+            suppressed_launches,
+        ),
     }
 
 
@@ -291,6 +419,7 @@ def run_loop(
     stop_on_complete: bool,
     state_file: Optional[Path],
     target_dir: Optional[Path],
+    launch_lease_seconds: int = 300,
 ) -> list[dict[str, object]]:
     if interval_seconds < 0:
         raise ValueError("--interval-seconds must be >= 0")
@@ -298,9 +427,12 @@ def run_loop(
         raise ValueError("--iterations must be >= 1")
     if assignment_lease_seconds < 1:
         raise ValueError("--assignment-lease-seconds must be >= 1")
+    if launch_lease_seconds < 1:
+        raise ValueError("--launch-lease-seconds must be >= 1")
 
     write_runtime_goal(root, goal)
     effective_goal = read_goal(root, goal)
+    launch_state = read_launch_state(root) if execute_launches else None
     results: list[dict[str, object]] = []
     count = 0
     while iterations is None or count < iterations:
@@ -314,6 +446,8 @@ def run_loop(
             execute_launches,
             assignment_lease_seconds,
             target_dir,
+            launch_state,
+            launch_lease_seconds,
         )
         results.append(payload)
         count += 1
@@ -349,6 +483,13 @@ def format_text(results: list[dict[str, object]]) -> str:
             lines.append("launch_commands:")
             for command in launch_commands:
                 lines.append(f"- {command}")
+        suppressed_launches = payload.get("suppressed_launches", [])
+        if suppressed_launches:
+            lines.append("suppressed_launches:")
+            for item in suppressed_launches:
+                lines.append(
+                    f"- role={item['role']} reason={item['reason']} remaining_seconds={item['remaining_seconds']}"
+                )
     return "\n".join(lines)
 
 
@@ -359,6 +500,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--stale-minutes", type=int, default=30)
     parser.add_argument("--stale-seconds", type=int, default=300)
     parser.add_argument("--assignment-lease-seconds", type=int, default=300)
+    parser.add_argument("--launch-lease-seconds", type=int, default=300)
     parser.add_argument("--interval-seconds", type=int, default=300)
     parser.add_argument("--iterations", type=int, default=1)
     parser.add_argument(
@@ -429,6 +571,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             not args.no_stop_on_complete,
             state_file,
             target_dir,
+            args.launch_lease_seconds,
         )
     except ValueError as exc:
         print(exc, file=sys.stderr)

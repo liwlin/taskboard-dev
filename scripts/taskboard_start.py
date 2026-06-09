@@ -37,6 +37,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--stale-minutes", type=int, default=30)
     parser.add_argument("--stale-seconds", type=int, default=300)
     parser.add_argument("--assignment-lease-seconds", type=int, default=300)
+    parser.add_argument("--launch-lease-seconds", type=int, default=300)
     parser.add_argument("--interval-seconds", type=int, default=300)
     parser.add_argument("--iterations", type=int, default=1)
     parser.add_argument(
@@ -89,6 +90,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             not args.no_stop_on_complete,
             state_file,
             target_dir,
+            args.launch_lease_seconds,
         )
     except ValueError as exc:
         print(exc, file=sys.stderr)

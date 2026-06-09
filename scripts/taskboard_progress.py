@@ -36,11 +36,17 @@ def build_user_summary(
     assignment_state: str,
     active_count: int,
     launch_failure_count: int = 0,
+    suppressed_launch_count: int = 0,
 ) -> str:
     if launch_failure_count:
         return (
             f"T0 could not launch or recover {launch_failure_count} managed role command(s) "
             f"for goal '{goal}'. T0 should retry or switch launcher mode; this is not T1/T2/T3 user management."
+        )
+    if suppressed_launch_count:
+        return (
+            f"T0 is waiting for recent T0 launch attempt(s) to produce worker heartbeats for goal '{goal}'. "
+            "It is not duplicating managed terminals while the launch lease is active."
         )
     if state == "needs-supervisor-run":
         return (
@@ -93,6 +99,8 @@ def report_progress(root: Path) -> dict[str, object]:
             "stale_roles": [],
             "launch_failures": [],
             "launch_failure_count": 0,
+            "suppressed_launches": [],
+            "suppressed_launch_count": 0,
             "user_summary": build_user_summary("needs-supervisor-run", goal, "T0", "none", "none", 0),
             "user_action": build_user_action("needs-supervisor-run", "needs-supervisor-run", []),
             "boundary": T0_PROGRESS_BOUNDARY,
@@ -110,6 +118,19 @@ def report_progress(root: Path) -> dict[str, object]:
     session_payload = session_probe if isinstance(session_probe, dict) else {}
     actions = latest_payload.get("actions", [])
     action_list = [str(action) for action in actions] if isinstance(actions, list) else []
+    suppressed_launches = latest_payload.get("suppressed_launches", [])
+    suppressed_launch_list: list[dict[str, object]] = []
+    if isinstance(suppressed_launches, list):
+        for item in suppressed_launches:
+            if not isinstance(item, dict):
+                continue
+            suppressed_launch_list.append(
+                {
+                    "role": str(item.get("role") or ""),
+                    "reason": str(item.get("reason") or ""),
+                    "remaining_seconds": item.get("remaining_seconds"),
+                }
+            )
     executed_commands = latest_payload.get("executed_commands", [])
     launch_failures: list[dict[str, object]] = []
     if isinstance(executed_commands, list):
@@ -156,6 +177,8 @@ def report_progress(root: Path) -> dict[str, object]:
         else [],
         "launch_failures": launch_failures,
         "launch_failure_count": len(launch_failures),
+        "suppressed_launches": suppressed_launch_list,
+        "suppressed_launch_count": len(suppressed_launch_list),
         "user_summary": build_user_summary(
             state,
             goal,
@@ -164,6 +187,7 @@ def report_progress(root: Path) -> dict[str, object]:
             assignment_state,
             active_count,
             len(launch_failures),
+            len(suppressed_launch_list),
         ),
         "user_action": build_user_action(
             state,

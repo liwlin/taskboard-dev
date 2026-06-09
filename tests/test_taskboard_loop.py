@@ -5,11 +5,13 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "taskboard_loop.py"
 sys.path.insert(0, str(ROOT / "scripts"))
+import taskboard_loop as loop_module  # noqa: E402
 from taskboard_next import ROLE_PRIORITY  # noqa: E402
 
 
@@ -178,6 +180,50 @@ class TaskboardLoopTest(unittest.TestCase):
             output = self.run_loop(root, "--goal", "Ship demo", "--iterations", "2", "--interval-seconds", "0")
 
         self.assertEqual(len(output), 2)
+
+    def test_execute_launches_is_throttled_until_launch_lease_expires(self):
+        executed_batches = []
+
+        def fake_execute(commands):
+            executed_batches.append(list(commands))
+            return [
+                {
+                    "command": command,
+                    "returncode": 0,
+                    "output": "",
+                }
+                for command in commands
+            ]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            with patch("taskboard_loop.execute_commands", fake_execute):
+                output = loop_module.run_loop(
+                    root,
+                    "Ship demo",
+                    30,
+                    300,
+                    "windows-terminal",
+                    'codex --prompt-file "{target_file}"',
+                    True,
+                    2,
+                    0,
+                    300,
+                    True,
+                    root / ".taskboard" / "t0" / "latest.json",
+                    root / ".taskboard" / "targets",
+                )
+
+        self.assertEqual([len(batch) for batch in executed_batches], [3])
+        self.assertEqual(len(output[0]["executed_commands"]), 3)
+        self.assertEqual(output[1]["executed_commands"], [])
+        self.assertEqual(
+            [item["role"] for item in output[1]["suppressed_launches"]],
+            ["T1", "T2", "T3"],
+        )
+        self.assertIn("launch lease active", " ".join(output[1]["actions"]))
 
     def test_loop_writes_latest_t0_state_snapshot_by_default(self):
         with tempfile.TemporaryDirectory() as tmp:

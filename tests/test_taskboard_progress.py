@@ -126,6 +126,39 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertEqual(progress["goal"], "Ship demo")
         self.assertEqual(progress["state"], "attention")
 
+    def test_progress_summarizes_suppressed_launches(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_dir = root / ".taskboard" / "t0"
+            state_dir.mkdir(parents=True)
+            snapshot = {
+                "kind": "taskboard-t0-supervisor-state",
+                "goal": "Ship demo",
+                "latest": {
+                    "state": "attention",
+                    "actions": ["wait for T1 launch lease active; do not duplicate managed terminals"],
+                    "dispatch": {"state": "dispatch", "next_role": "T1", "task": "none"},
+                    "assignment": {"state": "none"},
+                    "queue_health": {"active_count": 0},
+                    "session_probe": {"missing_roles": ["T1"], "stale_roles": []},
+                    "suppressed_launches": [
+                        {
+                            "role": "T1",
+                            "reason": "launch-lease-active",
+                            "remaining_seconds": 240,
+                        }
+                    ],
+                },
+            }
+            (state_dir / "latest.json").write_text(json.dumps(snapshot), encoding="utf-8")
+
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+
+        self.assertEqual(progress["suppressed_launch_count"], 1)
+        self.assertIn("T1", progress["suppressed_launches"][0]["role"])
+        self.assertIn("waiting for recent T0 launch", progress["user_summary"])
+        self.assertIn("No user action required", progress["user_action"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -148,11 +148,13 @@ T0 supervisor loop 入口：
 python scripts/taskboard_loop.py --root . --goal "完成 <你的开发目标>" --forever --assignment-lease-seconds 300 --launcher windows-terminal --agent-template 'codex --prompt "{target}"'
 ```
 
-默认只输出恢复/启动命令，不执行。只有 T0 明确需要实际创建或恢复受控角色终端时才加 `--execute-launches`。`--assignment-lease-seconds` 控制 T0 在任务已认领后等待多久；超过该租约仍没有新的 assignment heartbeat 时，T0 标记 `lease-expired` 并重新下发角色目标。该选项只执行 manager launch/reissue commands；T0 仍不能做 T1/T2/T3 的开发任务。
+默认只输出恢复/启动命令，不执行。只有 T0 明确需要实际创建或恢复受控角色终端时才加 `--execute-launches`。`--assignment-lease-seconds` 控制 T0 在任务已认领后等待多久；超过该租约仍没有新的 assignment heartbeat 时，T0 标记 `lease-expired` 并重新下发角色目标。`--launch-lease-seconds 300` 控制 T0 成功启动/恢复某个 `taskboard-T1/T2/T3` 后等待 worker heartbeat 的时间；lease 生效期间 T0 不会重复打开同一个角色终端。该选项只执行 manager launch/reissue commands；T0 仍不能做 T1/T2/T3 的开发任务。
 
 每轮 loop 默认会把隔离的角色目标写入 `.taskboard/targets/taskboard-T1.md`、`.taskboard/targets/taskboard-T2.md`、`.taskboard/targets/taskboard-T3.md`。这些文件是 T0 发给每个受控角色的运行态 inbox，让 worker 只读取自己的目标文件，不共享隐藏 chat context；它不是任务状态，也不是共享记忆。需要自定义目录时使用 `--target-dir <path>`；只想 dry check 且不写角色目标时使用 `--no-target-files`。
 
 每轮 loop 默认会把最新 T0 supervisor 运行态快照写入 `.taskboard/t0/latest.json`。这个 `taskboard-t0-supervisor-state` 文件只记录 T0 的管理视图，方便中断后恢复判断；它不是任务状态、不是 worker 记忆，也不能替代 TASKBOARD 文件名、history、dev-log、HANDOFF 或完成 sentinel。需要自定义路径时使用 `--state-file <path>`；只想 dry check 且不留下运行态快照时使用 `--no-state-file`。
+
+启用 `--execute-launches` 时，T0 还会把最近成功的角色启动/恢复尝试写入 `.taskboard/t0/launches.json`，类型为 `taskboard-t0-launch-state`。它只用于 launch lease 去重，避免重复创建同一角色终端；它不是 worker 状态，也不是任务状态。
 
 T0 只有在 active TASK 队列为空，并且 `docs/STATE.md` 写有 `**Goal Complete**: yes` 或 `Goal Complete: yes` 时才收口。空队列但没有完成 sentinel，表示目标仍未证明完成，T0 会唤醒 T1 创建或修订下一批 TASK 文件。`--forever` 会运行到完成或中断；只有完成后仍要监控/调试时才使用 `--no-stop-on-complete`。
 
