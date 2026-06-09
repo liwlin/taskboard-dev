@@ -29,7 +29,7 @@ docs/
 Paste one goal before invoking the role, or pass it through the CLI's goal/target field if available.
 
 ```text
-目标(T0): Own the user's goal, initialize or resume the TASKBOARD, launch or instruct T1/T2/T3 as needed, monitor queues and stop gates, recover stalled roles, and keep running until the goal is complete.
+目标(T0): Own the user's goal, initialize or resume the TASKBOARD, automatically create or recover managed taskboard-T1/taskboard-T2/taskboard-T3 role terminals, monitor queues and stop gates, recover stalled roles, and keep running until the goal is complete.
 执行: /taskboard-dev T0
 
 目标(T1): Maintain PROJECT/MAP/REQUIREMENTS/STATE, create and revise TASK files, resolve safe design choices autonomously, and keep the milestone moving until no unblocked T1 work remains.
@@ -44,7 +44,7 @@ Paste one goal before invoking the role, or pass it through the CLI's goal/targe
 
 Stop gates: product decision / destructive shared-state operation / credential-payment-privacy risk / repeated verify failure / scope expansion.
 
-T0 is the preferred user-facing entry point. Users give goals to T0; T0 manages T1/T2/T3. The T1/T2/T3 templates remain for compatibility or for advanced users who want to run role sessions manually.
+T0 is the preferred user-facing entry point. Users give goals to T0; T0 manages T1/T2/T3. In the default auto-terminal mode, the user manually starts only T0, and T0 creates or resumes the managed taskboard-T1/taskboard-T2/taskboard-T3 role terminals. The T1/T2/T3 templates remain for compatibility or for advanced users who want to run role sessions manually.
 
 ---
 

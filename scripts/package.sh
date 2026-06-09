@@ -15,6 +15,7 @@ cp "$ROOT_DIR/USER-MANUAL.md" "$STAGE_DIR/USER-MANUAL.md"
 cp "$ROOT_DIR/README.md" "$STAGE_DIR/README.md"
 cp "$ROOT_DIR/references/taskboard-template.md" "$STAGE_DIR/references/taskboard-template.md"
 cp "$ROOT_DIR/scripts/package.sh" "$STAGE_DIR/scripts/package.sh"
+cp "$ROOT_DIR/scripts/taskboard_t0.py" "$STAGE_DIR/scripts/taskboard_t0.py"
 cp "$ROOT_DIR/scripts/taskboard_next.py" "$STAGE_DIR/scripts/taskboard_next.py"
 cp "$ROOT_DIR/scripts/verify_t0_contract.py" "$STAGE_DIR/scripts/verify_t0_contract.py"
 

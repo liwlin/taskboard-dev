@@ -573,16 +573,49 @@ Own the user's goal from intake to completion. T0 is the only role that should r
 - Hide stop gates by choosing a product behavior, destructive operation, credential/payment/privacy action, repeated-failure resolution, or scope expansion on the user's behalf.
 - Create a new parallel state system. T0 observes filenames and role sessions; it does not add `T0-*` task statuses.
 
+### T0 Execution Mode
+
+Default execution mode is **auto-terminal mode**. The user manually opens only the T0 entry terminal. After T0 receives the goal, T0 creates or resumes three managed role terminals named `taskboard-T1`, `taskboard-T2`, and `taskboard-T3`, each running its own `/taskboard-dev T{1|2|3}` target loop.
+
+Each managed role MUST run in a separate terminal session and isolated agent context. T0 must not reuse one role's conversation context as another role's context, because that would contaminate design, review, and implementation responsibilities. Shared state flows only through `docs/taskboard/TASK-*.md` filenames, context files, `history/`, `dev-log.md`, and explicit stop-gate notes.
+
+If the client cannot create terminals, T0 may degrade to native subagents if they provide isolated contexts. If neither managed terminals nor isolated subagents are available, T0 may use inline sequential mode only as a compatibility fallback, and must explicitly enforce the role boundary section before every role switch.
+
+### Multi-Agent Synchronization
+
+Use blackboard synchronization, not chat-context synchronization:
+
+- **Task state**: active work is synchronized by `docs/taskboard/TASK-*.md` filenames. A rename is the handoff.
+- **Durable context**: milestone-level facts live in `PROJECT.md`, `MAP.md`, `REQUIREMENTS.md`, and `STATE.md`.
+- **Execution history**: role work and state transitions are appended to `docs/taskboard/history/TASK-NNN.history.md` and `dev-log.md`.
+- **Pause/resume**: cross-session recovery information lives in `HANDOFF.md`.
+- **Role isolation**: T1/T2/T3 do not share private conversation history. A role may read the task file and stable context files, but must not inherit another role's hidden reasoning or chat transcript.
+- **T0 scheduling**: T0 reads filenames, mtime, history, and stop-gate notes to decide which managed role terminal to nudge or recover next.
+
+### T0 Scheduling Logic
+
+T0 schedules by event priority, not by arbitrary rotation:
+
+1. Keep `taskboard-T1`, `taskboard-T2`, and `taskboard-T3` alive or recoverable.
+2. Treat active task filenames as the event queue.
+3. Resolve stop gates and review queues before starting more implementation.
+4. Prioritize code review over design review, because completed implementation is waiting for acceptance.
+5. Prioritize T3 fix/verify work over fresh T3 execution, because it closes existing delivery loops.
+6. Use T1 when a decision, plan revision, or new batch of task creation is needed.
+7. Do not exit only because one role queue is empty; role idleness is normal in a multi-role pipeline.
+
 ### T0 Operating Loop
 
 1. Capture or restate the user goal.
 2. Initialize `docs/taskboard/` if missing.
-3. Run `/taskboard-progress`.
-4. If there is no active milestone context, instruct T1 to create or refresh PROJECT/MAP/REQUIREMENTS/STATE and initial tasks.
-5. If queues exist, select the next role using **T0 next** below and launch/resume that role with its durable target.
-6. After each role handoff, run `/taskboard-progress` again.
-7. If a role is idle but the milestone is incomplete, leave it available for future handoffs or re-run it after the configured loop interval.
-8. Continue until all tasks are archived, `dev-log.md` is current, `HANDOFF.md` is saved if pausing, and the user's goal is satisfied.
+3. Build the orchestration plan with `python scripts/taskboard_t0.py --goal "<user goal>" --root .`.
+4. Create or resume the three managed role terminals from that plan.
+5. Run `/taskboard-progress`.
+6. If there is no active milestone context, T1 creates or refreshes PROJECT/MAP/REQUIREMENTS/STATE and initial tasks.
+7. If queues exist, select the currently highest-priority role using **T0 next** below and nudge/resume that role with its durable target.
+8. After each role handoff, run `/taskboard-progress` again.
+9. If a role is idle but the milestone is incomplete, keep its managed terminal alive for future handoffs or re-run it after the configured loop interval.
+10. Continue until all tasks are archived, `dev-log.md` is current, `HANDOFF.md` is saved if pausing, and the user's goal is satisfied.
 
 ### T0 Liveness / Heartbeat Rules
 

@@ -27,6 +27,7 @@
 │   └── test_t0_contract.py          # T0 协议 smoke test
 └── scripts/
     ├── package.sh                   # 生成发布包
+    ├── taskboard_t0.py              # 生成 T0 自动创建/恢复角色终端的调度计划
     ├── taskboard_next.py            # 根据文件名状态选择下一个角色/任务
     └── verify_t0_contract.py        # 校验 T0 协议和发布文档
 ```
@@ -70,13 +71,19 @@ dist/taskboard-dev-v4.3.zip
 
 ## 快速开始
 
-默认只需要 1 个终端，只启动 T0。T0 会在目标完成前持续运行，并自动管理 T1/T2/T3。你不需要开 4 个终端，也不需要分别给 T1/T2/T3 定义角色。
+用户默认只需要手动打开 1 个入口终端并启动 T0。T0 收到目标后，会自动创建或恢复 `taskboard-T1`、`taskboard-T2`、`taskboard-T3` 三个受控角色终端；用户不需要手动开 4 个终端，也不需要分别给 T1/T2/T3 定义角色。
 
 ### T0 — 用户入口 + 编排器
 
 ```text
 目标：完成 <你的开发目标>。你是 T0，只对接用户，自动管理 T1/T2/T3，持续运行直到目标完成或触发停止门。
 执行：/taskboard-dev T0
+```
+
+本地调度计划可用脚本检查：
+
+```bash
+python scripts/taskboard_t0.py --goal "完成 <你的开发目标>" --root .
 ```
 
 高级用户仍可手动运行 T1/T2/T3；这是兼容模式，不是默认用法：
@@ -106,6 +113,7 @@ dist/taskboard-dev-v4.3.zip
 ## 本地协议检查
 
 ```bash
+python scripts/taskboard_t0.py --goal "完成示例目标" --root .
 python scripts/taskboard_next.py --role T0 --root .
 python scripts/verify_t0_contract.py
 python -m unittest
@@ -138,6 +146,7 @@ VERSION=v4.3 ./scripts/package.sh
 ## 发布检查清单
 
 - [ ] `git diff --check`
+- [ ] `python scripts/taskboard_t0.py --goal "完成示例目标" --root .`
 - [ ] `python scripts/taskboard_next.py --role T0 --root .`
 - [ ] `python scripts/verify_t0_contract.py`
 - [ ] `python -m unittest`

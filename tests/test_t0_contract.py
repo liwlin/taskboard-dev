@@ -35,6 +35,7 @@ class T0ContractTest(unittest.TestCase):
 
         self.assertIn('mkdir -p "$STAGE_DIR/references" "$STAGE_DIR/scripts"', package_script)
         self.assertIn('cp "$ROOT_DIR/scripts/package.sh"', package_script)
+        self.assertIn('cp "$ROOT_DIR/scripts/taskboard_t0.py"', package_script)
         self.assertIn('cp "$ROOT_DIR/scripts/taskboard_next.py"', package_script)
         self.assertIn('cp "$ROOT_DIR/scripts/verify_t0_contract.py"', package_script)
 
@@ -61,10 +62,53 @@ class T0ContractTest(unittest.TestCase):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
 
-        self.assertIn("默认只需要 1 个终端", readme)
-        self.assertIn("不需要开 4 个终端", readme)
-        self.assertIn("默认只需要 1 个终端", manual)
-        self.assertIn("不需要开 4 个终端", manual)
+        self.assertIn("用户默认只需要手动打开 1 个入口终端", readme)
+        self.assertIn("自动创建或恢复 `taskboard-T1`", readme)
+        self.assertIn("不需要手动开 4 个终端", readme)
+        self.assertIn("用户默认只需要手动打开 1 个入口终端", manual)
+        self.assertIn("自动创建或恢复 `taskboard-T1`", manual)
+        self.assertIn("不需要手动开 4 个终端", manual)
+
+    def test_auto_terminal_isolation_contract_is_documented(self):
+        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn("auto-terminal mode", skill)
+        self.assertIn("separate terminal session and isolated agent context", skill)
+        self.assertIn("must not reuse one role's conversation context", skill)
+        self.assertIn("auto-terminal 模式", manual)
+        self.assertIn("角色之间不共享聊天上下文", manual)
+        self.assertIn("python scripts/taskboard_t0.py --goal", readme)
+
+    def test_multi_agent_synchronization_contract_is_documented(self):
+        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
+
+        self.assertIn("### Multi-Agent Synchronization", skill)
+        self.assertIn("Use blackboard synchronization, not chat-context synchronization", skill)
+        self.assertIn("### 多 agent 信息同步机制", manual)
+        self.assertIn("不是聊天上下文同步", manual)
+        self.assertIn("角色之间的“记忆”必须先落到共享文件里", manual)
+
+    def test_t0_scheduling_logic_is_documented(self):
+        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
+
+        self.assertIn("### T0 Scheduling Logic", skill)
+        self.assertIn("T0 schedules by event priority, not by arbitrary rotation", skill)
+        self.assertIn("T0 的调度逻辑是", manual)
+        self.assertIn("交付闭环优先", manual)
+        self.assertIn("修复优先于新执行", manual)
+
+    def test_user_program_development_fit_is_documented(self):
+        manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
+
+        self.assertIn("### 是否适合用户程序开发", manual)
+        self.assertIn("推荐采用分层策略", manual)
+        self.assertIn("单 agent 直接执行", manual)
+        self.assertIn("完整 T0 auto-terminal", manual)
+        self.assertIn("不适合默认启用完整 T0/T1/T2/T3", manual)
 
 
 if __name__ == "__main__":
