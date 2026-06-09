@@ -14,6 +14,8 @@ from taskboard_t0 import read_goal
 
 
 ROLES = ("T1", "T2", "T3")
+DEFAULT_RESUME_LAUNCHER = "windows-terminal"
+DEFAULT_RESUME_AGENT_TEMPLATE = 'codex --prompt-file "{target_file}"'
 T0_PROGRESS_BOUNDARY = (
     "T0 manager-only progress: summarize goal, queue, session, and assignment state for the user; "
     "do not perform design, review, implementation, verification, or commit work."
@@ -48,10 +50,10 @@ def build_resume_command(
     parts = ["python", "scripts/taskboard_start.py", "--root", quote_cli_value(root), "--auto"]
     config = resume_config if isinstance(resume_config, dict) else {}
     launcher = str(config.get("launcher") or "")
-    if launcher and launcher != "none":
+    if launcher and launcher not in {"none", DEFAULT_RESUME_LAUNCHER}:
         parts.extend(["--launcher", launcher])
     agent_template = str(config.get("agent_template") or "")
-    if agent_template:
+    if agent_template and agent_template != DEFAULT_RESUME_AGENT_TEMPLATE:
         parts.extend(["--agent-template", quote_cli_value(agent_template)])
     numeric_options = (
         ("stale_minutes", "--stale-minutes", 30),
@@ -272,13 +274,19 @@ def report_progress(root: Path) -> dict[str, object]:
     if snapshot is None:
         goal = read_goal(root, "")
         queue_metrics = build_queue_metrics({}, "T0", bool(stop_gate_count))
+        latest_event = event_summary.get("latest_event", {})
+        latest_event_payload = latest_event if isinstance(latest_event, dict) else {}
+        latest_event_resume_config = latest_event_payload.get("resume_config", {})
+        latest_event_resume_config_payload = (
+            latest_event_resume_config if isinstance(latest_event_resume_config, dict) else {}
+        )
         resume_command = build_resume_command(
             root,
             goal,
             "needs-supervisor-run",
             stop_gate_count,
             bool(completion_audit.get("completion_ready")),
-            {},
+            latest_event_resume_config_payload,
         )
         return {
             "kind": "taskboard-t0-progress",

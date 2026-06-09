@@ -147,7 +147,7 @@ class TaskboardProgressTest(unittest.TestCase):
                 "--launcher",
                 "tmux",
                 "--agent-template",
-                'codex --prompt-file "{target_file}"',
+                'custom-agent --file "{target_file}"',
                 "--stale-minutes",
                 "12",
                 "--stale-seconds",
@@ -163,7 +163,49 @@ class TaskboardProgressTest(unittest.TestCase):
             text = self.run_text(PROGRESS_SCRIPT, root)
 
         self.assertIn("--launcher tmux", progress["resume_command"])
-        self.assertIn('--agent-template "codex --prompt-file \\"{target_file}\\""', progress["resume_command"])
+        self.assertIn('--agent-template "custom-agent --file \\"{target_file}\\""', progress["resume_command"])
+        self.assertIn("--stale-minutes 12", progress["resume_command"])
+        self.assertIn("--stale-seconds 34", progress["resume_command"])
+        self.assertIn("--assignment-lease-seconds 56", progress["resume_command"])
+        self.assertIn("--launch-lease-seconds 78", progress["resume_command"])
+        self.assertIn("--interval-seconds 9", progress["resume_command"])
+        self.assertIn(progress["resume_command"], text)
+
+    def test_progress_resume_command_uses_latest_event_resume_config_without_snapshot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            self.run_json(
+                START_SCRIPT,
+                root,
+                "--goal",
+                "Ship demo",
+                "--auto",
+                "--iterations",
+                "1",
+                "--no-state-file",
+                "--launcher",
+                "tmux",
+                "--agent-template",
+                'custom-agent --file "{target_file}"',
+                "--stale-minutes",
+                "12",
+                "--stale-seconds",
+                "34",
+                "--assignment-lease-seconds",
+                "56",
+                "--launch-lease-seconds",
+                "78",
+                "--interval-seconds",
+                "9",
+            )
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertEqual(progress["state"], "needs-supervisor-run")
+        self.assertIn("--launcher tmux", progress["resume_command"])
+        self.assertIn('--agent-template "custom-agent --file \\"{target_file}\\""', progress["resume_command"])
         self.assertIn("--stale-minutes 12", progress["resume_command"])
         self.assertIn("--stale-seconds 34", progress["resume_command"])
         self.assertIn("--assignment-lease-seconds 56", progress["resume_command"])

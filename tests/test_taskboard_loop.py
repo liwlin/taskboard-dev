@@ -570,6 +570,16 @@ class TaskboardLoopTest(unittest.TestCase):
                 "2",
                 "--interval-seconds",
                 "0",
+                "--launcher",
+                "tmux",
+                "--stale-minutes",
+                "12",
+                "--stale-seconds",
+                "34",
+                "--assignment-lease-seconds",
+                "56",
+                "--launch-lease-seconds",
+                "78",
             )
             event_log = root / ".taskboard" / "t0" / "events.jsonl"
             events = [
@@ -584,6 +594,11 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertEqual(events[1]["iteration"], 2)
         self.assertEqual(events[0]["goal"], "Ship demo")
         self.assertIn("next_role", events[0])
+        self.assertEqual(events[0]["resume_config"]["launcher"], "tmux")
+        self.assertEqual(events[0]["resume_config"]["stale_minutes"], 12)
+        self.assertEqual(events[0]["resume_config"]["stale_seconds"], 34)
+        self.assertEqual(events[0]["resume_config"]["assignment_lease_seconds"], 56)
+        self.assertEqual(events[0]["resume_config"]["launch_lease_seconds"], 78)
         self.assertIn("append-only", events[0]["boundary"])
 
     def test_loop_event_log_records_launch_failure_counts(self):

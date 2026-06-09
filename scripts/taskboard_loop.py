@@ -559,6 +559,8 @@ def append_event_log(
     )
     auto_mode = payload.get("auto_mode")
     starter_mode = payload.get("starter_mode")
+    resume_config = payload.get("resume_config", {})
+    resume_config_payload = resume_config if isinstance(resume_config, dict) else {}
     launch_failure_count = 0
     launch_failures: list[dict[str, object]] = []
     for item in executed_command_list:
@@ -608,6 +610,7 @@ def append_event_log(
         "completion_user_action": str(completion_payload.get("user_action") or ""),
         "auto_mode": bool(auto_mode) if auto_mode is not None else False,
         "starter_mode": str(starter_mode or ""),
+        "resume_config": resume_config_payload,
         "boundary": (
             "T0 append-only event log: record supervisor decisions for audit/recovery; "
             "do not treat events as TASKBOARD state or worker memory."
