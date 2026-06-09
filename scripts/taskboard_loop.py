@@ -215,6 +215,7 @@ def run_loop(
     iterations: Optional[int],
     interval_seconds: int,
     assignment_lease_seconds: int,
+    stop_on_complete: bool,
 ) -> list[dict[str, object]]:
     if interval_seconds < 0:
         raise ValueError("--interval-seconds must be >= 0")
@@ -226,19 +227,20 @@ def run_loop(
     results: list[dict[str, object]] = []
     count = 0
     while iterations is None or count < iterations:
-        results.append(
-            run_once(
-                root,
-                goal,
-                stale_minutes,
-                stale_seconds,
-                launcher,
-                agent_template,
-                execute_launches,
-                assignment_lease_seconds,
-            )
+        payload = run_once(
+            root,
+            goal,
+            stale_minutes,
+            stale_seconds,
+            launcher,
+            agent_template,
+            execute_launches,
+            assignment_lease_seconds,
         )
+        results.append(payload)
         count += 1
+        if stop_on_complete and payload["dispatch"].get("state") == "complete":
+            break
         if iterations is not None and count >= iterations:
             break
         time.sleep(interval_seconds)
@@ -282,7 +284,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument(
         "--forever",
         action="store_true",
-        help="Run until interrupted instead of stopping after --iterations",
+        help="Run until completion or interruption instead of stopping after --iterations",
+    )
+    parser.add_argument(
+        "--no-stop-on-complete",
+        action="store_true",
+        help="Keep looping after completion sentinel for monitoring/debugging.",
     )
     parser.add_argument(
         "--launcher",
@@ -314,6 +321,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             None if args.forever else args.iterations,
             args.interval_seconds,
             args.assignment_lease_seconds,
+            not args.no_stop_on_complete,
         )
     except ValueError as exc:
         print(exc, file=sys.stderr)
