@@ -604,7 +604,7 @@ Launcher rules:
 - `--launcher windows-terminal` emits `wt` commands for managed `taskboard-T1/T2/T3` tabs.
 - `--launcher powershell` emits `Start-Process powershell` commands for separate managed windows.
 - `--launcher tmux` emits `tmux new-session/new-window` commands for Unix-like terminals.
-- `--agent-template` is the client-specific command T0 runs inside each role terminal. It supports `{role}`, `{title}`, `{command}`, `{target}`, and `{target_file}` placeholders.
+- `--agent-template` is the client-specific command T0 runs inside each role terminal. It supports `{role}`, `{title}`, `{command}`, `{target}`, and `{target_file}` placeholders. When a launcher command actually references `{target_file}`, `scripts/taskboard_t0.py` writes the corresponding role target files and returns a `target_files` list; inline `{target}` launchers and dry checks do not write those runtime files.
 - If an agent-template references `{target_file}` while target files are disabled, T0 must fail fast with `agent-template references {target_file}`; enable target files, use `--launcher none` for no-write dry checks, or switch the template to `{target}`.
 - T0 must inject the generated role target. Users should not write separate T1/T2/T3 prompts.
 - The first explicit `--goal` is saved to `.taskboard/t0/goal.json` as `taskboard-t0-goal`, so T0 can resume without asking the user to repeat the same goal. This is T0 control-plane recovery state, not TASKBOARD task state.

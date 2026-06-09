@@ -198,6 +198,10 @@ def write_role_target_files(sessions: list[dict[str, str]]) -> list[dict[str, ob
     return target_files
 
 
+def launcher_needs_target_files(launcher: str, agent_template: Optional[str]) -> bool:
+    return launcher != "none" and bool(agent_template and "{target_file}" in agent_template)
+
+
 def powershell_quote(value: str) -> str:
     escaped = value.replace("`", "``").replace('"', '`"').replace("$", "`$")
     return f'"{escaped}"'
@@ -445,6 +449,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     except ValueError as exc:
         print(exc, file=sys.stderr)
         return 2
+    managed_sessions = payload.get("managed_sessions", [])
+    payload["target_files"] = (
+        write_role_target_files(managed_sessions)
+        if launcher_needs_target_files(args.launcher, args.agent_template) and isinstance(managed_sessions, list)
+        else []
+    )
     if args.format == "json":
         print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
     else:

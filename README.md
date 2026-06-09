@@ -144,7 +144,7 @@ T0 也可以生成受控角色终端启动命令，例如 Windows Terminal：
 python scripts/taskboard_t0.py --goal "完成 <你的开发目标>" --root . --launcher windows-terminal --agent-template 'codex --prompt "{target}"'
 ```
 
-`--agent-template` 按你的实际 agent CLI 调整。T0 会自动把 T1/T2/T3 的角色目标注入 `{target}`，也会提供 `{target_file}` 供支持 prompt-file 的客户端读取 `.taskboard/targets/taskboard-T*.md`。
+`--agent-template` 按你的实际 agent CLI 调整。T0 会自动把 T1/T2/T3 的角色目标注入 `{target}`，也会提供 `{target_file}` 供支持 prompt-file 的客户端读取 `.taskboard/targets/taskboard-T*.md`。当 launcher 命令实际引用 `{target_file}` 时，`taskboard_t0.py` 会写出对应目标文件，并在输出中返回 `target_files` 清单；inline `{target}` launcher 和 dry checks 不会写这些运行态文件。
 If an agent-template references `{target_file}` while target files are disabled, T0 fails fast with `agent-template references {target_file}`; enable target files, use `--launcher none` for no-write dry checks, or switch the template to `{target}`.
 
 脚本输出包含 `session_manifest`，供 T0 恢复和健康检查使用；它不是新的共享状态数据库。

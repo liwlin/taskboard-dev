@@ -134,7 +134,7 @@ python scripts/taskboard_t0.py --goal "完成 <你的开发目标>" --root . --l
 python scripts/taskboard_t0.py --goal "完成 <你的开发目标>" --root . --launcher tmux --agent-template 'codex --prompt "{target}"'
 ```
 
-`--agent-template` 是实际 agent CLI 的启动模板，支持 `{role}`、`{title}`、`{command}`、`{target}`、`{target_file}`。T0 会把每个角色的目标注入 `{target}`，也会提供 `{target_file}` 让支持 prompt-file 的客户端读取 `.taskboard/targets/taskboard-T*.md`；用户不需要单独写 T1/T2/T3 prompt。不同客户端命令不同，可以把 `codex --prompt {target}` 换成当前客户端支持的等价命令。If an agent-template references `{target_file}` while target files are disabled, T0 fails fast with `agent-template references {target_file}`；此时应启用 target files、用 `--launcher none` 做 no-write dry check，或把模板改成 `{target}`。
+`--agent-template` 是实际 agent CLI 的启动模板，支持 `{role}`、`{title}`、`{command}`、`{target}`、`{target_file}`。T0 会把每个角色的目标注入 `{target}`，也会提供 `{target_file}` 让支持 prompt-file 的客户端读取 `.taskboard/targets/taskboard-T*.md`；用户不需要单独写 T1/T2/T3 prompt。当 launcher 命令实际引用 `{target_file}` 时，`taskboard_t0.py` 会写出对应目标文件，并在输出中返回 `target_files` 清单；inline `{target}` launcher 和 dry checks 不会写这些运行态文件。不同客户端命令不同，可以把 `codex --prompt {target}` 换成当前客户端支持的等价命令。If an agent-template references `{target_file}` while target files are disabled, T0 fails fast with `agent-template references {target_file}`；此时应启用 target files、用 `--launcher none` 做 no-write dry check，或把模板改成 `{target}`。
 
 脚本输出里的 `session_manifest` 给 T0 做恢复和健康检查用，包含受控角色列表、当前优先角色、恢复顺序、同步契约和检查命令。它不是新的共享状态数据库，也不是让用户管理 T1/T2/T3 的清单；持久恢复仍写入 `HANDOFF.md`，日常同步仍走 TASKBOARD 文件名状态机。
 

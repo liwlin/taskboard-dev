@@ -163,11 +163,38 @@ class TaskboardT0Test(unittest.TestCase):
                 "--agent-template",
                 'codex --prompt-file "{target_file}"',
             )
+            t1_target = root / ".taskboard" / "targets" / "taskboard-T1.md"
+            t1_target_exists = t1_target.exists()
+            t1_target_text = t1_target.read_text(encoding="utf-8") if t1_target_exists else ""
 
         first_session = output["managed_sessions"][0]
         self.assertEqual(first_session["target_file"], str(root.resolve() / ".taskboard" / "targets" / "taskboard-T1.md"))
         self.assertIn("taskboard-T1.md", output["launch_commands"][0])
         self.assertIn("codex --prompt-file", output["launch_commands"][0])
+        self.assertTrue(t1_target_exists)
+        self.assertEqual(output["target_files"][0]["role"], "T1")
+        self.assertIn("managed_by: T0", t1_target_text)
+        self.assertIn("assigned_role: T1", t1_target_text)
+
+    def test_inline_agent_template_does_not_write_role_target_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            output = self.run_t0(
+                root,
+                "--goal",
+                "Ship demo",
+                "--launcher",
+                "windows-terminal",
+                "--agent-template",
+                'codex --prompt "{target}"',
+            )
+            target_dir_exists = (root / ".taskboard" / "targets").exists()
+
+        self.assertEqual(len(output["launch_commands"]), 3)
+        self.assertEqual(output["target_files"], [])
+        self.assertFalse(target_dir_exists)
 
     def test_tmux_launcher_commands_create_isolated_role_windows(self):
         with tempfile.TemporaryDirectory() as tmp:
