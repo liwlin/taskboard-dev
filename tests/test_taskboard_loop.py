@@ -142,6 +142,31 @@ class TaskboardLoopTest(unittest.TestCase):
 
         self.assertEqual(len(output), 2)
 
+    def test_loop_writes_latest_t0_state_snapshot_by_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            output = self.run_loop(root, "--goal", "Ship demo")
+            state_file = root / ".taskboard" / "t0" / "latest.json"
+            snapshot = json.loads(state_file.read_text(encoding="utf-8"))
+
+        self.assertEqual(snapshot["kind"], "taskboard-t0-supervisor-state")
+        self.assertEqual(snapshot["iteration_count"], 1)
+        self.assertEqual(snapshot["latest"]["state"], output[0]["state"])
+        self.assertEqual(snapshot["latest"]["dispatch"]["next_role"], output[0]["dispatch"]["next_role"])
+        self.assertIn("T0 supervisor-only", snapshot["boundary"])
+        self.assertIn("do not perform design", snapshot["boundary"])
+
+    def test_loop_can_disable_t0_state_snapshot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            self.run_loop(root, "--goal", "Ship demo", "--no-state-file")
+
+        self.assertFalse((root / ".taskboard" / "t0" / "latest.json").exists())
+
     def test_assignment_moves_from_pending_to_acknowledged_by_worker_heartbeat(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

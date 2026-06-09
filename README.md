@@ -134,6 +134,8 @@ python scripts/taskboard_loop.py --root . --goal "完成 <你的开发目标>" -
 
 By default the loop reports generated launcher commands without executing them. Add `--execute-launches` only when T0 should actually launch or recover managed role terminals. `--assignment-lease-seconds` controls how long T0 waits after a task assignment heartbeat before treating the assignment as expired and reissuing the role target. This executes manager launch/reissue commands only; T0 still does not perform T1/T2/T3 worker tasks.
 
+Each loop iteration writes the latest T0 supervisor runtime snapshot to `.taskboard/t0/latest.json` by default. This `taskboard-t0-supervisor-state` file records T0's management view for recovery after interruption; it is not task state, not worker memory, and not a replacement for TASKBOARD filenames, history, dev-log, HANDOFF, or the completion sentinel. Use `--state-file <path>` to choose another snapshot path, or `--no-state-file` for dry checks that should leave no runtime snapshot.
+
 T0 stops the loop only when there are no active TASK files and `docs/STATE.md` contains `**Goal Complete**: yes` or `Goal Complete: yes`. Without that completion sentinel, an empty queue plus a user goal wakes T1 to create or revise the next TASK files. `--forever` runs until completion or interruption; use `--no-stop-on-complete` only for monitoring/debugging after completion.
 
 可重复 dry-run demo：

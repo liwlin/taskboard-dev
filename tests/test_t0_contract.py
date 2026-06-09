@@ -131,6 +131,8 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("--assignment-lease-seconds 300", readme)
         self.assertIn("**Goal Complete**: yes", readme)
         self.assertIn("--no-stop-on-complete", readme)
+        self.assertIn(".taskboard/t0/latest.json", readme)
+        self.assertIn("--no-state-file", readme)
         self.assertIn("python scripts/taskboard_health.py --root . --stale-minutes 30", readme)
         self.assertIn("python scripts/taskboard_sessions.py --root . probe --stale-seconds 300", readme)
         self.assertIn("--assignment-id T2:TASK-003.v1.T2-review.md", readme)

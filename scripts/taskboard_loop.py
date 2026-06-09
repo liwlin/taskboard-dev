@@ -204,6 +204,35 @@ def run_once(
     }
 
 
+def default_state_file(root: Path) -> Path:
+    return root / ".taskboard" / "t0" / "latest.json"
+
+
+def write_state_snapshot(
+    state_file: Path,
+    root: Path,
+    goal: Optional[str],
+    results: list[dict[str, object]],
+    stop_on_complete: bool,
+) -> None:
+    if not results:
+        return
+
+    snapshot = {
+        "kind": "taskboard-t0-supervisor-state",
+        "version": 1,
+        "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "root": str(root),
+        "goal": goal or "",
+        "iteration_count": len(results),
+        "stop_on_complete": stop_on_complete,
+        "boundary": T0_BOUNDARY,
+        "latest": results[-1],
+    }
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text(json.dumps(snapshot, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def run_loop(
     root: Path,
     goal: Optional[str],
@@ -216,6 +245,7 @@ def run_loop(
     interval_seconds: int,
     assignment_lease_seconds: int,
     stop_on_complete: bool,
+    state_file: Optional[Path],
 ) -> list[dict[str, object]]:
     if interval_seconds < 0:
         raise ValueError("--interval-seconds must be >= 0")
@@ -239,6 +269,8 @@ def run_loop(
         )
         results.append(payload)
         count += 1
+        if state_file is not None:
+            write_state_snapshot(state_file, root, goal, results, stop_on_complete)
         if stop_on_complete and payload["dispatch"].get("state") == "complete":
             break
         if iterations is not None and count >= iterations:
@@ -292,6 +324,15 @@ def main(argv: Optional[list[str]] = None) -> int:
         help="Keep looping after completion sentinel for monitoring/debugging.",
     )
     parser.add_argument(
+        "--state-file",
+        help="Path for the latest T0 supervisor runtime snapshot. Defaults to .taskboard/t0/latest.json.",
+    )
+    parser.add_argument(
+        "--no-state-file",
+        action="store_true",
+        help="Disable writing the latest T0 supervisor runtime snapshot.",
+    )
+    parser.add_argument(
         "--launcher",
         choices=("none", "windows-terminal", "powershell", "tmux"),
         default="none",
@@ -308,10 +349,14 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
     parser.add_argument("--format", choices=("text", "json"), default="text")
     args = parser.parse_args(argv)
+    root = Path(args.root).resolve()
+    state_file = None
+    if not args.no_state_file:
+        state_file = Path(args.state_file).resolve() if args.state_file else default_state_file(root)
 
     try:
         results = run_loop(
-            Path(args.root).resolve(),
+            root,
             args.goal,
             args.stale_minutes,
             args.stale_seconds,
@@ -322,6 +367,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.interval_seconds,
             args.assignment_lease_seconds,
             not args.no_stop_on_complete,
+            state_file,
         )
     except ValueError as exc:
         print(exc, file=sys.stderr)
