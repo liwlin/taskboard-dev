@@ -28,7 +28,11 @@ def choose_launch_commands(session_probe: dict[str, object], dispatch_plan: dict
     return list(dispatch_plan.get("launch_commands", []))
 
 
-def build_assignment(session_probe: dict[str, object], dispatch_plan: dict[str, object]) -> dict[str, object]:
+def build_assignment(
+    session_probe: dict[str, object],
+    dispatch_plan: dict[str, object],
+    assignment_lease_seconds: int,
+) -> dict[str, object]:
     role = str(dispatch_plan.get("next_role") or "")
     task = str(dispatch_plan.get("task") or "none")
     if dispatch_plan.get("state") != "dispatch" or role not in {"T1", "T2", "T3"} or task == "none":
@@ -46,10 +50,23 @@ def build_assignment(session_probe: dict[str, object], dispatch_plan: dict[str, 
     session_state = session.get("state") if isinstance(session, dict) else "missing"
     acknowledged_task = session.get("task") if isinstance(session, dict) else None
     acknowledged_assignment = session.get("assignment_id") if isinstance(session, dict) else None
+    age_seconds = session.get("age_seconds") if isinstance(session, dict) else None
+    try:
+        normalized_age = int(age_seconds) if age_seconds is not None else None
+    except (TypeError, ValueError):
+        normalized_age = None
 
     if session_state != "alive":
         state = "unassigned"
         reason = f"taskboard-{role} is {session_state or 'missing'}"
+    elif (
+        acknowledged_task == task
+        and acknowledged_assignment == assignment_id
+        and normalized_age is not None
+        and normalized_age >= assignment_lease_seconds
+    ):
+        state = "lease-expired"
+        reason = "worker-heartbeat-assignment-lease-expired"
     elif acknowledged_task == task and acknowledged_assignment == assignment_id:
         state = "acknowledged"
         reason = "worker-heartbeat-acknowledged-task"
@@ -67,6 +84,8 @@ def build_assignment(session_probe: dict[str, object], dispatch_plan: dict[str, 
         "assignment_id": acknowledged_assignment or assignment_id,
         "expected_assignment_id": assignment_id,
         "acknowledged_task": acknowledged_task,
+        "age_seconds": normalized_age,
+        "lease_seconds": assignment_lease_seconds,
         "reason": reason,
         "boundary": "T0 tracks assignment acknowledgement only; T0 does not execute the worker task.",
     }
@@ -97,6 +116,10 @@ def build_actions(
         role = assignment.get("role")
         task = assignment.get("task")
         actions.append(f"reissue target to taskboard-{role} until heartbeat acknowledges {task}")
+    elif assignment.get("state") == "lease-expired":
+        role = assignment.get("role")
+        task = assignment.get("task")
+        actions.append(f"reissue target to taskboard-{role}; assignment lease expired for {task}")
 
     deduped: list[str] = []
     for action in actions:
@@ -134,6 +157,7 @@ def run_once(
     launcher: str,
     agent_template: Optional[str],
     execute_launches: bool,
+    assignment_lease_seconds: int,
 ) -> dict[str, object]:
     session_probe = probe_sessions(
         root,
@@ -147,7 +171,7 @@ def run_once(
     dispatch_plan = dispatch(root, goal, "terminal", launcher, agent_template)
     launch_commands = choose_launch_commands(session_probe, dispatch_plan)
     executed_commands = execute_commands(launch_commands) if execute_launches else []
-    assignment = build_assignment(session_probe, dispatch_plan)
+    assignment = build_assignment(session_probe, dispatch_plan, assignment_lease_seconds)
 
     state = "attention"
     if dispatch_plan.get("state") == "needs-goal":
@@ -183,11 +207,14 @@ def run_loop(
     execute_launches: bool,
     iterations: Optional[int],
     interval_seconds: int,
+    assignment_lease_seconds: int,
 ) -> list[dict[str, object]]:
     if interval_seconds < 0:
         raise ValueError("--interval-seconds must be >= 0")
     if iterations is not None and iterations < 1:
         raise ValueError("--iterations must be >= 1")
+    if assignment_lease_seconds < 1:
+        raise ValueError("--assignment-lease-seconds must be >= 1")
 
     results: list[dict[str, object]] = []
     count = 0
@@ -201,6 +228,7 @@ def run_loop(
                 launcher,
                 agent_template,
                 execute_launches,
+                assignment_lease_seconds,
             )
         )
         count += 1
@@ -241,6 +269,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--goal", help="Current user goal for T0")
     parser.add_argument("--stale-minutes", type=int, default=30)
     parser.add_argument("--stale-seconds", type=int, default=300)
+    parser.add_argument("--assignment-lease-seconds", type=int, default=300)
     parser.add_argument("--interval-seconds", type=int, default=300)
     parser.add_argument("--iterations", type=int, default=1)
     parser.add_argument(
@@ -277,6 +306,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.execute_launches,
             None if args.forever else args.iterations,
             args.interval_seconds,
+            args.assignment_lease_seconds,
         )
     except ValueError as exc:
         print(exc, file=sys.stderr)

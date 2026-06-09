@@ -3,6 +3,7 @@ import json
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 
@@ -123,6 +124,50 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertIn("reissue target to taskboard-T2", " ".join(pending[0]["actions"]))
         self.assertEqual(acknowledged[0]["assignment"]["state"], "acknowledged")
         self.assertEqual(acknowledged[0]["assignment"]["assignment_id"], f"T2:{task_name}")
+
+    def test_assignment_lease_expiry_reissues_acknowledged_task(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            taskboard = root / "docs" / "taskboard"
+            taskboard.mkdir(parents=True)
+            task_name = f"TASK-003.v1.{T2_CODE_REVIEW}-L2.md"
+            (taskboard / task_name).write_text("# task\n\n**Wave**: 1\n", encoding="utf-8")
+
+            session_dir = root / ".taskboard" / "sessions"
+            session_dir.mkdir(parents=True)
+            old_assignment_time = time.time() - 600
+            for role in ("T1", "T2", "T3"):
+                payload = {
+                    "role": role,
+                    "title": f"taskboard-{role}",
+                    "status": "alive",
+                    "pid": 123,
+                    "last_seen": time.time(),
+                }
+                if role == "T2":
+                    payload.update(
+                        {
+                            "status": "reviewing",
+                            "last_seen": old_assignment_time,
+                            "task": task_name,
+                            "assignment_id": f"T2:{task_name}",
+                        }
+                    )
+                (session_dir / f"taskboard-{role}.json").write_text(json.dumps(payload), encoding="utf-8")
+
+            output = self.run_loop(
+                root,
+                "--goal",
+                "Ship demo",
+                "--stale-seconds",
+                "999999999",
+                "--assignment-lease-seconds",
+                "300",
+            )
+
+        self.assertEqual(output[0]["assignment"]["state"], "lease-expired")
+        self.assertGreaterEqual(output[0]["assignment"]["age_seconds"], 599)
+        self.assertIn("lease expired", " ".join(output[0]["actions"]))
 
 
 if __name__ == "__main__":

@@ -129,10 +129,10 @@ Heartbeat files live under `.taskboard/sessions/` and are runtime liveness signa
 T0 supervisor loop entry:
 
 ```bash
-python scripts/taskboard_loop.py --root . --goal "完成 <你的开发目标>" --forever --launcher windows-terminal --agent-template 'codex --prompt "{target}"'
+python scripts/taskboard_loop.py --root . --goal "完成 <你的开发目标>" --forever --assignment-lease-seconds 300 --launcher windows-terminal --agent-template 'codex --prompt "{target}"'
 ```
 
-By default the loop reports generated launcher commands without executing them. Add `--execute-launches` only when T0 should actually launch or recover managed role terminals. This executes manager launch commands only; T0 still does not perform T1/T2/T3 worker tasks.
+By default the loop reports generated launcher commands without executing them. Add `--execute-launches` only when T0 should actually launch or recover managed role terminals. `--assignment-lease-seconds` controls how long T0 waits after a task assignment heartbeat before treating the assignment as expired and reissuing the role target. This executes manager launch/reissue commands only; T0 still does not perform T1/T2/T3 worker tasks.
 
 可重复 dry-run demo：
 
