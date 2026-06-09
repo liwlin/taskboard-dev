@@ -212,6 +212,7 @@ def run_once(
         launcher,
         agent_template,
         goal,
+        target_dir,
     )
     queue_health = report_health(root, stale_minutes, goal)
     dispatch_plan = dispatch(root, goal, "terminal", launcher, agent_template, target_dir)

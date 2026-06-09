@@ -66,6 +66,30 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertIn("taskboard-T2", payload["launch_commands"][1])
         self.assertIn("codex --prompt", payload["launch_commands"][1])
 
+    def test_loop_recovery_commands_can_reference_written_target_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            output = self.run_loop(
+                root,
+                "--goal",
+                "Ship demo",
+                "--launcher",
+                "windows-terminal",
+                "--agent-template",
+                'codex --prompt-file "{target_file}"',
+            )
+            t1_target = root / ".taskboard" / "targets" / "taskboard-T1.md"
+            t1_exists = t1_target.exists()
+
+        payload = output[0]
+        self.assertEqual(len(payload["launch_commands"]), 3)
+        self.assertTrue(t1_exists)
+        self.assertIn("codex --prompt-file", payload["launch_commands"][0])
+        self.assertIn("taskboard-T1.md", payload["launch_commands"][0])
+        self.assertNotIn('prompt-file ""', payload["launch_commands"][0])
+
     def test_loop_reports_needs_goal_without_goal_or_project_context(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

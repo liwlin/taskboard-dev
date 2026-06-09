@@ -114,6 +114,29 @@ class TaskboardSessionsTest(unittest.TestCase):
         self.assertIn("taskboard-T3", probe["recovery_commands"][0])
         self.assertIn("codex --prompt", probe["recovery_commands"][0])
 
+    def test_probe_recovery_command_can_reference_role_target_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            probe = self.run_sessions(
+                root,
+                "probe",
+                "--expected",
+                "T1",
+                "--goal",
+                "Ship demo",
+                "--launcher",
+                "windows-terminal",
+                "--agent-template",
+                'codex --prompt-file "{target_file}"',
+            )
+
+        self.assertEqual(probe["missing_roles"], ["T1"])
+        self.assertEqual(len(probe["recovery_commands"]), 1)
+        self.assertIn("codex --prompt-file", probe["recovery_commands"][0])
+        self.assertIn("taskboard-T1.md", probe["recovery_commands"][0])
+        self.assertNotIn('prompt-file ""', probe["recovery_commands"][0])
+
 
 if __name__ == "__main__":
     unittest.main()

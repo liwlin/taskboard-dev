@@ -631,6 +631,7 @@ python scripts/taskboard_sessions.py --root . probe --stale-seconds 300 --goal "
 ```
 
 Heartbeat files live under `.taskboard/sessions/` and are runtime liveness signals only. When T0 dispatches a concrete TASK file, the managed role should include `--task` and `--assignment-id` in its heartbeat so T0 can distinguish pending assignment acknowledgement from active work. These assignment fields are not task state, not shared role memory, and not a replacement for TASKBOARD filenames, `history/`, `dev-log.md`, or `HANDOFF.md`.
+When `probe` generates missing/stale role recovery commands, its `--agent-template` supports `{target_file}` and defaults that path to `.taskboard/targets/taskboard-T*.md`, matching the supervisor loop's per-role target files.
 
 ### Multi-Agent Synchronization
 

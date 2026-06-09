@@ -117,6 +117,8 @@ T0 can also probe managed T1/T2/T3 session heartbeats:
 python scripts/taskboard_sessions.py --root . probe --stale-seconds 300
 ```
 
+When `probe` emits missing/stale role recovery commands, its `--agent-template` also supports `{target_file}` and defaults that path to `.taskboard/targets/taskboard-T*.md`. This keeps recovery launches aligned with the same per-role target files that the T0 supervisor loop writes.
+
 Each managed role should write a heartbeat at loop start and after each TASKBOARD handoff:
 
 ```bash

@@ -9,7 +9,7 @@ import sys
 import time
 from typing import Optional
 
-from taskboard_t0 import build_launch_commands, build_session
+from taskboard_t0 import build_launch_commands, build_session, default_target_dir
 
 
 ROLES = ("T1", "T2", "T3")
@@ -113,10 +113,15 @@ def classify_session(root: Path, role: str, stale_seconds: int, current_time: fl
     }
 
 
-def build_recovery_sessions(roles: list[str], goal: str, reason: str) -> list[dict[str, str]]:
+def build_recovery_sessions(
+    roles: list[str],
+    goal: str,
+    reason: str,
+    target_dir: Optional[Path] = None,
+) -> list[dict[str, str]]:
     sessions = []
     for role in roles:
-        sessions.append(build_session(role, goal, role, "managed-loop", "none", reason))
+        sessions.append(build_session(role, goal, role, "managed-loop", "none", reason, target_dir))
     return sessions
 
 
@@ -127,6 +132,7 @@ def probe_sessions(
     launcher: str = "none",
     agent_template: Optional[str] = None,
     goal: Optional[str] = None,
+    target_dir: Optional[Path] = None,
 ) -> dict[str, object]:
     if stale_seconds < 0:
         raise ValueError("--stale-seconds must be >= 0")
@@ -148,7 +154,12 @@ def probe_sessions(
         f"recover taskboard-{role}; reissue role target and keep T0 manager-only"
         for role in recovery_roles
     ]
-    recovery_sessions = build_recovery_sessions(recovery_roles, goal or "<user goal>", "session-missing-or-stale")
+    recovery_sessions = build_recovery_sessions(
+        recovery_roles,
+        goal or "<user goal>",
+        "session-missing-or-stale",
+        target_dir,
+    )
     return {
         "state": "attention" if recovery_roles else "healthy",
         "expected_roles": normalized_roles,
@@ -205,6 +216,7 @@ def run_probe(root: Path, args: Namespace) -> dict[str, object]:
         args.launcher,
         args.agent_template,
         args.goal,
+        args.target_dir,
     )
 
 
@@ -234,11 +246,22 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
     probe.add_argument(
         "--agent-template",
-        help="Command template for generated recovery commands. Supports {role}, {title}, {command}, and {target}.",
+        help=(
+            "Command template for generated recovery commands. Supports "
+            "{role}, {title}, {command}, {target}, and {target_file}."
+        ),
+    )
+    probe.add_argument(
+        "--target-dir",
+        help="Directory for generated per-role target files referenced by {target_file}. Defaults to .taskboard/targets.",
     )
 
     args = parser.parse_args(argv)
     root = Path(args.root).resolve()
+    if getattr(args, "command", None) == "probe" and args.target_dir is None:
+        args.target_dir = default_target_dir(root)
+    elif getattr(args, "command", None) == "probe":
+        args.target_dir = Path(args.target_dir).resolve()
     try:
         payload = run_heartbeat(root, args) if args.command == "heartbeat" else run_probe(root, args)
     except ValueError as exc:
