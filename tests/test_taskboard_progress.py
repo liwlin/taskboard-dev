@@ -460,6 +460,41 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertEqual(progress["resume_command"], "")
         self.assertIn("Review T0's completion summary", progress["user_action"])
 
+    def test_progress_recovers_complete_state_from_latest_event_without_snapshot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            archive = root / "docs" / "taskboard" / "archive"
+            archive.mkdir(parents=True)
+            (archive / "TASK-001.v1.done.md").write_text("# done\n", encoding="utf-8")
+            (root / "docs" / "PROJECT.md").write_text("# PROJECT\n\nShip demo\n", encoding="utf-8")
+            (root / "docs" / "STATE.md").write_text(
+                "# STATE\n\n**Goal Complete**: yes\n", encoding="utf-8"
+            )
+            (root / "docs" / "dev-log.md").write_text(
+                "# Development Log\n\n- TASK-001 completed and verified.\n",
+                encoding="utf-8",
+            )
+            self.run_json(
+                LOOP_SCRIPT,
+                root,
+                "--goal",
+                "Ship demo",
+                "--no-state-file",
+            )
+
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertFalse((root / ".taskboard" / "t0" / "latest.json").exists())
+        self.assertEqual(progress["latest_event"]["dispatch_state"], "complete")
+        self.assertTrue(progress["latest_event"]["completion_ready"])
+        self.assertEqual(progress["state"], "complete")
+        self.assertTrue(progress["completion_ready"])
+        self.assertEqual(progress["resume_command"], "")
+        self.assertIn("Review T0's completion summary", progress["user_action"])
+        self.assertIn("state=complete", text)
+        self.assertIn("latest_event_completion_ready=True", text)
+
     def test_progress_text_prints_missing_completion_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

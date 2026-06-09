@@ -186,6 +186,8 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("latest_event_next_role", readme)
         self.assertIn("top-level JSON progress", readme)
         self.assertIn("latest event `next_role`, `task`, and `assignment_*`", readme)
+        self.assertIn("current completion audit is ready", readme)
+        self.assertIn("state=complete", readme)
         self.assertIn("latest_event_assignment_role", readme)
         self.assertIn("latest_event_assignment_expected_id", readme)
         self.assertIn("assignment_role", readme)

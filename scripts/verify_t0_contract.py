@@ -264,6 +264,8 @@ def verify_t0_contract() -> None:
     require_contains("README.md", "latest_event_next_role")
     require_contains("README.md", "top-level JSON progress")
     require_contains("README.md", "latest event `next_role`, `task`, and `assignment_*`")
+    require_contains("README.md", "current completion audit is ready")
+    require_contains("README.md", "state=complete")
     require_contains("README.md", "latest_event_assignment_role")
     require_contains("README.md", "latest_event_assignment_expected_id")
     require_contains("README.md", "latest_event_launch_failure_count")

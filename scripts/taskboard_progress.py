@@ -285,6 +285,8 @@ def report_progress(root: Path) -> dict[str, object]:
         goal = read_goal(root, "") or str(latest_event_payload.get("goal") or "")
         latest_event_state = str(latest_event_payload.get("state") or "")
         fallback_state = "interrupted" if latest_event_state == "interrupted" else "needs-supervisor-run"
+        if bool(completion_audit.get("completion_ready")):
+            fallback_state = "complete"
         latest_event_next_role = str(latest_event_payload.get("next_role") or "T0")
         latest_event_task = str(latest_event_payload.get("task") or "none")
         latest_event_assignment_state = str(latest_event_payload.get("assignment_state") or "none")
