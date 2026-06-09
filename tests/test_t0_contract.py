@@ -134,6 +134,8 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("python scripts/taskboard_demo.py --root .taskboard-demo --with-heartbeats", readme)
         self.assertIn("python scripts/taskboard_start.py --goal", readme)
         self.assertIn("--auto", readme)
+        self.assertIn("auto_mode", readme)
+        self.assertIn("starter_mode", readme)
         self.assertIn("--auto --iterations 1 --launcher none", readme)
         self.assertIn("suppresses worker launch/target/assignment", readme)
         self.assertIn("asks the summarized question through T0 only", readme)

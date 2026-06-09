@@ -108,6 +108,27 @@ class TaskboardStartTest(unittest.TestCase):
         self.assertEqual(output[0]["starter_mode"], "auto")
         self.assertIn("T0 one-command auto mode", output[0]["starter_boundary"])
 
+    def test_starter_auto_mode_persists_in_latest_snapshot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            self.run_start(
+                root,
+                "--goal",
+                "Ship demo",
+                "--auto",
+                "--iterations",
+                "1",
+                "--launcher",
+                "none",
+            )
+            snapshot = json.loads((root / ".taskboard" / "t0" / "latest.json").read_text(encoding="utf-8"))
+
+        self.assertTrue(snapshot["latest"]["auto_mode"])
+        self.assertEqual(snapshot["latest"]["starter_mode"], "auto")
+        self.assertIn("T0 one-command auto mode", snapshot["latest"]["starter_boundary"])
+
     def test_starter_auto_mode_runs_until_completion_by_default(self):
         captured = {}
 

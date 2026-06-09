@@ -7,7 +7,7 @@ import json
 import sys
 from typing import Optional
 
-from taskboard_loop import default_event_log_file, default_state_file, format_text, run_loop
+from taskboard_loop import default_event_log_file, default_state_file, format_text, run_loop, write_state_snapshot
 from taskboard_t0 import default_target_dir
 
 
@@ -144,6 +144,9 @@ def main(argv: Optional[list[str]] = None) -> int:
             not args.no_stop_on_stop_gate,
         )
         results = annotate_starter_mode(results, args.auto)
+        if state_file is not None and results:
+            snapshot_goal = str(results[-1].get("goal") or args.goal or "")
+            write_state_snapshot(state_file, root, snapshot_goal, results, not args.no_stop_on_complete)
     except ValueError as exc:
         print(exc, file=sys.stderr)
         return 2

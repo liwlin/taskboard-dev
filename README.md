@@ -93,7 +93,7 @@ python scripts/taskboard_start.py --goal "完成 <你的开发目标>" --auto
 
 首次传入 `--goal` 后，T0 会把用户目标保存到 `.taskboard/t0/goal.json`。T0 重启或恢复时可以不再重复输入目标；这个 `taskboard-t0-goal` 文件只是 T0 控制面恢复状态，不是 TASKBOARD 任务状态。
 
-`taskboard_start.py` 使用和 supervisor loop 相同的运行态文件：默认写 `.taskboard/t0/latest.json`、`.taskboard/t0/events.jsonl` 和 `.taskboard/targets/taskboard-T*.md`。需要 dry check 且不留下事件日志时使用 `--no-event-log`。调试时可以给 `--auto --iterations 1 --launcher none`，验证自动模式路径但不打开 worker 终端。
+`taskboard_start.py` 使用和 supervisor loop 相同的运行态文件：默认写 `.taskboard/t0/latest.json`、`.taskboard/t0/events.jsonl` 和 `.taskboard/targets/taskboard-T*.md`。`--auto` 会把 `auto_mode` 和 `starter_mode` 持久写入 latest snapshot，并由 `taskboard_progress.py` 读出，方便恢复后确认当前 T0 是一键自动入口而不是 dry check。需要 dry check 且不留下事件日志时使用 `--no-event-log`。调试时可以给 `--auto --iterations 1 --launcher none`，验证自动模式路径但不打开 worker 终端。
 
 查看 T0 给用户的进度摘要：
 

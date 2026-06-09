@@ -64,6 +64,28 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("Start or resume T0", progress["user_action"])
         self.assertIn("not ask you to manage T1/T2/T3", progress["user_summary"])
 
+    def test_progress_surfaces_one_command_auto_mode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            self.run_json(
+                START_SCRIPT,
+                root,
+                "--goal",
+                "Ship demo",
+                "--auto",
+                "--iterations",
+                "1",
+                "--launcher",
+                "none",
+            )
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+
+        self.assertTrue(progress["auto_mode"])
+        self.assertEqual(progress["starter_mode"], "auto")
+        self.assertIn("one-command", progress["starter_boundary"])
+
     def test_progress_surfaces_failed_t0_launch_commands(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

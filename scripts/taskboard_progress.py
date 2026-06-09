@@ -166,6 +166,9 @@ def report_progress(root: Path) -> dict[str, object]:
             "next_role": "T0",
             "task": "none",
             "assignment_state": "none",
+            "auto_mode": False,
+            "starter_mode": "",
+            "starter_boundary": "",
             "active_count": 0,
             "missing_roles": [],
             "stale_roles": [],
@@ -252,6 +255,9 @@ def report_progress(root: Path) -> dict[str, object]:
     next_role = str(dispatch_payload.get("next_role") or "T0")
     task = str(dispatch_payload.get("task") or "none")
     assignment_state = str(assignment_payload.get("state") or "none")
+    auto_mode = bool(latest_payload.get("auto_mode"))
+    starter_mode = str(latest_payload.get("starter_mode") or "")
+    starter_boundary = str(latest_payload.get("starter_boundary") or "")
     try:
         active_count = int(queue_payload.get("active_count") or 0)
     except (TypeError, ValueError):
@@ -264,6 +270,9 @@ def report_progress(root: Path) -> dict[str, object]:
         "next_role": next_role,
         "task": task,
         "assignment_state": assignment_state,
+        "auto_mode": auto_mode,
+        "starter_mode": starter_mode,
+        "starter_boundary": starter_boundary,
         "active_count": active_count,
         "missing_roles": list(session_payload.get("missing_roles", []))
         if isinstance(session_payload.get("missing_roles", []), list)
@@ -313,6 +322,7 @@ def format_text(payload: dict[str, object]) -> str:
         f"next_role={payload['next_role']}",
         f"task={payload['task']}",
         f"assignment_state={payload['assignment_state']}",
+        f"starter_mode={payload.get('starter_mode')}",
         f"user_action={payload['user_action']}",
         f"summary={payload['user_summary']}",
         f"boundary={payload['boundary']}",
