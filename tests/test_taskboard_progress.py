@@ -113,6 +113,35 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("Start or resume T0", progress["user_action"])
         self.assertIn("not ask you to manage T1/T2/T3", progress["user_summary"])
 
+    def test_progress_uses_live_queue_metrics_when_no_snapshot_exists(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            taskboard = root / "docs" / "taskboard"
+            taskboard.mkdir(parents=True)
+            t2_task = f"TASK-011.v1.{T2_CODE_REVIEW}-L2.md"
+            t3_task = f"TASK-012.v1.{T3_EXECUTE}.md"
+            (taskboard / t2_task).write_text("# review\n\n**Wave**: 1\n", encoding="utf-8")
+            (taskboard / t3_task).write_text("# execute\n\n**Wave**: 1\n", encoding="utf-8")
+
+            self.run_json(
+                LOOP_SCRIPT,
+                root,
+                "--goal",
+                "Ship demo",
+                "--no-state-file",
+            )
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertFalse((root / ".taskboard" / "t0" / "latest.json").exists())
+        self.assertEqual(progress["active_count"], 2)
+        self.assertEqual(progress["queue_metrics"]["active_count"], 2)
+        self.assertEqual(progress["queue_metrics"]["role_counts"], {"T1": 0, "T2": 1, "T3": 1})
+        self.assertEqual(progress["queue_metrics"]["next_role"], "T2")
+        self.assertIn("active tasks: 2", progress["user_summary"])
+        self.assertIn("queue_metrics_active_count=2", text)
+        self.assertIn("queue_metrics_role_counts=T1:0,T2:1,T3:1", text)
+
     def test_progress_recovers_needs_goal_from_latest_event_without_snapshot(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

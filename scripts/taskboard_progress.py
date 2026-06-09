@@ -8,6 +8,7 @@ import sys
 from typing import Optional
 
 from taskboard_completion import report_completion
+from taskboard_health import report_health
 from taskboard_loop import default_event_log_file, default_state_file
 from taskboard_stopgates import report_stop_gates
 from taskboard_t0 import read_goal
@@ -286,7 +287,6 @@ def report_progress(root: Path) -> dict[str, object]:
     decision_command = build_decision_command(root, first_stop_gate)
     snapshot = read_latest_snapshot(root)
     if snapshot is None:
-        queue_metrics = build_queue_metrics({}, "T0", bool(stop_gate_count))
         latest_event = event_summary.get("latest_event", {})
         latest_event_payload = latest_event if isinstance(latest_event, dict) else {}
         goal = read_goal(root, "") or str(latest_event_payload.get("goal") or "")
@@ -306,6 +306,14 @@ def report_progress(root: Path) -> dict[str, object]:
         latest_event_assignment_task = str(latest_event_payload.get("assignment_task") or "none")
         latest_event_assignment_reason = str(latest_event_payload.get("assignment_reason") or "")
         latest_event_assignment_expected_id = str(latest_event_payload.get("assignment_expected_id") or "")
+        live_queue_health = report_health(root, 30, goal or None)
+        live_queue_payload = live_queue_health if isinstance(live_queue_health, dict) else {}
+        queue_metrics = build_queue_metrics(
+            live_queue_payload,
+            latest_event_next_role,
+            bool(stop_gate_count),
+        )
+        active_count = safe_int(live_queue_payload.get("active_count"), safe_int(queue_metrics.get("active_count"), 0))
         latest_event_auto_mode = bool(latest_event_payload.get("auto_mode"))
         latest_event_starter_mode = str(latest_event_payload.get("starter_mode") or "")
         latest_event_starter_boundary = ""
@@ -383,7 +391,7 @@ def report_progress(root: Path) -> dict[str, object]:
             "auto_mode": latest_event_auto_mode,
             "starter_mode": latest_event_starter_mode,
             "starter_boundary": latest_event_starter_boundary,
-            "active_count": 0,
+            "active_count": active_count,
             "missing_roles": [],
             "stale_roles": [],
             "launch_failures": latest_event_failure_list,
@@ -405,7 +413,7 @@ def report_progress(root: Path) -> dict[str, object]:
                 latest_event_next_role,
                 latest_event_task,
                 latest_event_assignment_state,
-                0,
+                active_count,
                 latest_event_launch_failure_count,
                 latest_event_suppressed_count,
                 stop_gate_count,

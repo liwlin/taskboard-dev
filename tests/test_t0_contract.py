@@ -201,6 +201,8 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("assignment_expected_id", readme)
         self.assertIn("queue_metrics", readme)
         self.assertIn("queue_metrics_active_count", readme)
+        self.assertIn("current taskboard live health", readme)
+        self.assertIn("T1/T2/T3 队列规模", readme)
         self.assertIn("--no-event-log", readme)
         self.assertIn(".taskboard/t0/goal.json", readme)
         self.assertIn("--no-state-file", readme)
