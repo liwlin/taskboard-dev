@@ -12,6 +12,25 @@ from taskboard_t0 import default_target_dir
 
 
 DEFAULT_AGENT_TEMPLATE = 'codex --prompt-file "{target_file}"'
+STARTER_AUTO_BOUNDARY = (
+    "T0 one-command auto mode: run the supervisor as the user-facing manager, "
+    "launch or recover T1/T2/T3 when needed, and keep T0 out of worker tasks."
+)
+
+
+def annotate_starter_mode(results: list[dict[str, object]], auto_mode: bool) -> list[dict[str, object]]:
+    mode = "auto" if auto_mode else "dry-check"
+    boundary = STARTER_AUTO_BOUNDARY if auto_mode else "T0 starter dry-check mode: report orchestration without launching workers."
+    for payload in results:
+        payload["auto_mode"] = auto_mode
+        payload["starter_mode"] = mode
+        payload["starter_boundary"] = boundary
+    return results
+
+
+def option_was_provided(argv: Optional[list[str]], option: str) -> bool:
+    args = argv if argv is not None else sys.argv[1:]
+    return any(item == option or item.startswith(f"{option}=") for item in args)
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -33,6 +52,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         "--execute-launches",
         action="store_true",
         help="Actually launch/recover T1/T2/T3 role terminals. Without this, start runs as a dry orchestration check.",
+    )
+    parser.add_argument(
+        "--auto",
+        action="store_true",
+        help="One-command T0 automation mode: execute managed-role launches and run until completion unless --iterations is set.",
     )
     parser.add_argument("--stale-minutes", type=int, default=30)
     parser.add_argument("--stale-seconds", type=int, default=300)
@@ -90,6 +114,10 @@ def main(argv: Optional[list[str]] = None) -> int:
         else default_event_log_file(root)
     )
     target_dir = None if args.no_target_files else Path(args.target_dir).resolve() if args.target_dir else default_target_dir(root)
+    execute_launches = args.execute_launches or args.auto
+    iterations = args.iterations
+    if args.auto and not option_was_provided(argv, "--iterations") and not args.forever:
+        iterations = None
 
     try:
         results = run_loop(
@@ -99,8 +127,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.stale_seconds,
             args.launcher,
             args.agent_template,
-            args.execute_launches,
-            None if args.forever else args.iterations,
+            execute_launches,
+            None if args.forever else iterations,
             args.interval_seconds,
             args.assignment_lease_seconds,
             not args.no_stop_on_complete,
@@ -109,6 +137,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.launch_lease_seconds,
             event_log_file,
         )
+        results = annotate_starter_mode(results, args.auto)
     except ValueError as exc:
         print(exc, file=sys.stderr)
         return 2

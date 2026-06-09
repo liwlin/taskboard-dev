@@ -132,6 +132,8 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("--launcher windows-terminal", readme)
         self.assertIn("python scripts/taskboard_demo.py --root .taskboard-demo --with-heartbeats", readme)
         self.assertIn("python scripts/taskboard_start.py --goal", readme)
+        self.assertIn("--auto", readme)
+        self.assertIn("--auto --iterations 1 --launcher none", readme)
         self.assertIn("python scripts/taskboard_completion.py --root .", readme)
         self.assertIn("python scripts/taskboard_progress.py --root .", readme)
         self.assertIn("python scripts/taskboard_stopgates.py --root .", readme)
