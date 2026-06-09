@@ -166,6 +166,7 @@ def build_session_manifest(
         "recovery_order": recovery_order,
         "sync_contract": "TASKBOARD filenames + stable context files + history/HANDOFF; no shared chat context",
         "health_checks": [
+            'python scripts/taskboard_health.py --root . --stale-minutes 30 --goal "<user goal>"',
             "python scripts/taskboard_next.py --role T0 --root .",
             "check managed terminal titles: taskboard-T1, taskboard-T2, taskboard-T3",
             "check docs/taskboard/TASK-*.T*.md mtime for stalled work",

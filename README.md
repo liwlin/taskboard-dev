@@ -28,6 +28,7 @@
 └── scripts/
     ├── package.sh                   # 生成发布包
     ├── taskboard_t0.py              # 生成 T0 自动创建/恢复角色终端的调度计划
+    ├── taskboard_health.py          # T0 queue health and stalled-task report
     ├── taskboard_next.py            # 根据文件名状态选择下一个角色/任务
     └── verify_t0_contract.py        # 校验 T0 协议和发布文档
 ```
@@ -98,6 +99,15 @@ python scripts/taskboard_t0.py --goal "完成 <你的开发目标>" --root . --l
 
 脚本输出包含 `session_manifest`，供 T0 恢复和健康检查使用；它不是新的共享状态数据库。
 
+T0 can run a deterministic health check before reissuing role targets:
+
+```bash
+python scripts/taskboard_health.py --root . --stale-minutes 30
+```
+
+The health check reports active queues, stalled tasks, the next role to wake, and manager-only actions. It does not let T0 perform design, review, implementation, verification, or commit work.
+Use `--goal "<user goal>"` when the user goal has not yet been written to `docs/PROJECT.md`.
+
 高级用户仍可手动运行 T1/T2/T3；这是兼容模式，不是默认用法：
 
 ```text
@@ -126,6 +136,7 @@ python scripts/taskboard_t0.py --goal "完成 <你的开发目标>" --root . --l
 
 ```bash
 python scripts/taskboard_t0.py --goal "完成示例目标" --root .
+python scripts/taskboard_health.py --root . --stale-minutes 30
 python scripts/taskboard_next.py --role T0 --root .
 python scripts/verify_t0_contract.py
 python -m unittest
@@ -159,6 +170,7 @@ VERSION=v4.3 ./scripts/package.sh
 
 - [ ] `git diff --check`
 - [ ] `python scripts/taskboard_t0.py --goal "完成示例目标" --root .`
+- [ ] `python scripts/taskboard_health.py --root . --stale-minutes 30`
 - [ ] `python scripts/taskboard_next.py --role T0 --root .`
 - [ ] `python scripts/verify_t0_contract.py`
 - [ ] `python -m unittest`
