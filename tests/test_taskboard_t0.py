@@ -23,6 +23,18 @@ class TaskboardT0Test(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout)
         return json.loads(result.stdout)
 
+    def run_t0_text(self, root: Path, *args: str) -> str:
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--root", str(root), *args],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout)
+        return result.stdout
+
     def write_task(self, taskboard: Path, name: str) -> None:
         (taskboard / name).write_text("# task\n\n**Wave**: 1\n", encoding="utf-8")
 
@@ -195,6 +207,25 @@ class TaskboardT0Test(unittest.TestCase):
         self.assertEqual(len(output["launch_commands"]), 3)
         self.assertEqual(output["target_files"], [])
         self.assertFalse(target_dir_exists)
+
+    def test_text_output_lists_written_role_target_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            text = self.run_t0_text(
+                root,
+                "--goal",
+                "Ship demo",
+                "--launcher",
+                "windows-terminal",
+                "--agent-template",
+                'codex --prompt-file "{target_file}"',
+            )
+
+        self.assertIn("target_files:", text)
+        self.assertIn("T1 path=", text)
+        self.assertIn("taskboard-T1.md", text)
 
     def test_tmux_launcher_commands_create_isolated_role_windows(self):
         with tempfile.TemporaryDirectory() as tmp:

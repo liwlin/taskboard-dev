@@ -404,6 +404,12 @@ def format_text(payload: dict[str, str]) -> str:
         lines.append("launch_commands:")
         for command in launch_commands:
             lines.append(f"- {command}")
+    target_files = payload.get("target_files", [])
+    if target_files:
+        lines.append("target_files:")
+        for item in target_files:
+            if isinstance(item, dict):
+                lines.append(f"- {item.get('role')} path={item.get('path')}")
     manifest = payload.get("session_manifest")
     if manifest:
         lines.append("session_manifest:")
