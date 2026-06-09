@@ -17,6 +17,7 @@ cp "$ROOT_DIR/references/taskboard-template.md" "$STAGE_DIR/references/taskboard
 cp "$ROOT_DIR/scripts/package.sh" "$STAGE_DIR/scripts/package.sh"
 cp "$ROOT_DIR/scripts/taskboard_t0.py" "$STAGE_DIR/scripts/taskboard_t0.py"
 cp "$ROOT_DIR/scripts/taskboard_loop.py" "$STAGE_DIR/scripts/taskboard_loop.py"
+cp "$ROOT_DIR/scripts/taskboard_demo.py" "$STAGE_DIR/scripts/taskboard_demo.py"
 cp "$ROOT_DIR/scripts/taskboard_health.py" "$STAGE_DIR/scripts/taskboard_health.py"
 cp "$ROOT_DIR/scripts/taskboard_sessions.py" "$STAGE_DIR/scripts/taskboard_sessions.py"
 cp "$ROOT_DIR/scripts/taskboard_next.py" "$STAGE_DIR/scripts/taskboard_next.py"

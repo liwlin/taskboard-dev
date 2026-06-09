@@ -590,6 +590,7 @@ Use `scripts/taskboard_t0.py` to generate managed role sessions and optional lau
 
 ```bash
 python scripts/taskboard_t0.py --goal "<user goal>" --root .
+python scripts/taskboard_demo.py --root .taskboard-demo --with-heartbeats
 python scripts/taskboard_loop.py --root . --goal "<user goal>" --forever --launcher windows-terminal --agent-template 'codex --prompt "{target}"'
 python scripts/taskboard_t0.py --goal "<user goal>" --root . --launcher windows-terminal --agent-template 'codex --prompt "{target}"'
 python scripts/taskboard_t0.py --goal "<user goal>" --root . --launcher powershell --agent-template 'codex --prompt "{target}"'
@@ -606,6 +607,7 @@ Launcher rules:
 - If no launcher is requested, the script emits a dry orchestration plan only.
 - The script emits `session_manifest` for T0 recovery and health checks. This is not a new shared state database; it is an output summary of managed sessions, recovery order, sync contract, and check commands. Persistent recovery still belongs in `HANDOFF.md`.
 - Use `scripts/taskboard_loop.py` for the actual T0 supervisor loop. It combines session heartbeat probing, queue health, and dispatch into each iteration. Add `--execute-launches` only when T0 should execute generated launcher commands; those commands only launch/recover T1/T2/T3 and must not perform worker tasks in T0.
+- Use `scripts/taskboard_demo.py --root .taskboard-demo --with-heartbeats` to create a reproducible dry-run TASKBOARD that proves T0 loop scheduling without modifying product code. The demo refuses to overwrite an existing `docs/` unless `--force` is passed.
 
 Use `scripts/taskboard_health.py` when T0 needs a deterministic queue and liveness report before waking a role:
 

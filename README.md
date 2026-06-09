@@ -29,6 +29,7 @@
     ├── package.sh                   # 生成发布包
     ├── taskboard_t0.py              # 生成 T0 自动创建/恢复角色终端的调度计划
     ├── taskboard_loop.py            # T0 supervisor loop: session probe + queue health + dispatch
+    ├── taskboard_demo.py            # 生成可重复的 T0 dry-run TASKBOARD 示例
     ├── taskboard_health.py          # T0 queue health and stalled-task report
     ├── taskboard_sessions.py        # T0 managed role heartbeat probe/recovery report
     ├── taskboard_next.py            # 根据文件名状态选择下一个角色/任务
@@ -132,6 +133,15 @@ python scripts/taskboard_loop.py --root . --goal "完成 <你的开发目标>" -
 
 By default the loop reports generated launcher commands without executing them. Add `--execute-launches` only when T0 should actually launch or recover managed role terminals. This executes manager launch commands only; T0 still does not perform T1/T2/T3 worker tasks.
 
+可重复 dry-run demo：
+
+```bash
+python scripts/taskboard_demo.py --root .taskboard-demo --with-heartbeats
+python scripts/taskboard_loop.py --root .taskboard-demo --goal "Ship demo" --iterations 1
+```
+
+`taskboard_demo.py` 默认拒绝覆盖已有 `docs/`，适合用来演示 T0 如何从 demo TASKBOARD 队列中选择 T1/T2/T3，而不修改产品代码。
+
 高级用户仍可手动运行 T1/T2/T3；这是兼容模式，不是默认用法：
 
 ```text
@@ -160,6 +170,7 @@ By default the loop reports generated launcher commands without executing them. 
 
 ```bash
 python scripts/taskboard_t0.py --goal "完成示例目标" --root .
+python scripts/taskboard_demo.py --root .taskboard-demo --with-heartbeats
 python scripts/taskboard_loop.py --root . --goal "完成示例目标" --iterations 1
 python scripts/taskboard_health.py --root . --stale-minutes 30
 python scripts/taskboard_sessions.py --root . probe --stale-seconds 300
@@ -196,6 +207,7 @@ VERSION=v4.3 ./scripts/package.sh
 
 - [ ] `git diff --check`
 - [ ] `python scripts/taskboard_t0.py --goal "完成示例目标" --root .`
+- [ ] `python scripts/taskboard_demo.py --root .taskboard-demo --with-heartbeats`
 - [ ] `python scripts/taskboard_loop.py --root . --goal "完成示例目标" --iterations 1`
 - [ ] `python scripts/taskboard_health.py --root . --stale-minutes 30`
 - [ ] `python scripts/taskboard_sessions.py --root . probe --stale-seconds 300`

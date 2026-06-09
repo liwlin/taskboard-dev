@@ -127,6 +127,15 @@ python scripts/taskboard_loop.py --root . --goal "完成 <你的开发目标>" -
 
 默认只输出恢复/启动命令，不执行。只有 T0 明确需要实际创建或恢复受控角色终端时才加 `--execute-launches`。该选项只执行 manager launch commands；T0 仍不能做 T1/T2/T3 的开发任务。
 
+可重复 dry-run demo：
+
+```bash
+python scripts/taskboard_demo.py --root .taskboard-demo --with-heartbeats
+python scripts/taskboard_loop.py --root .taskboard-demo --goal "Ship demo" --iterations 1
+```
+
+该 demo 生成一个独立 TASKBOARD 示例和可选 T1/T2/T3 heartbeat，用来证明 T0 能读取队列并选择下一角色。它默认拒绝覆盖已有 `docs/`，不会修改产品代码。
+
 #### 兼容：手动启动 T1/T2/T3
 
 高级用户仍可手动打开 3 个 agent CLI 终端，分别运行 T1/T2/T3。T0 模式下不需要用户这样做。
