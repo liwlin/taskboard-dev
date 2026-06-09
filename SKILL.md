@@ -1,18 +1,18 @@
 ---
 name: taskboard-dev
 description: >
-  Three-terminal TASKBOARD-driven development workflow with architect, reviewer, and executor roles.
+  T0-managed TASKBOARD-driven development workflow with orchestrator, architect, reviewer, and executor roles.
   This skill should be used when starting a multi-terminal collaborative development session.
-  Invoke with role argument such as /taskboard-dev T1, /taskboard-dev T2, or /taskboard-dev T3.
+  Invoke with role argument such as /taskboard-dev T0, /taskboard-dev T1, /taskboard-dev T2, or /taskboard-dev T3.
   Uses filename-as-status pattern for zero-content polling, tiered code review, and version
   experience management on spec revision. No shared index file, no locks, no parsing overhead.
-  v4.2 enables mostly autonomous long-running development loops for Claude Code and
-  Codex, using goal/target execution, modern loop commands, and explicit stop gates.
+  v4.3 adds T0 as the user-facing orchestration layer that manages T1/T2/T3 until
+  the user's goal is complete or an explicit stop gate is hit.
 ---
 
-# TASKBOARD-Driven Development v4.2
+# TASKBOARD-Driven Development v4.3
 
-Three-terminal collaborative development. Status encoded in filenames. Polling via Glob with zero file content reads. Read-only context layer for cross-session memory. v4.2 keeps the same file protocol as v4.0, but changes the operating model from human-steered handoffs to mostly autonomous long-running loops for Claude Code and Codex. Humans approve goals and true product decisions; agents handle routine planning, review, implementation, verification, task renames, and commits.
+T0-managed collaborative development. The user gives T0 one goal, and T0 manages the T1 architect/scheduler, T2 reviewer/verifier, and T3 executor loops until the goal is complete or a stop gate is hit. Status is still encoded in filenames. Polling still uses Glob with zero file content reads. The read-only context layer remains the cross-session memory. v4.3 keeps the same task file protocol as v4.2, but moves day-to-day role management from the user to T0.
 
 ## Five Principles (non-negotiable)
 
@@ -25,6 +25,7 @@ Three-terminal collaborative development. Status encoded in filenames. Polling v
 ## Invocation
 
 ```
+/taskboard-dev T0    # User-facing Orchestrator
 /taskboard-dev T1    # Architect + Scheduler
 /taskboard-dev T2    # Reviewer + Verifier
 /taskboard-dev T3    # Executor (code + compile + commit)
@@ -39,12 +40,15 @@ Use this shape:
 ```text
 目标: <role-specific outcome>. Continue autonomously until the target is complete or a stop gate is hit.
 停止门: product decision / destructive shared-state operation / credential-payment-privacy risk / repeated verify failure / scope expansion.
-执行: /taskboard-dev T{1|2|3}
+执行: /taskboard-dev T{0|1|2|3}
 ```
 
 Default role targets:
 
 ```text
+目标(T0): Own the user's goal, initialize or resume the TASKBOARD, launch or instruct T1/T2/T3 as needed, monitor queues and stop gates, recover stalled roles, and keep running until the goal is complete.
+执行: /taskboard-dev T0
+
 目标(T1): Maintain PROJECT/MAP/REQUIREMENTS/STATE, create and revise TASK files, resolve safe design choices autonomously, and keep the milestone moving until no unblocked T1 work remains.
 执行: /taskboard-dev T1
 
@@ -55,13 +59,13 @@ Default role targets:
 执行: /taskboard-dev T3
 ```
 
-If the CLI provides a dedicated goal/target flag or command, put the `目标` text there. If not, paste it immediately before `/taskboard-dev T{N}` in the session.
+If the CLI provides a dedicated goal/target flag or command, put the `目标` text there. If not, paste it immediately before `/taskboard-dev T{0|1|2|3}` in the session.
 
-> **Model hint**: T1/T2 benefit from the strongest/deepest reasoning model available. T3 can use a faster coding-oriented model once the task is well specified. For long autonomous runs, prefer models/CLI modes that support background execution, resumable sessions, tool-use checkpoints, and explicit goals/targets.
+> **Model hint**: T0/T1/T2 benefit from the strongest/deepest reasoning model available. T3 can use a faster coding-oriented model once the task is well specified. For long autonomous runs, prefer models/CLI modes that support background execution, resumable sessions, tool-use checkpoints, and explicit goals/targets.
 
 ## Autonomy Model
 
-Default stance: **autonomous unless a stop gate is hit**. Earlier versions required the user to manually confirm many handoffs because loop/goal tooling was limited. v4.2 assumes Claude Code and Codex can run long tasks, loop on commands, and pursue an explicit target. Do not ask for confirmation for routine work.
+Default stance: **autonomous unless a stop gate is hit**. Earlier versions required the user to manually confirm many handoffs because loop/goal tooling was limited. v4.3 assumes Claude Code and Codex can run long tasks, loop on commands, pursue an explicit target, and let T0 manage routine T1/T2/T3 handoffs. Do not ask for confirmation for routine work.
 
 ### Human Approval Required Only For Stop Gates
 
@@ -87,7 +91,7 @@ Agents SHOULD proceed without asking for:
 
 ### Long-Run Goal Contract
 
-At session start, the user or T1 defines a goal/target in plain language, then the three roles keep working until the goal is complete or a stop gate is hit. The active goal should be reflected in `PROJECT.md`/`REQUIREMENTS.md` for milestone goals, in the current `TASK-xxx` file for task-level goals, and in the session's goal/target instruction when the CLI supports one. If the session has no explicit target, the role MUST synthesize one from the current milestone before entering autonomous loop mode; ask the user only when no milestone/task context exists.
+At session start, the user defines a goal/target in plain language for T0. T0 owns that goal and turns it into durable T1/T2/T3 targets. The active goal should be reflected in `PROJECT.md`/`REQUIREMENTS.md` for milestone goals, in the current `TASK-xxx` file for task-level goals, and in each role session's goal/target instruction when the CLI supports one. If a T1/T2/T3 session has no explicit target, it MUST synthesize one from T0's current goal and the current milestone before entering autonomous loop mode; ask the user only when T0 cannot determine the product goal or a true stop gate is hit.
 
 ---
 
@@ -101,9 +105,9 @@ At session start, the user or T1 defines a goal/target in plain language, then t
 6. Glob `docs/taskboard/TASK-*.T*.md` to display current task summary (excludes history/)
 7. Detect available long-run capabilities: loop command, goal/target mode, background task support, resume/session restore, review/planning tools, and sandbox/approval policy.
 8. Set run mode: `autonomous` by default; `supervised` only if the user explicitly requests step-by-step confirmation.
-9. Set up role-specific polling or goal-driven loop.
+9. Set up T0 orchestration loop or role-specific polling/goal-driven loop.
 10. **Silently re-read own role's "Boundaries" subsection** (see Role Boundary Enforcement below). Do NOT echo the rules to the user — just internalize them for this session.
-11. Confirm once: "T{N} {role} ready. Run mode: {autonomous/supervised}. Review mode: {full/standard/assisted/manual}. Active tasks: {count}. Stop gates: product/destructive/credential/repeated-failure/scope."
+11. Confirm once: "T{N} {role} ready. Run mode: {autonomous/supervised}. Review mode: {full/standard/assisted/manual}. Active tasks: {count}. Stop gates: product/destructive/credential/repeated-failure/scope." For T0, confirm: "T0 orchestrator ready. User goal: {goal}. Managed roles: T1/T2/T3. Stop gates: product/destructive/credential/repeated-failure/scope."
 
 ### Auto-Generated Directory Structure
 
@@ -308,9 +312,10 @@ T1 creates → .v1.T2-待审核方案 → T2 reviews design
 
 ## Polling
 
-Each terminal polls with Glob matching its prefix:
+Each role discovers queues with Glob. T0 scans all active task statuses; T1/T2/T3 scan only their own prefixes:
 
 ```
+T0: Glob docs/taskboard/TASK-*.T*.md, then choose the next managed role
 T1: Glob docs/taskboard/TASK-*.T1-*.md
 T2: Glob docs/taskboard/TASK-*.T2-*.md
 T3: Glob docs/taskboard/TASK-*.T3-*.md
@@ -320,26 +325,28 @@ T3: Glob docs/taskboard/TASK-*.T3-*.md
 
 Use the strongest loop primitive supported by the active client:
 
-1. **Goal/target loop (preferred)**: run the role with an explicit target such as "finish all unblocked T3 tasks and hand them to T2". The agent continues selecting next tasks until the target is complete or a stop gate is hit.
-2. **Command loop**: run `/taskboard-next` or `/taskboard-dev T{N}` repeatedly through the client's loop command.
-3. **Fixed interval loop**: for clients with interval loops, use a 3-minute interval and a cheap one-line idle return.
+1. **T0 goal/target loop (preferred)**: run T0 with the user's goal. T0 keeps selecting and launching/resuming T1/T2/T3 until the goal is complete or a stop gate is hit.
+2. **Role goal/target loop**: run a role with an explicit target such as "finish all unblocked T3 tasks and hand them to T2". The agent continues selecting next tasks until the target is complete or a stop gate is hit.
+3. **Command loop**: run `/taskboard-next` or `/taskboard-dev T{0|1|2|3}` repeatedly through the client's loop command.
+4. **Fixed interval loop**: for clients with interval loops, use a 3-minute interval and a cheap one-line idle return.
 
 Example patterns (adapt names to the active CLI):
 
 ```
 # Claude Code-style fixed interval with a goal instruction
-目标: T3 complete every unblocked T3 task, verify, commit, and hand off to T2 until the queue is empty or a stop gate is hit.
-/loop 3m /taskboard-dev T3
+目标: T0 own the user's goal, manage T1/T2/T3, recover stalled roles, and keep running until all tasks are archived or a stop gate is hit.
+/loop 3m /taskboard-dev T0
 
 # Goal/target-style long run
-目标: T3 complete every unblocked T3 task, verify, commit, and hand off to T2 until the queue is empty or a stop gate is hit.
-/taskboard-dev T3
+目标: T0 own the user's goal, manage T1/T2/T3, recover stalled roles, and keep running until all tasks are archived or a stop gate is hit.
+/taskboard-dev T0
 ```
 
 Loop behavior:
 
-- **Active mode** (tasks found for this role): select `/taskboard-next`, execute, verify, transition, and continue.
-- **Idle mode** (no tasks found): for interval loops, output a single line `T{N} idle — next check in 3m` and stay in the loop — no tool calls, no context re-reads; in goal/target loops, sleep/yield according to client capability.
+- **T0 active mode** (any queue or incomplete milestone exists): select the next managed role, launch/resume it with its durable target, re-check progress, and continue.
+- **Role active mode** (tasks found for this role): select `/taskboard-next`, execute, verify, transition, and continue.
+- **Idle mode** (no tasks found): for interval loops, output a single line `T{N} idle — next check in 3m` and stay in the loop — no tool calls, no context re-reads; in goal/target loops, sleep/yield according to client capability. T0 idles only when all role queues are empty and it is waiting for external progress or user resume.
 - **Never auto-exit on an empty queue**: a role MUST NOT suggest leaving `/loop` just because its own queue is currently empty. An empty queue is normal — another role may hand off a task minutes later. The ONLY conditions for suggesting exit are: (1) the user explicitly says stop/pause; (2) the entire project is complete (all tasks archived, dev-log/HANDOFF written, milestone declared done); (3) the session is about to hit its context limit and needs a clean restart.
 - **Completion**: when the goal is complete and all queues are empty, summarize completed tasks and stop. Do not require the user to manually exit unless the client itself keeps the interval loop alive.
 
@@ -493,6 +500,7 @@ Any agent reading this skill in any role session MUST respect the relevant
 
 ### Why boundaries exist
 
+0. **T0 is not T1/T2/T3**: T0 owns user communication and orchestration, not design authorship, code review, or implementation. It may instruct, resume, and monitor role sessions, but routine work still flows through T1/T2/T3.
 1. **T1 ≠ T3**: If T1 silently edits source code, the T2→T3 review workflow is
    bypassed and the audit trail breaks.
 2. **T2 ≠ T3**: A reviewer who rewrites the code they're reviewing loses
@@ -508,6 +516,7 @@ Any agent reading this skill in any role session MUST respect the relevant
   requests it.
 - **NEVER** bypass another role's turn. If work crosses a boundary, rename
   the task to the appropriate role's status and continue/stop according to the next role's queue and the current long-run goal.
+- **NEVER** make the user manage T1/T2/T3 when T0 is active. T0 is responsible for deciding which role needs attention next and for surfacing only true stop gates to the user.
 
 ### User Override Protocol
 
@@ -522,6 +531,61 @@ specific action. When this happens, the role MUST:
    `HANDOFF.md` session notes, so the audit trail stays visible.
 
 Without an explicit override, stay inside your lane, but do not ask the user to approve routine in-lane operations.
+
+---
+
+## Role: T0 — User-Facing Orchestrator
+
+### Identity
+
+Own the user's goal from intake to completion. T0 is the only role that should routinely talk to the user. T0 initializes or resumes the board, assigns durable targets to T1/T2/T3, monitors queue health, restarts or nudges idle/stalled role loops, and escalates only true stop gates. T0 does not replace the task file state machine.
+
+### Boundaries (read at session init)
+
+**T0 MAY** (normal work):
+- Ask the user for the goal at the start of a milestone, then convert it into durable T1/T2/T3 role targets.
+- Create or refresh the initial `PROJECT.md`, `REQUIREMENTS.md`, `MAP.md`, and `STATE.md` only when no T1 session exists yet; once T1 is running, route design/context updates to T1.
+- Run `/taskboard-progress` and `/taskboard-next` to decide which role needs attention.
+- Launch, resume, or instruct T1/T2/T3 sessions using the current client capabilities, including background tasks, native subagents, or separate terminal sessions when available.
+- Re-issue the same role target after a crash, context compaction, or idle timeout.
+- Write `HANDOFF.md` or a concise orchestration note when pausing, recovering, or reporting a stop gate.
+- Surface one concise user question only for product/destructive/credential/repeated-failure/scope stop gates.
+
+**T0 MUST** (normal work):
+- Keep the user-facing interface goal-oriented: report progress, blockers, and stop gates; do not ask the user to manually choose T1/T2/T3 routine actions.
+- Prefer this execution order when multiple queues are active: unblock T1 stop gates first, then run T2 code review, T2 design review, T3 fixes, T3 verification, T3 execution, and finally T1 planning/revision.
+- Treat an empty single-role queue as normal. Continue monitoring until all tasks are archived, no active blockers remain, and the user goal is satisfied.
+- Preserve role independence: T1 designs, T2 reviews, T3 implements.
+- Record any stop gate decision in `STATE.md` or the relevant task file before resuming role loops.
+
+**T0 MUST NOT** (without user override):
+- Write implementation code, commit source changes, or run production deploys.
+- Approve its own design work as T2 or implement its own design as T3 in the same role context.
+- Archive tasks without T2 approval.
+- Hide stop gates by choosing a product behavior, destructive operation, credential/payment/privacy action, repeated-failure resolution, or scope expansion on the user's behalf.
+- Create a new parallel state system. T0 observes filenames and role sessions; it does not add `T0-*` task statuses.
+
+### T0 Operating Loop
+
+1. Capture or restate the user goal.
+2. Initialize `docs/taskboard/` if missing.
+3. Run `/taskboard-progress`.
+4. If there is no active milestone context, instruct T1 to create or refresh PROJECT/MAP/REQUIREMENTS/STATE and initial tasks.
+5. If queues exist, select the next role using **T0 next** below and launch/resume that role with its durable target.
+6. After each role handoff, run `/taskboard-progress` again.
+7. If a role is idle but the milestone is incomplete, leave it available for future handoffs or re-run it after the configured loop interval.
+8. Continue until all tasks are archived, `dev-log.md` is current, `HANDOFF.md` is saved if pausing, and the user's goal is satisfied.
+
+### T0 User Output Contract
+
+T0 should report:
+- current goal
+- active queue summary
+- role currently being run or resumed
+- completed task count
+- stop gate question if needed
+
+T0 should not report routine internal handoffs unless they affect the user's goal, timeline, or required decision.
 
 ---
 
@@ -786,7 +850,18 @@ Last completed: TASK-006 — 舵机控制模块 (12min ago)
 
 ### /taskboard-next
 
-Deterministic selection rules. No model discretion. In autonomous long-run mode, each role repeatedly executes `/taskboard-next` until its queue is empty, the goal is complete, or a stop gate is hit.
+Deterministic selection rules. No model discretion. In autonomous long-run mode, T0 repeatedly chooses which managed role to run next, while T1/T2/T3 repeatedly execute `/taskboard-next` until their queue is empty, the goal is complete, or a stop gate is hit.
+
+**T0 next** (priority order):
+1. Any `T1-待决策` stop gate (surface to user only if T1 cannot resolve safely)
+2. `T2-待审核代码-L{N}` (delivery is waiting for review)
+3. `T2-待审核方案` (unblocks implementation)
+4. `T3-需修复` (review rejected code)
+5. `T3-待验证` (closer to review handoff)
+6. `T3-待执行`
+7. `T1-方案需修改`
+8. No active tasks but milestone incomplete → run T1 to create/revise tasks
+9. All tasks archived and goal satisfied → "T0 complete"
 
 **T1 next** (priority order):
 1. `T1-待决策` (needs user, surface first)
