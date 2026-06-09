@@ -104,7 +104,7 @@ python scripts/taskboard_completion.py --root .
 这个审计只读 active TASK 队列、`docs/taskboard/archive/`、`docs/STATE.md` 的 completion sentinel 和 `docs/dev-log.md`。只有 active 队列为空、存在完成 sentinel、存在归档任务证据、dev-log 有完成记录时，T0 才可以向用户汇总完成结果；否则 T0 继续唤醒 T1/T2/T3 补齐证据或推进剩余工作。
 当完成证据缺失时，`taskboard_progress.py` 的 `user_action` 会显示 `No user action required; T0 will wake T1 to record or revise missing completion evidence.`，表示用户不需要接管任务板，T0 会继续唤醒角色补齐证据。
 
-如果摘要显示 `T0 launch/recovery failed`，这不是让用户去手动管理 T1/T2/T3，而是表示 T0 控制面的终端启动/恢复命令失败。处理方式是修正 T0 的 `--launcher` / `--agent-template`，或让 T0 换一种 launcher 重新恢复受控角色。
+如果摘要显示 `T0 launch/recovery failed`，这不是让用户去手动管理 T1/T2/T3，而是表示 T0 控制面的终端启动/恢复命令失败。处理方式是修正 T0 的 `--launcher` / `--agent-template`，或让 T0 换一种 launcher 重新恢复受控角色。如果 T0 startup 在 supervisor loop 运行前就拒绝了无效 launcher/template 选项，`taskboard_start.py` 会持久写入 `config-error` snapshot/event 和 `error` 文本；即使终端输出丢失，`taskboard_progress.py` 也能继续显示 T0 configuration failure 和修复动作。
 
 #### T0 启动器脚本
 
@@ -178,7 +178,7 @@ python scripts/taskboard_loop.py --root . --goal "完成 <你的开发目标>" -
 
 每轮 loop 默认会把最新 T0 supervisor 运行态快照写入 `.taskboard/t0/latest.json`。这个 `taskboard-t0-supervisor-state` 文件只记录 T0 的管理视图，方便中断后恢复判断；它不是任务状态、不是 worker 记忆，也不能替代 TASKBOARD 文件名、history、dev-log、HANDOFF 或完成 sentinel。需要自定义路径时使用 `--state-file <path>`；只想 dry check 且不留下运行态快照时使用 `--no-state-file`。
 
-每轮 loop 还会默认向 `.taskboard/t0/events.jsonl` 追加一条 compact supervisor event。这个 append-only `taskboard-t0-supervisor-event` 日志保留 T0 每轮 dispatch、queue、session、assignment、action 摘要、`assignment_role`、`assignment_task`、`assignment_reason`、`assignment_expected_id`、`launch_failure_count`、compact `launch_failures` command/returncode/output 详情、`resume_config`、`suppressed_launch_count`、`executed_command_count`、stop-gate count、completion readiness、`completion_missing_evidence` 和 `completion_user_action`，方便审计 T0 是否持续运行、自动调度，以及是否发生过控制面启动/恢复失败；当 T0 通过 `taskboard_start.py --auto` 启动时，`events.jsonl` 也会记录 `auto_mode` 和 `starter_mode`，用于恢复后区分一键自动模式和 dry check。assignment 字段用于解释 T0 当时等待哪个受控 worker 认领或重发哪个 target；launch failure 和 resume 字段用于在 `latest.json` 不可用时解释最近一次 T0 控制面恢复路径；completion 字段用于解释 T0 为什么在完成 sentinel 后仍继续唤醒 T1 补齐证据，而不是直接向用户汇报完成。它不是 TASKBOARD 状态，也不是 worker 记忆。需要自定义路径时使用 `--event-log-file <path>`；只想 dry check 且不留下事件轨迹时使用 `--no-event-log`。
+每轮 loop 还会默认向 `.taskboard/t0/events.jsonl` 追加一条 compact supervisor event。这个 append-only `taskboard-t0-supervisor-event` 日志保留 T0 每轮 dispatch、queue、session、assignment、action 摘要、`assignment_role`、`assignment_task`、`assignment_reason`、`assignment_expected_id`、`launch_failure_count`、compact `launch_failures` command/returncode/output 详情、`resume_config`、`suppressed_launch_count`、`executed_command_count`、stop-gate count、completion readiness、`completion_missing_evidence`、`completion_user_action` 和 `error`，方便审计 T0 是否持续运行、自动调度，以及是否发生过控制面启动/恢复失败；当 T0 通过 `taskboard_start.py --auto` 启动时，`events.jsonl` 也会记录 `auto_mode` 和 `starter_mode`，用于恢复后区分一键自动模式和 dry check。assignment 字段用于解释 T0 当时等待哪个受控 worker 认领或重发哪个 target；launch failure、config-error 和 resume 字段用于在 `latest.json` 不可用时解释最近一次 T0 控制面恢复路径；completion 字段用于解释 T0 为什么在完成 sentinel 后仍继续唤醒 T1 补齐证据，而不是直接向用户汇报完成。它不是 TASKBOARD 状态，也不是 worker 记忆。需要自定义路径时使用 `--event-log-file <path>`；只想 dry check 且不留下事件轨迹时使用 `--no-event-log`。
 
 启用 `--execute-launches` 时，T0 还会把最近成功的角色启动/恢复尝试写入 `.taskboard/t0/launches.json`，类型为 `taskboard-t0-launch-state`。它只用于 launch lease 去重，避免重复创建同一角色终端；它不是 worker 状态，也不是任务状态。
 

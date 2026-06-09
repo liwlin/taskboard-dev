@@ -627,6 +627,7 @@ def append_event_log(
         "completion_ready": bool(completion_payload.get("completion_ready")),
         "completion_missing_evidence": completion_missing_list,
         "completion_user_action": str(completion_payload.get("user_action") or ""),
+        "error": str(payload.get("error") or ""),
         "auto_mode": bool(auto_mode) if auto_mode is not None else False,
         "starter_mode": str(starter_mode or ""),
         "resume_config": resume_config_payload,

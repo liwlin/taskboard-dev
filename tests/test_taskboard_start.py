@@ -82,10 +82,20 @@ class TaskboardStartTest(unittest.TestCase):
                 stderr=subprocess.STDOUT,
                 check=False,
             )
+            snapshot = json.loads((root / ".taskboard" / "t0" / "latest.json").read_text(encoding="utf-8"))
+            events = [
+                json.loads(line)
+                for line in (root / ".taskboard" / "t0" / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
 
         self.assertEqual(result.returncode, 2, result.stdout)
         self.assertIn("agent-template references {target_file}", result.stdout)
         self.assertIn("enable target files or use {target}", result.stdout)
+        self.assertEqual(snapshot["latest"]["state"], "config-error")
+        self.assertIn("agent-template references {target_file}", snapshot["latest"]["error"])
+        self.assertEqual(events[-1]["state"], "config-error")
+        self.assertIn("agent-template references {target_file}", events[-1]["error"])
 
     def test_starter_resumes_saved_goal_without_retyping_it(self):
         with tempfile.TemporaryDirectory() as tmp:

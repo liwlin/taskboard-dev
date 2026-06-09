@@ -142,7 +142,10 @@ def build_user_summary(
     stop_gate_count: int = 0,
     stop_gate_question: str = "",
     queue_metrics: Optional[dict[str, object]] = None,
+    error: str = "",
 ) -> str:
+    if state == "config-error":
+        return f"T0 configuration error for goal '{goal}': {error}"
     if stop_gate_count:
         return (
             f"T0 has {stop_gate_count} stop gate(s) for goal '{goal}'. "
@@ -202,7 +205,13 @@ def build_user_action(
     assignment_state: str = "",
     assignment_role: str = "",
     t0_supervisor_state: str = "",
+    error: str = "",
 ) -> str:
+    if state == "config-error":
+        return (
+            "T0 configuration failed; fix T0 launcher configuration before resuming. "
+            f"Error: {error}"
+        )
     if stop_gate_count:
         return "T0 stop gate requires user decision; answer T0's summarized question, not T1/T2/T3."
     if launch_failure_count:
@@ -346,7 +355,12 @@ def report_progress(root: Path) -> dict[str, object]:
         latest_event_payload = latest_event if isinstance(latest_event, dict) else {}
         goal = read_goal(root, "") or str(latest_event_payload.get("goal") or "")
         latest_event_state = str(latest_event_payload.get("state") or "")
-        fallback_state = "interrupted" if latest_event_state == "interrupted" else "needs-supervisor-run"
+        if latest_event_state == "interrupted":
+            fallback_state = "interrupted"
+        elif latest_event_state == "config-error":
+            fallback_state = "config-error"
+        else:
+            fallback_state = "needs-supervisor-run"
         latest_event_dispatch_state = str(latest_event_payload.get("dispatch_state") or "")
         if latest_event_dispatch_state == "needs-goal":
             fallback_state = "needs-goal"
@@ -361,6 +375,7 @@ def report_progress(root: Path) -> dict[str, object]:
         latest_event_assignment_task = str(latest_event_payload.get("assignment_task") or "none")
         latest_event_assignment_reason = str(latest_event_payload.get("assignment_reason") or "")
         latest_event_assignment_expected_id = str(latest_event_payload.get("assignment_expected_id") or "")
+        latest_event_error = str(latest_event_payload.get("error") or "")
         live_queue_health = report_health(root, 30, goal or None)
         live_queue_payload = live_queue_health if isinstance(live_queue_health, dict) else {}
         queue_metrics = build_queue_metrics(
@@ -460,6 +475,7 @@ def report_progress(root: Path) -> dict[str, object]:
             "completion_audit": completion_audit,
             "completion_ready": bool(completion_audit.get("completion_ready")),
             "completion_missing_evidence": completion_missing_list,
+            "error": latest_event_error,
             "queue_metrics": queue_metrics,
             "t0_supervisor": t0_supervisor,
             "t0_supervisor_state": t0_supervisor.get("state"),
@@ -478,6 +494,7 @@ def report_progress(root: Path) -> dict[str, object]:
                 stop_gate_count,
                 first_stop_gate_question,
                 queue_metrics,
+                latest_event_error,
             ),
             "user_action": build_user_action(
                 fallback_state,
@@ -488,6 +505,8 @@ def report_progress(root: Path) -> dict[str, object]:
                 completion_missing_list,
                 latest_event_assignment_state,
                 latest_event_assignment_role,
+                "",
+                latest_event_error,
             ),
             "boundary": T0_PROGRESS_BOUNDARY,
         }
@@ -546,6 +565,7 @@ def report_progress(root: Path) -> dict[str, object]:
     assignment_task = str(assignment_payload.get("task") or "none")
     assignment_reason = str(assignment_payload.get("reason") or "")
     assignment_expected_id = str(assignment_payload.get("expected_assignment_id") or "")
+    error = str(latest_payload.get("error") or "")
     auto_mode = bool(latest_payload.get("auto_mode"))
     starter_mode = str(latest_payload.get("starter_mode") or "")
     starter_boundary = str(latest_payload.get("starter_boundary") or "")
@@ -600,6 +620,7 @@ def report_progress(root: Path) -> dict[str, object]:
         "completion_audit": completion_audit,
         "completion_ready": bool(completion_audit.get("completion_ready")),
         "completion_missing_evidence": completion_missing_list,
+        "error": error,
         "queue_metrics": queue_metrics,
         "t0_supervisor": t0_supervisor,
         "t0_supervisor_state": t0_supervisor_state,
@@ -618,6 +639,7 @@ def report_progress(root: Path) -> dict[str, object]:
             stop_gate_count,
             first_stop_gate_question,
             queue_metrics,
+            error,
         ),
         "user_action": build_user_action(
             state,
@@ -629,6 +651,7 @@ def report_progress(root: Path) -> dict[str, object]:
             assignment_state,
             assignment_role,
             t0_supervisor_state,
+            error,
         ),
         "actions": action_list,
         "boundary": T0_PROGRESS_BOUNDARY,
@@ -694,6 +717,8 @@ def format_text(payload: dict[str, object]) -> str:
         f"summary={payload['user_summary']}",
         f"boundary={payload['boundary']}",
     ]
+    if payload.get("error"):
+        lines.insert(-3, f"error={payload['error']}")
     if completion_missing_list:
         lines.insert(-3, "completion_missing_evidence=" + "; ".join(str(item) for item in completion_missing_list))
     if payload.get("decision_command"):

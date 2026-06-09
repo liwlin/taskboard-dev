@@ -441,6 +441,41 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("T0 launch/recovery failed", progress["user_action"])
         self.assertIn("T0 could not launch or recover", progress["user_summary"])
 
+    def test_progress_surfaces_persisted_t0_config_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_dir = root / ".taskboard" / "t0"
+            state_dir.mkdir(parents=True)
+            snapshot = {
+                "kind": "taskboard-t0-supervisor-state",
+                "goal": "Ship demo",
+                "latest": {
+                    "state": "config-error",
+                    "goal": "Ship demo",
+                    "error": "agent-template references {target_file}",
+                    "dispatch": {
+                        "state": "config-error",
+                        "next_role": "T0",
+                        "task": "none",
+                    },
+                    "assignment": {"state": "none", "role": "T0"},
+                    "queue_health": {"active_count": 0},
+                    "session_probe": {"missing_roles": [], "stale_roles": []},
+                    "actions": ["fix T0 launcher configuration"],
+                },
+            }
+            (state_dir / "latest.json").write_text(json.dumps(snapshot), encoding="utf-8")
+
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertEqual(progress["state"], "config-error")
+        self.assertIn("agent-template references {target_file}", progress["error"])
+        self.assertIn("T0 configuration failed", progress["user_action"])
+        self.assertIn("fix T0 launcher configuration", progress["user_action"])
+        self.assertIn("T0 configuration error", progress["user_summary"])
+        self.assertIn("error=agent-template references {target_file}", text)
+
     def test_progress_reads_bom_encoded_snapshot(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -749,6 +784,38 @@ class TaskboardProgressTest(unittest.TestCase):
         )
         self.assertIn("latest_event_launch_failure_returncode=1", text)
         self.assertIn("latest_event_launch_failure_output=wt was not found", text)
+
+    def test_progress_recovers_config_error_from_latest_event_without_snapshot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_dir = root / ".taskboard" / "t0"
+            state_dir.mkdir(parents=True)
+            (state_dir / "goal.json").write_text(
+                json.dumps({"goal": "Ship demo"}),
+                encoding="utf-8",
+            )
+            event = {
+                "kind": "taskboard-t0-supervisor-event",
+                "iteration": 1,
+                "state": "config-error",
+                "dispatch_state": "config-error",
+                "next_role": "T0",
+                "task": "none",
+                "error": "agent-template references {target_file}",
+            }
+            (state_dir / "events.jsonl").write_text(
+                json.dumps(event) + "\n",
+                encoding="utf-8",
+            )
+
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertEqual(progress["state"], "config-error")
+        self.assertIn("agent-template references {target_file}", progress["error"])
+        self.assertIn("T0 configuration failed", progress["user_action"])
+        self.assertIn("latest_event_state=config-error", text)
+        self.assertIn("error=agent-template references {target_file}", text)
 
     def test_progress_surfaces_latest_event_suppressed_launches_without_snapshot(self):
         with tempfile.TemporaryDirectory() as tmp:
