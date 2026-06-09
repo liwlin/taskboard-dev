@@ -628,6 +628,9 @@ class TaskboardLoopTest(unittest.TestCase):
 
         self.assertEqual(events[0]["launch_command_count"], 3)
         self.assertEqual(events[0]["launch_failure_count"], 1)
+        self.assertEqual(events[0]["launch_failures"][0]["returncode"], 1)
+        self.assertIn("taskboard-T1", events[0]["launch_failures"][0]["command"])
+        self.assertEqual(events[0]["launch_failures"][0]["output"], "launcher failed")
         self.assertEqual(events[0]["executed_command_count"], 3)
         self.assertEqual(events[0]["suppressed_launch_count"], 0)
 

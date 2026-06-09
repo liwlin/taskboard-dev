@@ -536,6 +536,7 @@ def append_event_log(
     auto_mode = payload.get("auto_mode")
     starter_mode = payload.get("starter_mode")
     launch_failure_count = 0
+    launch_failures: list[dict[str, object]] = []
     for item in executed_command_list:
         if not isinstance(item, dict):
             continue
@@ -545,6 +546,13 @@ def append_event_log(
             returncode = 0
         if returncode != 0:
             launch_failure_count += 1
+            launch_failures.append(
+                {
+                    "command": str(item.get("command") or ""),
+                    "returncode": returncode,
+                    "output": str(item.get("output") or "")[:2000],
+                }
+            )
     event = {
         "kind": "taskboard-t0-supervisor-event",
         "version": 1,
@@ -568,6 +576,7 @@ def append_event_log(
         "launch_command_count": len(launch_command_list),
         "executed_command_count": len(executed_command_list),
         "launch_failure_count": launch_failure_count,
+        "launch_failures": launch_failures,
         "suppressed_launch_count": len(suppressed_launch_list),
         "stop_gate_count": int(stop_gate_payload.get("stop_gate_count") or 0),
         "completion_ready": bool(completion_payload.get("completion_ready")),

@@ -339,6 +339,46 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn(f"latest_event_assignment_expected_id=T3:{task_name}", text)
         self.assertIn("latest_event_completion_ready=False", text)
 
+    def test_progress_text_prints_latest_event_launch_failure_details_without_latest_snapshot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_dir = root / ".taskboard" / "t0"
+            state_dir.mkdir(parents=True)
+            (state_dir / "goal.json").write_text(
+                json.dumps({"goal": "Ship demo"}),
+                encoding="utf-8",
+            )
+            event = {
+                "kind": "taskboard-t0-supervisor-event",
+                "iteration": 1,
+                "state": "attention",
+                "next_role": "T1",
+                "task": "none",
+                "launch_failure_count": 1,
+                "launch_failures": [
+                    {
+                        "command": "wt -w taskboard new-tab --title taskboard-T1",
+                        "returncode": 1,
+                        "output": "wt was not found",
+                    }
+                ],
+                "completion_ready": False,
+            }
+            (state_dir / "events.jsonl").write_text(
+                json.dumps(event) + "\n",
+                encoding="utf-8",
+            )
+
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertIn("latest_event_launch_failure_count=1", text)
+        self.assertIn(
+            "latest_event_launch_failure_command=wt -w taskboard new-tab --title taskboard-T1",
+            text,
+        )
+        self.assertIn("latest_event_launch_failure_returncode=1", text)
+        self.assertIn("latest_event_launch_failure_output=wt was not found", text)
+
     def test_progress_surfaces_queue_metrics_for_user_dashboard(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

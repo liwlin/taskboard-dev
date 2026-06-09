@@ -422,6 +422,15 @@ def format_text(payload: dict[str, object]) -> str:
     completion_missing_list = completion_missing if isinstance(completion_missing, list) else []
     latest_event = payload.get("latest_event", {})
     latest_event_payload = latest_event if isinstance(latest_event, dict) else {}
+    latest_event_failures = latest_event_payload.get("launch_failures", [])
+    latest_event_failure_list = (
+        latest_event_failures if isinstance(latest_event_failures, list) else []
+    )
+    latest_event_first_failure = (
+        latest_event_failure_list[0]
+        if latest_event_failure_list and isinstance(latest_event_failure_list[0], dict)
+        else {}
+    )
     lines = [
         f"state={payload['state']}",
         f"goal={payload['goal']}",
@@ -445,6 +454,10 @@ def format_text(payload: dict[str, object]) -> str:
         f"latest_event_assignment_task={latest_event_payload.get('assignment_task', '')}",
         f"latest_event_assignment_reason={latest_event_payload.get('assignment_reason', '')}",
         f"latest_event_assignment_expected_id={latest_event_payload.get('assignment_expected_id', '')}",
+        f"latest_event_launch_failure_count={latest_event_payload.get('launch_failure_count', 0)}",
+        f"latest_event_launch_failure_command={latest_event_first_failure.get('command', '')}",
+        f"latest_event_launch_failure_returncode={latest_event_first_failure.get('returncode', '')}",
+        f"latest_event_launch_failure_output={latest_event_first_failure.get('output', '')}",
         f"latest_event_completion_ready={latest_event_payload.get('completion_ready', '')}",
         f"completion_ready={payload.get('completion_ready')}",
         f"completion_audit_state={completion_payload.get('state', '')}",
