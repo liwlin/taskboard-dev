@@ -171,6 +171,7 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("latest event 的 `launch_failures`", readme)
         self.assertIn("resume_command", readme)
         self.assertIn("agent-template", readme)
+        self.assertIn("latest event 的 `suppressed_launches`", readme)
         self.assertIn("taskboard-t0-interruption", readme)
         self.assertIn("KeyboardInterrupt", readme)
         self.assertIn("即使终端输出丢失", readme)

@@ -575,6 +575,45 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("latest_event_launch_failure_returncode=1", text)
         self.assertIn("latest_event_launch_failure_output=wt was not found", text)
 
+    def test_progress_surfaces_latest_event_suppressed_launches_without_snapshot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_dir = root / ".taskboard" / "t0"
+            state_dir.mkdir(parents=True)
+            (state_dir / "goal.json").write_text(
+                json.dumps({"goal": "Ship demo"}),
+                encoding="utf-8",
+            )
+            event = {
+                "kind": "taskboard-t0-supervisor-event",
+                "iteration": 1,
+                "state": "attention",
+                "next_role": "T1",
+                "task": "none",
+                "suppressed_launch_count": 1,
+                "suppressed_launches": [
+                    {
+                        "role": "T1",
+                        "reason": "launch-lease-active",
+                        "remaining_seconds": 240,
+                    }
+                ],
+                "completion_ready": False,
+            }
+            (state_dir / "events.jsonl").write_text(
+                json.dumps(event) + "\n",
+                encoding="utf-8",
+            )
+
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertEqual(progress["suppressed_launch_count"], 1)
+        self.assertEqual(progress["suppressed_launches"][0]["role"], "T1")
+        self.assertIn("waiting for recent T0 launch", progress["user_summary"])
+        self.assertIn("No user action required", progress["user_action"])
+        self.assertIn("latest_event_state=attention", text)
+
     def test_progress_surfaces_queue_metrics_for_user_dashboard(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

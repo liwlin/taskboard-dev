@@ -303,6 +303,26 @@ def report_progress(root: Path) -> dict[str, object]:
             if latest_event_failure_list
             else safe_int(latest_event_payload.get("launch_failure_count"), 0)
         )
+        latest_event_suppressed = latest_event_payload.get("suppressed_launches", [])
+        latest_event_suppressed_list: list[dict[str, object]] = []
+        if isinstance(latest_event_suppressed, list):
+            for item in latest_event_suppressed:
+                if not isinstance(item, dict):
+                    continue
+                latest_event_suppressed_list.append(
+                    {
+                        "role": str(item.get("role") or ""),
+                        "reason": str(item.get("reason") or ""),
+                        "remaining_seconds": item.get("remaining_seconds"),
+                    }
+                )
+        latest_event_suppressed_count = (
+            len(latest_event_suppressed_list)
+            if latest_event_suppressed_list
+            else safe_int(latest_event_payload.get("suppressed_launch_count"), 0)
+        )
+        if fallback_state == "needs-supervisor-run" and latest_event_suppressed_count:
+            fallback_state = "attention"
         latest_event_resume_config = latest_event_payload.get("resume_config", {})
         latest_event_resume_config_payload = (
             latest_event_resume_config if isinstance(latest_event_resume_config, dict) else {}
@@ -334,8 +354,8 @@ def report_progress(root: Path) -> dict[str, object]:
             "stale_roles": [],
             "launch_failures": latest_event_failure_list,
             "launch_failure_count": latest_event_launch_failure_count,
-            "suppressed_launches": [],
-            "suppressed_launch_count": 0,
+            "suppressed_launches": latest_event_suppressed_list,
+            "suppressed_launch_count": latest_event_suppressed_count,
             "stop_gates": stop_gate_list,
             "stop_gate_count": stop_gate_count,
             "decision_command": decision_command,
@@ -353,7 +373,7 @@ def report_progress(root: Path) -> dict[str, object]:
                 "none",
                 0,
                 latest_event_launch_failure_count,
-                0,
+                latest_event_suppressed_count,
                 stop_gate_count,
                 first_stop_gate_question,
                 queue_metrics,
@@ -361,7 +381,7 @@ def report_progress(root: Path) -> dict[str, object]:
             "user_action": build_user_action(
                 fallback_state,
                 fallback_state,
-                [],
+                ["wait for recent T0 launch lease"] if latest_event_suppressed_count else [],
                 latest_event_launch_failure_count,
                 stop_gate_count,
                 completion_missing_list,
