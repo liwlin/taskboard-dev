@@ -983,6 +983,7 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertEqual(progress["assignment_role"], "T2")
         self.assertIn("T0 is monitoring taskboard-T2", progress["user_action"])
         self.assertIn("latest_event_state=active", text)
+        self.assertIn("latest_event_assignment_state=acknowledged", text)
 
     def test_progress_surfaces_queue_metrics_for_user_dashboard(self):
         with tempfile.TemporaryDirectory() as tmp:

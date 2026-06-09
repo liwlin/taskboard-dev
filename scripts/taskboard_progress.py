@@ -713,6 +713,7 @@ def format_text(payload: dict[str, object]) -> str:
         f"latest_event_dispatch_state={latest_event_payload.get('dispatch_state', '')}",
         f"latest_event_next_role={latest_event_payload.get('next_role', '')}",
         f"latest_event_task={latest_event_payload.get('task', '')}",
+        f"latest_event_assignment_state={latest_event_payload.get('assignment_state', '')}",
         f"latest_event_assignment_role={latest_event_payload.get('assignment_role', '')}",
         f"latest_event_assignment_task={latest_event_payload.get('assignment_task', '')}",
         f"latest_event_assignment_reason={latest_event_payload.get('assignment_reason', '')}",
