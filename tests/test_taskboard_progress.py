@@ -333,6 +333,10 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("latest_event_state=attention", text)
         self.assertIn("latest_event_next_role=T3", text)
         self.assertIn(f"latest_event_task={task_name}", text)
+        self.assertIn("latest_event_assignment_role=T3", text)
+        self.assertIn(f"latest_event_assignment_task={task_name}", text)
+        self.assertIn("latest_event_assignment_reason=taskboard-T3 is missing", text)
+        self.assertIn(f"latest_event_assignment_expected_id=T3:{task_name}", text)
         self.assertIn("latest_event_completion_ready=False", text)
 
     def test_progress_surfaces_queue_metrics_for_user_dashboard(self):
