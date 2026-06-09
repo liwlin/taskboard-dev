@@ -30,10 +30,45 @@ def build_decision_command(root: Path, first_stop_gate: dict[str, object]) -> st
     )
 
 
-def build_resume_command(root: Path, goal: str, state: str, stop_gate_count: int, completion_ready: bool) -> str:
+def quote_cli_value(value: object) -> str:
+    text = str(value)
+    return '"' + text.replace('"', '\\"') + '"'
+
+
+def build_resume_command(
+    root: Path,
+    goal: str,
+    state: str,
+    stop_gate_count: int,
+    completion_ready: bool,
+    resume_config: Optional[dict[str, object]] = None,
+) -> str:
     if not goal or state == "complete" or completion_ready or stop_gate_count:
         return ""
-    return f'python scripts/taskboard_start.py --root "{root}" --auto'
+    parts = ["python", "scripts/taskboard_start.py", "--root", quote_cli_value(root), "--auto"]
+    config = resume_config if isinstance(resume_config, dict) else {}
+    launcher = str(config.get("launcher") or "")
+    if launcher and launcher != "none":
+        parts.extend(["--launcher", launcher])
+    agent_template = str(config.get("agent_template") or "")
+    if agent_template:
+        parts.extend(["--agent-template", quote_cli_value(agent_template)])
+    numeric_options = (
+        ("stale_minutes", "--stale-minutes", 30),
+        ("stale_seconds", "--stale-seconds", 300),
+        ("assignment_lease_seconds", "--assignment-lease-seconds", 300),
+        ("launch_lease_seconds", "--launch-lease-seconds", 300),
+        ("interval_seconds", "--interval-seconds", 300),
+    )
+    for key, option, default in numeric_options:
+        value = config.get(key)
+        if value is not None and safe_int(value, default) != default:
+            parts.extend([option, str(value)])
+    target_dir = str(config.get("target_dir") or "")
+    default_target_dir = str(root / ".taskboard" / "targets")
+    if target_dir and target_dir != default_target_dir:
+        parts.extend(["--target-dir", quote_cli_value(target_dir)])
+    return " ".join(parts)
 
 
 def read_latest_snapshot(root: Path) -> Optional[dict[str, object]]:
@@ -243,6 +278,7 @@ def report_progress(root: Path) -> dict[str, object]:
             "needs-supervisor-run",
             stop_gate_count,
             bool(completion_audit.get("completion_ready")),
+            {},
         )
         return {
             "kind": "taskboard-t0-progress",
@@ -357,6 +393,8 @@ def report_progress(root: Path) -> dict[str, object]:
     auto_mode = bool(latest_payload.get("auto_mode"))
     starter_mode = str(latest_payload.get("starter_mode") or "")
     starter_boundary = str(latest_payload.get("starter_boundary") or "")
+    resume_config = latest_payload.get("resume_config", {})
+    resume_config_payload = resume_config if isinstance(resume_config, dict) else {}
     try:
         active_count = int(queue_payload.get("active_count") or 0)
     except (TypeError, ValueError):
@@ -369,6 +407,7 @@ def report_progress(root: Path) -> dict[str, object]:
         state,
         stop_gate_count,
         bool(completion_audit.get("completion_ready")),
+        resume_config_payload,
     )
 
     return {

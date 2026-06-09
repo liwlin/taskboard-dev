@@ -121,13 +121,26 @@ class TaskboardStartTest(unittest.TestCase):
                 "--iterations",
                 "1",
                 "--launcher",
-                "none",
+                "tmux",
+                "--stale-minutes",
+                "12",
+                "--stale-seconds",
+                "34",
+                "--assignment-lease-seconds",
+                "56",
+                "--launch-lease-seconds",
+                "78",
             )
             snapshot = json.loads((root / ".taskboard" / "t0" / "latest.json").read_text(encoding="utf-8"))
 
         self.assertTrue(snapshot["latest"]["auto_mode"])
         self.assertEqual(snapshot["latest"]["starter_mode"], "auto")
         self.assertIn("T0 one-command auto mode", snapshot["latest"]["starter_boundary"])
+        self.assertEqual(snapshot["latest"]["resume_config"]["launcher"], "tmux")
+        self.assertEqual(snapshot["latest"]["resume_config"]["stale_minutes"], 12)
+        self.assertEqual(snapshot["latest"]["resume_config"]["stale_seconds"], 34)
+        self.assertEqual(snapshot["latest"]["resume_config"]["assignment_lease_seconds"], 56)
+        self.assertEqual(snapshot["latest"]["resume_config"]["launch_lease_seconds"], 78)
 
     def test_starter_auto_mode_persists_in_event_log(self):
         with tempfile.TemporaryDirectory() as tmp:

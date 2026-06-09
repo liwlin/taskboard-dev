@@ -131,6 +131,46 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertEqual(progress["starter_mode"], "auto")
         self.assertIn("one-command", progress["starter_boundary"])
 
+    def test_progress_resume_command_preserves_t0_runtime_configuration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            self.run_json(
+                START_SCRIPT,
+                root,
+                "--goal",
+                "Ship demo",
+                "--auto",
+                "--iterations",
+                "1",
+                "--launcher",
+                "tmux",
+                "--agent-template",
+                'codex --prompt-file "{target_file}"',
+                "--stale-minutes",
+                "12",
+                "--stale-seconds",
+                "34",
+                "--assignment-lease-seconds",
+                "56",
+                "--launch-lease-seconds",
+                "78",
+                "--interval-seconds",
+                "9",
+            )
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertIn("--launcher tmux", progress["resume_command"])
+        self.assertIn('--agent-template "codex --prompt-file \\"{target_file}\\""', progress["resume_command"])
+        self.assertIn("--stale-minutes 12", progress["resume_command"])
+        self.assertIn("--stale-seconds 34", progress["resume_command"])
+        self.assertIn("--assignment-lease-seconds 56", progress["resume_command"])
+        self.assertIn("--launch-lease-seconds 78", progress["resume_command"])
+        self.assertIn("--interval-seconds 9", progress["resume_command"])
+        self.assertIn(progress["resume_command"], text)
+
     def test_progress_surfaces_failed_t0_launch_commands(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

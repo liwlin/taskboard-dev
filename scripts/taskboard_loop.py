@@ -492,6 +492,30 @@ def write_state_snapshot(
     state_file.write_text(json.dumps(snapshot, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def build_resume_config(
+    launcher: str,
+    agent_template: Optional[str],
+    stale_minutes: int,
+    stale_seconds: int,
+    interval_seconds: int,
+    assignment_lease_seconds: int,
+    launch_lease_seconds: int,
+    target_dir: Optional[Path],
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "launcher": launcher,
+        "agent_template": agent_template or "",
+        "stale_minutes": stale_minutes,
+        "stale_seconds": stale_seconds,
+        "interval_seconds": interval_seconds,
+        "assignment_lease_seconds": assignment_lease_seconds,
+        "launch_lease_seconds": launch_lease_seconds,
+    }
+    if target_dir is not None:
+        payload["target_dir"] = str(target_dir)
+    return payload
+
+
 def next_event_index(event_log_file: Path) -> int:
     if not event_log_file.exists():
         return 1
@@ -625,6 +649,16 @@ def run_loop(
     write_runtime_goal(root, goal)
     effective_goal = read_goal(root, goal)
     launch_state = read_launch_state(root) if execute_launches else None
+    resume_config = build_resume_config(
+        launcher,
+        agent_template,
+        stale_minutes,
+        stale_seconds,
+        interval_seconds,
+        assignment_lease_seconds,
+        launch_lease_seconds,
+        target_dir,
+    )
     results: list[dict[str, object]] = []
     count = 0
     while iterations is None or count < iterations:
@@ -643,6 +677,7 @@ def run_loop(
         )
         if runtime_metadata:
             payload.update(runtime_metadata)
+        payload["resume_config"] = resume_config
         results.append(payload)
         count += 1
         if state_file is not None:

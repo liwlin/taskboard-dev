@@ -74,7 +74,7 @@ python scripts/taskboard_start.py --goal "完成 <你的开发目标>" --auto
 
 首次传入 `--goal` 后，T0 会把用户目标保存到 `.taskboard/t0/goal.json`。T0 重启或恢复时可以不再重复输入目标；这个 `taskboard-t0-goal` 文件只是 T0 控制面恢复状态，不是 TASKBOARD 任务状态。
 
-`taskboard_start.py` 和底层 supervisor loop 使用相同的运行态审计文件：默认写 `.taskboard/t0/latest.json`、`.taskboard/t0/events.jsonl` 和 `.taskboard/targets/taskboard-T*.md`。因此推荐的一键入口也能留下 T0 持续调度证据；`--auto` 会把 `auto_mode` 和 `starter_mode` 持久写入 latest snapshot，并由 `taskboard_progress.py` 读出，方便恢复后确认当前 T0 是一键自动入口而不是 dry check。只做无痕 dry check 时可加 `--no-event-log`。调试自动模式但不打开 worker 终端时使用 `--auto --iterations 1 --launcher none`。
+`taskboard_start.py` 和底层 supervisor loop 使用相同的运行态审计文件：默认写 `.taskboard/t0/latest.json`、`.taskboard/t0/events.jsonl` 和 `.taskboard/targets/taskboard-T*.md`。因此推荐的一键入口也能留下 T0 持续调度证据；`--auto` 会把 `auto_mode`、`starter_mode` 和 `resume_config` 持久写入 latest snapshot，并由 `taskboard_progress.py` 读出，方便恢复后确认当前 T0 是一键自动入口而不是 dry check，并保留上次 T0 的 launcher、agent template、lease 和 interval 配置。只做无痕 dry check 时可加 `--no-event-log`。调试自动模式但不打开 worker 终端时使用 `--auto --iterations 1 --launcher none`。
 
 查看 T0 给用户的进度摘要：
 
@@ -82,7 +82,7 @@ python scripts/taskboard_start.py --goal "完成 <你的开发目标>" --auto
 python scripts/taskboard_progress.py --root .
 ```
 
-这个摘要只汇报目标、T0 状态、下一受控角色、当前任务和是否需要用户动作；它不会让用户去管理 T1/T2/T3。默认文本输出包含 `assignment_role`、`assignment_task`、`assignment_reason`、`assignment_expected_id`、`queue_metrics_active_count`、`queue_metrics_stalled_count`、`queue_metrics_role_counts`、`queue_metrics_next_role`、`event_count`、`latest_event_state`、`latest_event_next_role`、`latest_event_task`、`latest_event_assignment_role`、`latest_event_assignment_task`、`latest_event_assignment_reason`、`latest_event_assignment_expected_id`、`latest_event_launch_failure_count`、`latest_event_launch_failure_command`、`latest_event_launch_failure_returncode`、`latest_event_launch_failure_output`、`latest_event_completion_ready`、`completion_ready`、`completion_audit_state`、`completion_missing_evidence` 和 `resume_command`；JSON 输出还包含完整 assignment、`queue_metrics`、latest event、completion audit 和 T0 auto-mode resume command，汇总 active task 数、stalled task 数、T1/T2/T3 队列计数、下一受控角色、T0 assignment 认领/重发原因、最后一次 T0 supervisor event、最近一次 T0 控制面启动失败线索和完成前缺失证据，让用户只看目标级状态。遇到 stop gate 时，摘要会给出 `decision_command`，T0 用它记录用户回答并恢复 T1；未完成且无 stop gate 时，`resume_command` 恢复的是 T0，不是让用户操作 T1/T2/T3。
+这个摘要只汇报目标、T0 状态、下一受控角色、当前任务和是否需要用户动作；它不会让用户去管理 T1/T2/T3。默认文本输出包含 `assignment_role`、`assignment_task`、`assignment_reason`、`assignment_expected_id`、`queue_metrics_active_count`、`queue_metrics_stalled_count`、`queue_metrics_role_counts`、`queue_metrics_next_role`、`event_count`、`latest_event_state`、`latest_event_next_role`、`latest_event_task`、`latest_event_assignment_role`、`latest_event_assignment_task`、`latest_event_assignment_reason`、`latest_event_assignment_expected_id`、`latest_event_launch_failure_count`、`latest_event_launch_failure_command`、`latest_event_launch_failure_returncode`、`latest_event_launch_failure_output`、`latest_event_completion_ready`、`completion_ready`、`completion_audit_state`、`completion_missing_evidence` 和 `resume_command`；JSON 输出还包含完整 assignment、`queue_metrics`、latest event、completion audit 和 T0 auto-mode resume command，汇总 active task 数、stalled task 数、T1/T2/T3 队列计数、下一受控角色、T0 assignment 认领/重发原因、最后一次 T0 supervisor event、最近一次 T0 控制面启动失败线索和完成前缺失证据，让用户只看目标级状态。遇到 stop gate 时，摘要会给出 `decision_command`，T0 用它记录用户回答并恢复 T1；未完成且无 stop gate 时，`resume_command` 恢复的是 T0，并会从 `resume_config` 保留上次 T0 的 `--launcher`、`--agent-template`、lease、interval 和 target-dir 配置，不是让用户操作 T1/T2/T3。
 
 查看 T0 汇总的停止门：
 
