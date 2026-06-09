@@ -94,7 +94,7 @@ dist/taskboard-dev-v4.2.zip
 
 ```text
 目标：T3 持续完成未阻塞 T3 任务、验证、提交并交给 T2，直到没有未阻塞 T3 工作或触发停止门。
-/loop 30s /taskboard-dev T3
+/loop 3m /taskboard-dev T3
 ```
 
 完整用法见 [`USER-MANUAL.md`](USER-MANUAL.md)。

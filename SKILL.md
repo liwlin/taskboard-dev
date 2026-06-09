@@ -322,14 +322,14 @@ Use the strongest loop primitive supported by the active client:
 
 1. **Goal/target loop (preferred)**: run the role with an explicit target such as "finish all unblocked T3 tasks and hand them to T2". The agent continues selecting next tasks until the target is complete or a stop gate is hit.
 2. **Command loop**: run `/taskboard-next` or `/taskboard-dev T{N}` repeatedly through the client's loop command.
-3. **Fixed interval loop**: for clients with interval loops, use a short active interval and cheap idle return.
+3. **Fixed interval loop**: for clients with interval loops, use a 3-minute interval and a cheap one-line idle return.
 
 Example patterns (adapt names to the active CLI):
 
 ```
 # Claude Code-style fixed interval with a goal instruction
 目标: T3 complete every unblocked T3 task, verify, commit, and hand off to T2 until the queue is empty or a stop gate is hit.
-/loop 30s /taskboard-dev T3
+/loop 3m /taskboard-dev T3
 
 # Goal/target-style long run
 目标: T3 complete every unblocked T3 task, verify, commit, and hand off to T2 until the queue is empty or a stop gate is hit.
@@ -339,7 +339,8 @@ Example patterns (adapt names to the active CLI):
 Loop behavior:
 
 - **Active mode** (tasks found for this role): select `/taskboard-next`, execute, verify, transition, and continue.
-- **Idle mode** (no tasks found): output "No tasks for T{N}." and return immediately for interval loops; in goal/target loops, sleep/yield according to client capability.
+- **Idle mode** (no tasks found): for interval loops, output a single line `T{N} idle — next check in 3m` and stay in the loop — no tool calls, no context re-reads; in goal/target loops, sleep/yield according to client capability.
+- **Never auto-exit on an empty queue**: a role MUST NOT suggest leaving `/loop` just because its own queue is currently empty. An empty queue is normal — another role may hand off a task minutes later. The ONLY conditions for suggesting exit are: (1) the user explicitly says stop/pause; (2) the entire project is complete (all tasks archived, dev-log/HANDOFF written, milestone declared done); (3) the session is about to hit its context limit and needs a clean restart.
 - **Completion**: when the goal is complete and all queues are empty, summarize completed tasks and stop. Do not require the user to manually exit unless the client itself keeps the interval loop alive.
 
 ---

@@ -425,18 +425,20 @@ Glob docs/taskboard/TASK-*.T3-*.md
 
 ### 固定间隔 loop 兼容方式
 
-如果客户端仍使用固定间隔 loop，可以这样运行：
+如果客户端仍使用固定间隔 loop，**统一用 `3m` 间隔**（不要再用早期的 `30s`）：
 
 ```
 目标：T1 持续维护需求和任务队列，直到没有未阻塞 T1 工作或触发停止门。
-/loop 30s /taskboard-dev T1
+/loop 3m /taskboard-dev T1
 
 目标：T2 持续审核方案/代码并归档或退回，直到没有未阻塞 T2 工作或触发停止门。
-/loop 30s /taskboard-dev T2
+/loop 3m /taskboard-dev T2
 
 目标：T3 持续完成未阻塞 T3 任务、验证、提交并交给 T2，直到没有未阻塞 T3 工作或触发停止门。
-/loop 30s /taskboard-dev T3
+/loop 3m /taskboard-dev T3
 ```
+
+**为什么是 3 分钟**：T3 跑一个 task 通常 5~20 分钟，30s 间隔会产生 10~40 次无效 check，既浪费 token 又刷屏；3m 仍能在一个 window 内接住大多数跨角色 handoff，空闲成本可控（每角色每小时约 20 次、每次仅 1 行输出）。
 
 ### 三种循环模式
 
@@ -444,7 +446,15 @@ Glob docs/taskboard/TASK-*.T3-*.md
 |------|------|------|
 | 目标/target loop（推荐） | 客户端支持长任务目标 | 角色重复执行 `/taskboard-next`，直到目标完成或触发停止门 |
 | 命令 loop | 客户端支持循环执行命令 | 重复执行 `/taskboard-dev T{N}` 或 `/taskboard-next` |
-| 固定间隔 loop | 只有 interval loop | 有任务就处理；无任务输出 "No tasks for T{N}." 后立即返回 |
+| 固定间隔 loop | 只有 interval loop | 有任务就处理；无任务输出单行 `T{N} idle — next check in 3m`，留在 loop，不调任何工具 |
+
+### 关键规则：空队列不要主动退出 /loop
+
+角色**不得**仅因自己当前队列为空就建议退出 `/loop`。空队列是常态——另一个角色可能几分钟后才 handoff。若 T2 一看到空队列就退出，T3 稍后提交的代码审核将无人处理。只有以下 3 种情况才建议退出：
+
+1. 用户明确说 "stop"、"pause T{N}"、"今天到此" 等终止语
+2. **整个项目**完工（所有任务归档、dev-log 写完、HANDOFF 保存、用户声明里程碑结束）
+3. Session 即将触顶上下文窗口，需要干净重启
 
 ### 停止门：只有这些情况需要人确认
 
