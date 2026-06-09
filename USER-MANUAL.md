@@ -177,7 +177,7 @@ python scripts/taskboard_loop.py --root . --goal "完成 <你的开发目标>" -
 
 启用 `--execute-launches` 时，T0 还会把最近成功的角色启动/恢复尝试写入 `.taskboard/t0/launches.json`，类型为 `taskboard-t0-launch-state`。它只用于 launch lease 去重，避免重复创建同一角色终端；它不是 worker 状态，也不是任务状态。
 
-T0 只有在 active TASK 队列为空，并且 `docs/STATE.md` 写有 `**Goal Complete**: yes` 或 `Goal Complete: yes` 时才收口。空队列但没有完成 sentinel，表示目标仍未证明完成，T0 会唤醒 T1 创建或修订下一批 TASK 文件。`--forever` 会运行到完成或中断；只有完成后仍要监控/调试时才使用 `--no-stop-on-complete`。
+T0 只有在 active TASK 队列为空、`docs/STATE.md` 写有 `**Goal Complete**: yes` 或 `Goal Complete: yes`，并且 completion audit is `complete-ready` 时才收口。空队列但没有完成 sentinel，表示目标仍未证明完成，T0 会唤醒 T1 创建或修订下一批 TASK 文件。若 sentinel 已存在但 archive/dev-log 证据缺失，T0 会报告 `completion-audit-missing-evidence`，并继续唤醒 T1 记录或修订缺失的完成证据。`--forever` 会运行到完成或中断；只有完成后仍要监控/调试时才使用 `--no-stop-on-complete`。
 
 当 T0 看到 `T1-待决策` / stop-gate TASK 时，supervisor 会进入 `stop-gate` 状态，暂停该停止门的 worker launch、target 写入和 assignment，下一个动作只保留“通过 T0 向用户提问”。这保证用户只和 T0 对话，而不是被要求去打开或判断 T1/T2/T3。
 

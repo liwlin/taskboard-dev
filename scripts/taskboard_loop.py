@@ -206,13 +206,21 @@ def build_actions(
     launch_commands: list[str],
     assignment: dict[str, object],
     suppressed_launches: list[dict[str, object]],
+    completion_audit: Optional[dict[str, object]] = None,
 ) -> list[str]:
     actions: list[str] = []
+    if completion_audit and not completion_audit.get("completion_ready"):
+        actions.extend(str(action) for action in session_probe.get("recovery_actions", []))
+        actions.append(str(completion_audit.get("user_action") or "Do not summarize completion yet."))
+    elif completion_audit and dispatch_plan.get("state") == "complete":
+        return [str(completion_audit.get("user_action") or "summarize completion to the user")]
+
     if dispatch_plan.get("state") == "complete":
         return ["summarize completion to the user"]
 
-    actions.extend(str(action) for action in session_probe.get("recovery_actions", []))
-    actions.extend(str(action) for action in queue_health.get("actions", []))
+    if not actions:
+        actions.extend(str(action) for action in session_probe.get("recovery_actions", []))
+        actions.extend(str(action) for action in queue_health.get("actions", []))
 
     if launch_commands:
         actions.append("launch/recover managed role sessions with generated commands")
@@ -406,6 +414,8 @@ def run_once(
         record_launch_successes(launch_state_payload, executed_commands, current_time)
         write_launch_state(root, launch_state_payload, launch_lease_seconds)
     assignment = build_assignment(session_probe, dispatch_plan, assignment_lease_seconds)
+    completion_audit = dispatch_plan.get("completion_audit")
+    completion_audit_payload = completion_audit if isinstance(completion_audit, dict) else None
 
     state = "attention"
     if dispatch_plan.get("state") == "needs-goal":
@@ -419,7 +429,7 @@ def run_once(
     elif session_probe.get("state") == "healthy" and queue_health.get("state") != "attention":
         state = "active"
 
-    return {
+    payload = {
         "state": state,
         "goal": goal or "",
         "boundary": T0_BOUNDARY,
@@ -441,8 +451,12 @@ def run_once(
             launch_commands,
             assignment,
             suppressed_launches,
+            completion_audit_payload,
         ),
     }
+    if completion_audit_payload is not None:
+        payload["completion_audit"] = completion_audit_payload
+    return payload
 
 
 def default_state_file(root: Path) -> Path:
@@ -622,6 +636,14 @@ def format_text(results: list[dict[str, object]]) -> str:
                 lines.append(
                     f"- role={item['role']} reason={item['reason']} remaining_seconds={item['remaining_seconds']}"
                 )
+        completion_audit = payload.get("completion_audit")
+        if isinstance(completion_audit, dict):
+            lines.append("completion_audit:")
+            lines.append(
+                f"- state={completion_audit.get('state')} "
+                f"completion_ready={completion_audit.get('completion_ready')} "
+                f"archived_count={completion_audit.get('archived_count')}"
+            )
         decision_command = payload.get("decision_command")
         if decision_command:
             lines.append("decision_command:")

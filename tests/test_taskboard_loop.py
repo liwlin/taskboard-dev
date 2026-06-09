@@ -119,16 +119,52 @@ class TaskboardLoopTest(unittest.TestCase):
     def test_loop_stops_when_goal_complete_sentinel_exists(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            (root / "docs" / "taskboard").mkdir(parents=True)
+            archive = root / "docs" / "taskboard" / "archive"
+            archive.mkdir(parents=True)
+            (archive / "TASK-001.v1.done.md").write_text("# completed task\n", encoding="utf-8")
             (root / "docs" / "PROJECT.md").write_text("# PROJECT\n\n## Goal\nShip demo\n", encoding="utf-8")
             (root / "docs" / "STATE.md").write_text("# STATE\n\n**Goal Complete**: yes\n", encoding="utf-8")
+            (root / "docs" / "dev-log.md").write_text(
+                "# Development Log\n\n- TASK-001 completed and verified by T2.\n",
+                encoding="utf-8",
+            )
 
             output = self.run_loop(root, "--goal", "Ship demo")
 
         self.assertEqual(output[0]["state"], "idle")
         self.assertEqual(output[0]["dispatch"]["state"], "complete")
         self.assertEqual(output[0]["dispatch"]["reason"], "goal-complete-sentinel")
-        self.assertIn("summarize completion to the user", output[0]["actions"])
+        self.assertEqual(output[0]["completion_audit"]["state"], "complete-ready")
+        self.assertTrue(output[0]["completion_audit"]["completion_ready"])
+        self.assertIn("archived task and dev-log evidence", output[0]["actions"][0])
+
+    def test_loop_keeps_waking_t1_when_completion_audit_is_missing_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+            (root / "docs" / "PROJECT.md").write_text("# PROJECT\n\n## Goal\nShip demo\n", encoding="utf-8")
+            (root / "docs" / "STATE.md").write_text("# STATE\n\n**Goal Complete**: yes\n", encoding="utf-8")
+
+            output = self.run_loop(
+                root,
+                "--goal",
+                "Ship demo",
+                "--iterations",
+                "2",
+                "--interval-seconds",
+                "0",
+            )
+
+        self.assertEqual(len(output), 2)
+        self.assertEqual(output[0]["state"], "attention")
+        self.assertEqual(output[0]["dispatch"]["state"], "dispatch")
+        self.assertEqual(output[0]["dispatch"]["next_role"], "T1")
+        self.assertEqual(output[0]["dispatch"]["reason"], "completion-audit-missing-evidence")
+        self.assertEqual(output[0]["completion_audit"]["state"], "incomplete")
+        self.assertFalse(output[0]["completion_audit"]["completion_ready"])
+        self.assertIn("no archived TASK evidence", output[0]["completion_audit"]["missing_evidence"])
+        self.assertIn("wake T1", output[0]["completion_audit"]["user_action"])
+        self.assertIn("wake T1", " ".join(output[0]["actions"]))
 
     def test_loop_pauses_worker_launches_for_user_stop_gate(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -263,9 +299,15 @@ class TaskboardLoopTest(unittest.TestCase):
     def test_loop_stops_after_first_complete_iteration_by_default(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            (root / "docs" / "taskboard").mkdir(parents=True)
+            archive = root / "docs" / "taskboard" / "archive"
+            archive.mkdir(parents=True)
+            (archive / "TASK-001.v1.done.md").write_text("# completed task\n", encoding="utf-8")
             (root / "docs" / "PROJECT.md").write_text("# PROJECT\n\n## Goal\nShip demo\n", encoding="utf-8")
             (root / "docs" / "STATE.md").write_text("# STATE\n\n**Goal Complete**: yes\n", encoding="utf-8")
+            (root / "docs" / "dev-log.md").write_text(
+                "# Development Log\n\n- TASK-001 completed.\n",
+                encoding="utf-8",
+            )
 
             output = self.run_loop(
                 root,
@@ -280,12 +322,52 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertEqual(len(output), 1)
         self.assertEqual(output[0]["dispatch"]["state"], "complete")
 
+    def test_loop_text_output_includes_completion_audit_summary(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            archive = root / "docs" / "taskboard" / "archive"
+            archive.mkdir(parents=True)
+            (archive / "TASK-001.v1.done.md").write_text("# completed task\n", encoding="utf-8")
+            (root / "docs" / "PROJECT.md").write_text("# PROJECT\n\n## Goal\nShip demo\n", encoding="utf-8")
+            (root / "docs" / "STATE.md").write_text("# STATE\n\n**Goal Complete**: yes\n", encoding="utf-8")
+            (root / "docs" / "dev-log.md").write_text(
+                "# Development Log\n\n- TASK-001 completed.\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--root",
+                    str(root),
+                    "--goal",
+                    "Ship demo",
+                ],
+                cwd=ROOT,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("completion_audit:", result.stdout)
+        self.assertIn("completion_ready=True", result.stdout)
+        self.assertIn("archived_count=1", result.stdout)
+
     def test_loop_can_continue_after_complete_when_requested(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            (root / "docs" / "taskboard").mkdir(parents=True)
+            archive = root / "docs" / "taskboard" / "archive"
+            archive.mkdir(parents=True)
+            (archive / "TASK-001.v1.done.md").write_text("# completed task\n", encoding="utf-8")
             (root / "docs" / "PROJECT.md").write_text("# PROJECT\n\n## Goal\nShip demo\n", encoding="utf-8")
             (root / "docs" / "STATE.md").write_text("# STATE\n\n**Goal Complete**: yes\n", encoding="utf-8")
+            (root / "docs" / "dev-log.md").write_text(
+                "# Development Log\n\n- TASK-001 completed.\n",
+                encoding="utf-8",
+            )
 
             output = self.run_loop(
                 root,

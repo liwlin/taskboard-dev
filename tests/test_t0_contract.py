@@ -152,6 +152,8 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("--assignment-lease-seconds 300", readme)
         self.assertIn("--launch-lease-seconds 300", readme)
         self.assertIn("**Goal Complete**: yes", readme)
+        self.assertIn("completion audit is `complete-ready`", readme)
+        self.assertIn("completion-audit-missing-evidence", readme)
         self.assertIn("--no-stop-on-complete", readme)
         self.assertIn(".taskboard/t0/latest.json", readme)
         self.assertIn(".taskboard/t0/launches.json", readme)

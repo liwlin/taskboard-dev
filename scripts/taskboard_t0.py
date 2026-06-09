@@ -8,6 +8,7 @@ import shlex
 import sys
 from typing import Optional
 
+from taskboard_completion import report_completion
 from taskboard_next import format_selection, select_task
 
 
@@ -276,12 +277,21 @@ def dispatch(
 
     role, status, task, reason = select_task("T0", root)
     task_name = task.path.name if task is not None else "none"
+    completion_audit = None
 
     if role == "T0" and status == "complete" and goal_arg and reason != "goal-complete-sentinel":
         role = "T1"
         status = "T1-create-or-revise"
         task_name = "none"
         reason = "explicit-goal-no-active-tasks"
+
+    if role == "T0" and status == "complete":
+        completion_audit = report_completion(root)
+        if not completion_audit.get("completion_ready"):
+            role = "T1"
+            status = "T1-create-or-revise"
+            task_name = "none"
+            reason = "completion-audit-missing-evidence"
 
     if role == "T0" and status == "complete":
         state = "complete"
@@ -311,6 +321,7 @@ def dispatch(
         "managed_sessions": sessions,
         "launch_commands": launch_commands,
         "session_manifest": session_manifest,
+        "completion_audit": completion_audit,
     }
 
 

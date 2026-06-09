@@ -94,6 +94,31 @@ class TaskboardT0Test(unittest.TestCase):
         self.assertEqual(output["managed_sessions"], [])
         self.assertEqual(output["session_manifest"]["roles"], [])
 
+    def test_completion_sentinel_without_audit_evidence_dispatches_t1(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+            (root / "docs" / "PROJECT.md").write_text("# PROJECT\n\n## Goal\nShip demo\n", encoding="utf-8")
+            (root / "docs" / "STATE.md").write_text("# STATE\n\n**Goal Complete**: yes\n", encoding="utf-8")
+
+            output = self.run_t0(
+                root,
+                "--goal",
+                "Ship demo",
+                "--launcher",
+                "windows-terminal",
+                "--agent-template",
+                'codex --prompt-file "{target_file}"',
+            )
+
+        self.assertEqual(output["state"], "dispatch")
+        self.assertEqual(output["next_role"], "T1")
+        self.assertEqual(output["status"], "T1-create-or-revise")
+        self.assertEqual(output["reason"], "completion-audit-missing-evidence")
+        self.assertEqual(output["completion_audit"]["state"], "incomplete")
+        self.assertIn("no archived TASK evidence", output["completion_audit"]["missing_evidence"])
+        self.assertIn("taskboard-T1", output["launch_commands"][0])
+
     def test_windows_terminal_launcher_commands_use_agent_template(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

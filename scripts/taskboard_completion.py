@@ -80,9 +80,7 @@ def build_user_action(
             f"Do not summarize completion yet; wake taskboard-{first['role']} "
             f"for active {first['task']}."
         )
-    if "no goal completion sentinel" in missing:
-        return "Do not summarize completion yet; wake T1 to record or revise the goal completion evidence."
-    return "Do not summarize completion yet; collect the missing completion evidence through T1/T2/T3."
+    return "Do not summarize completion yet; wake T1 to record or revise the missing completion evidence."
 
 
 def report_completion(root: Path) -> dict[str, object]:
