@@ -115,9 +115,10 @@ python scripts/taskboard_sessions.py --root . probe --stale-seconds 300
 
 ```bash
 python scripts/taskboard_sessions.py --root . heartbeat --role T1
+python scripts/taskboard_sessions.py --root . heartbeat --role T2 --task TASK-003.v1.T2-review.md --assignment-id T2:TASK-003.v1.T2-review.md
 ```
 
-Heartbeat 文件位于 `.taskboard/sessions/`，只表示运行时 liveness。它不是任务状态、不是共享记忆，也不能替代 TASKBOARD 文件名、history、dev-log 或 HANDOFF。
+Heartbeat 文件位于 `.taskboard/sessions/`，只表示运行时 liveness。处理具体 TASK 文件时，受控角色应在 heartbeat 中带上 `--task` 和 `--assignment-id`，让 T0 区分“已调度但未认领”和“已认领正在处理”。它不是任务状态、不是共享记忆，也不能替代 TASKBOARD 文件名、history、dev-log 或 HANDOFF。
 
 T0 supervisor loop 入口：
 

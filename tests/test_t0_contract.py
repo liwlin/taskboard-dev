@@ -130,6 +130,7 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("python scripts/taskboard_loop.py --root . --goal", readme)
         self.assertIn("python scripts/taskboard_health.py --root . --stale-minutes 30", readme)
         self.assertIn("python scripts/taskboard_sessions.py --root . probe --stale-seconds 300", readme)
+        self.assertIn("--assignment-id T2:TASK-003.v1.T2-review.md", readme)
 
     def test_session_manifest_contract_is_documented(self):
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")

@@ -33,7 +33,15 @@ def now_epoch() -> float:
     return time.time()
 
 
-def write_heartbeat(root: Path, role: str, title: Optional[str], status: str, pid: Optional[int]) -> dict[str, object]:
+def write_heartbeat(
+    root: Path,
+    role: str,
+    title: Optional[str],
+    status: str,
+    pid: Optional[int],
+    task: Optional[str] = None,
+    assignment_id: Optional[str] = None,
+) -> dict[str, object]:
     role = role.upper()
     if role not in ROLES:
         raise ValueError(f"unknown role: {role}")
@@ -47,6 +55,10 @@ def write_heartbeat(root: Path, role: str, title: Optional[str], status: str, pi
         "last_seen": current_time,
         "last_seen_iso": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(current_time)),
     }
+    if task:
+        payload["task"] = task
+    if assignment_id:
+        payload["assignment_id"] = assignment_id
     path = session_path(root, role)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
@@ -96,6 +108,8 @@ def classify_session(root: Path, role: str, stale_seconds: int, current_time: fl
         "last_seen": payload.get("last_seen_iso") or last_seen,
         "status": str(payload.get("status") or state),
         "pid": payload.get("pid"),
+        "task": payload.get("task"),
+        "assignment_id": payload.get("assignment_id"),
     }
 
 
@@ -180,7 +194,7 @@ def parse_expected(raw_values: Optional[list[str]]) -> list[str]:
 
 
 def run_heartbeat(root: Path, args: Namespace) -> dict[str, object]:
-    return write_heartbeat(root, args.role, args.title, args.status, args.pid)
+    return write_heartbeat(root, args.role, args.title, args.status, args.pid, args.task, args.assignment_id)
 
 
 def run_probe(root: Path, args: Namespace) -> dict[str, object]:
@@ -205,6 +219,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     heartbeat.add_argument("--title", help="Managed terminal title")
     heartbeat.add_argument("--status", default="alive", help="Free-form role loop status")
     heartbeat.add_argument("--pid", type=int, help="Agent process id if known")
+    heartbeat.add_argument("--task", help="Current TASKBOARD filename this role has acknowledged")
+    heartbeat.add_argument("--assignment-id", help="Current T0 assignment id, normally <role>:<task>")
 
     probe = subparsers.add_parser("probe", help="Probe expected managed role heartbeats")
     probe.add_argument("--stale-seconds", type=int, default=300)

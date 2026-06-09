@@ -121,9 +121,10 @@ Each managed role should write a heartbeat at loop start and after each TASKBOAR
 
 ```bash
 python scripts/taskboard_sessions.py --root . heartbeat --role T1
+python scripts/taskboard_sessions.py --root . heartbeat --role T2 --task TASK-003.v1.T2-review.md --assignment-id T2:TASK-003.v1.T2-review.md
 ```
 
-Heartbeat files live under `.taskboard/sessions/` and are runtime liveness signals only. They are not task state, not shared role memory, and not a replacement for TASKBOARD filenames, history, or HANDOFF.
+Heartbeat files live under `.taskboard/sessions/` and are runtime liveness signals only. When a role is handling a concrete TASK file, it should include `--task` and `--assignment-id` so T0 can tell whether the dispatched work was acknowledged. These assignment fields are not task state, not shared role memory, and not a replacement for TASKBOARD filenames, history, or HANDOFF.
 
 T0 supervisor loop entry:
 

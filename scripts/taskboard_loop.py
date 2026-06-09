@@ -28,11 +28,56 @@ def choose_launch_commands(session_probe: dict[str, object], dispatch_plan: dict
     return list(dispatch_plan.get("launch_commands", []))
 
 
+def build_assignment(session_probe: dict[str, object], dispatch_plan: dict[str, object]) -> dict[str, object]:
+    role = str(dispatch_plan.get("next_role") or "")
+    task = str(dispatch_plan.get("task") or "none")
+    if dispatch_plan.get("state") != "dispatch" or role not in {"T1", "T2", "T3"} or task == "none":
+        return {
+            "state": "none",
+            "role": role,
+            "task": task,
+            "assignment_id": "",
+            "reason": "no-active-worker-task",
+        }
+
+    assignment_id = f"{role}:{task}"
+    sessions = session_probe.get("sessions", {})
+    session = sessions.get(role, {}) if isinstance(sessions, dict) else {}
+    session_state = session.get("state") if isinstance(session, dict) else "missing"
+    acknowledged_task = session.get("task") if isinstance(session, dict) else None
+    acknowledged_assignment = session.get("assignment_id") if isinstance(session, dict) else None
+
+    if session_state != "alive":
+        state = "unassigned"
+        reason = f"taskboard-{role} is {session_state or 'missing'}"
+    elif acknowledged_task == task and acknowledged_assignment == assignment_id:
+        state = "acknowledged"
+        reason = "worker-heartbeat-acknowledged-task"
+    elif acknowledged_task == task:
+        state = "pending-ack"
+        reason = "worker-heartbeat-missing-or-mismatched-assignment-id"
+    else:
+        state = "pending-ack"
+        reason = "worker-heartbeat-has-not-acknowledged-task"
+
+    return {
+        "state": state,
+        "role": role,
+        "task": task,
+        "assignment_id": acknowledged_assignment or assignment_id,
+        "expected_assignment_id": assignment_id,
+        "acknowledged_task": acknowledged_task,
+        "reason": reason,
+        "boundary": "T0 tracks assignment acknowledgement only; T0 does not execute the worker task.",
+    }
+
+
 def build_actions(
     session_probe: dict[str, object],
     queue_health: dict[str, object],
     dispatch_plan: dict[str, object],
     launch_commands: list[str],
+    assignment: dict[str, object],
 ) -> list[str]:
     actions: list[str] = []
     actions.extend(str(action) for action in session_probe.get("recovery_actions", []))
@@ -47,6 +92,11 @@ def build_actions(
         actions.append(f"keep taskboard-{role} active from the T0 dispatch plan")
     elif dispatch_plan.get("state") == "complete":
         actions.append("summarize completion to the user")
+
+    if assignment.get("state") in {"pending-ack", "unassigned"}:
+        role = assignment.get("role")
+        task = assignment.get("task")
+        actions.append(f"reissue target to taskboard-{role} until heartbeat acknowledges {task}")
 
     deduped: list[str] = []
     for action in actions:
@@ -97,6 +147,7 @@ def run_once(
     dispatch_plan = dispatch(root, goal, "terminal", launcher, agent_template)
     launch_commands = choose_launch_commands(session_probe, dispatch_plan)
     executed_commands = execute_commands(launch_commands) if execute_launches else []
+    assignment = build_assignment(session_probe, dispatch_plan)
 
     state = "attention"
     if dispatch_plan.get("state") == "needs-goal":
@@ -115,9 +166,10 @@ def run_once(
         "session_probe": session_probe,
         "queue_health": queue_health,
         "dispatch": dispatch_plan,
+        "assignment": assignment,
         "launch_commands": launch_commands,
         "executed_commands": executed_commands,
-        "actions": build_actions(session_probe, queue_health, dispatch_plan, launch_commands),
+        "actions": build_actions(session_probe, queue_health, dispatch_plan, launch_commands, assignment),
     }
 
 
@@ -167,6 +219,7 @@ def format_text(results: list[dict[str, object]]) -> str:
                 f"state={payload['state']}",
                 f"boundary={payload['boundary']}",
                 f"next_role={payload['dispatch'].get('next_role')}",
+                f"assignment_state={payload['assignment'].get('state')}",
                 f"queue_state={payload['queue_health'].get('state')}",
                 f"session_state={payload['session_probe'].get('state')}",
                 "actions:",

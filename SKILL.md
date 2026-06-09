@@ -622,10 +622,11 @@ Use `scripts/taskboard_sessions.py` for managed role liveness. Each T1/T2/T3 rol
 
 ```bash
 python scripts/taskboard_sessions.py --root . heartbeat --role T1
+python scripts/taskboard_sessions.py --root . heartbeat --role T2 --task TASK-003.v1.T2-review.md --assignment-id T2:TASK-003.v1.T2-review.md
 python scripts/taskboard_sessions.py --root . probe --stale-seconds 300 --goal "<user goal>"
 ```
 
-Heartbeat files live under `.taskboard/sessions/` and are runtime liveness signals only. They are not task state, not shared role memory, and not a replacement for TASKBOARD filenames, `history/`, `dev-log.md`, or `HANDOFF.md`.
+Heartbeat files live under `.taskboard/sessions/` and are runtime liveness signals only. When T0 dispatches a concrete TASK file, the managed role should include `--task` and `--assignment-id` in its heartbeat so T0 can distinguish pending assignment acknowledgement from active work. These assignment fields are not task state, not shared role memory, and not a replacement for TASKBOARD filenames, `history/`, `dev-log.md`, or `HANDOFF.md`.
 
 ### Multi-Agent Synchronization
 

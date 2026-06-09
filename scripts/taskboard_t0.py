@@ -69,10 +69,10 @@ def build_session(role: str, goal: str, next_role: str, status: str, task_name: 
     target_task = task_name if role == next_role else "none"
     target_reason = reason if role == next_role else "t0-managed-background-role"
     target = build_target(role, target_status, target_task, goal, target_reason)
-    heartbeat = (
-        f"Session heartbeat: run `python scripts/taskboard_sessions.py --root . heartbeat --role {role}` "
-        "at loop start and after each TASKBOARD handoff."
-    )
+    heartbeat_command = f"python scripts/taskboard_sessions.py --root . heartbeat --role {role}"
+    if role == next_role and task_name != "none":
+        heartbeat_command += f" --task {task_name} --assignment-id {role}:{task_name}"
+    heartbeat = f"Session heartbeat: run `{heartbeat_command}` at loop start and after each TASKBOARD handoff."
     return {
         "role": role,
         "title": f"taskboard-{role}",

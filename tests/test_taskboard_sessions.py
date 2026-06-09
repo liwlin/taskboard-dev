@@ -37,6 +37,29 @@ class TaskboardSessionsTest(unittest.TestCase):
         self.assertEqual(probe["sessions"]["T1"]["status"], "looping")
         self.assertIn("T0 manager-only", probe["boundary"])
 
+    def test_heartbeat_records_current_task_assignment(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            heartbeat = self.run_sessions(
+                root,
+                "heartbeat",
+                "--role",
+                "T2",
+                "--status",
+                "reviewing",
+                "--task",
+                "TASK-003.v1.T2-review.md",
+                "--assignment-id",
+                "T2:TASK-003.v1.T2-review.md",
+            )
+            probe = self.run_sessions(root, "probe", "--expected", "T2", "--stale-seconds", "300")
+
+        self.assertEqual(heartbeat["task"], "TASK-003.v1.T2-review.md")
+        self.assertEqual(heartbeat["assignment_id"], "T2:TASK-003.v1.T2-review.md")
+        self.assertEqual(probe["sessions"]["T2"]["task"], "TASK-003.v1.T2-review.md")
+        self.assertEqual(probe["sessions"]["T2"]["assignment_id"], "T2:TASK-003.v1.T2-review.md")
+
     def test_probe_reports_missing_roles_with_recovery_actions(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

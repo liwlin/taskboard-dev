@@ -43,6 +43,8 @@ class TaskboardT0Test(unittest.TestCase):
         self.assertEqual(output["task"], "TASK-001.v1.T2-待审核代码-L2.md")
         self.assertIn("完成登录功能", output["target"])
         self.assertIn("T2", output["target"])
+        self.assertIn("--task TASK-001.v1.", output["target"])
+        self.assertIn("--assignment-id T2:TASK-001.v1.", output["target"])
         self.assertIn("T0 manager-only", output["boundary"])
         self.assertIn("不直接执行开发任务", output["boundary"])
         self.assertEqual(
