@@ -137,6 +137,35 @@ class TaskboardSessionsTest(unittest.TestCase):
         self.assertIn("taskboard-T1.md", probe["recovery_commands"][0])
         self.assertNotIn('prompt-file ""', probe["recovery_commands"][0])
 
+    def test_probe_writes_recovery_target_file_for_prompt_file_launchers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            probe = self.run_sessions(
+                root,
+                "probe",
+                "--expected",
+                "T1",
+                "--goal",
+                "Ship demo",
+                "--launcher",
+                "windows-terminal",
+                "--agent-template",
+                'codex --prompt-file "{target_file}"',
+            )
+            target_file = root / ".taskboard" / "targets" / "taskboard-T1.md"
+            target_exists = target_file.exists()
+            target_text = target_file.read_text(encoding="utf-8") if target_exists else ""
+            target_file_text = str(target_file)
+
+        self.assertEqual(probe["missing_roles"], ["T1"])
+        self.assertTrue(target_exists)
+        self.assertEqual(probe["target_files"][0]["role"], "T1")
+        self.assertEqual(probe["target_files"][0]["path"], target_file_text)
+        self.assertIn("managed_by: T0", target_text)
+        self.assertIn("assigned_role: T1", target_text)
+        self.assertIn("Ship demo", target_text)
+
 
 if __name__ == "__main__":
     unittest.main()

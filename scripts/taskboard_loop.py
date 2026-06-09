@@ -13,7 +13,7 @@ from typing import Optional
 from taskboard_health import report_health
 from taskboard_sessions import probe_sessions
 from taskboard_stopgates import report_stop_gates
-from taskboard_t0 import default_target_dir, dispatch, read_goal, write_runtime_goal
+from taskboard_t0 import default_target_dir, dispatch, read_goal, write_role_target_files, write_runtime_goal
 
 
 T0_BOUNDARY = (
@@ -311,46 +311,6 @@ def execute_commands(commands: list[str]) -> list[dict[str, object]]:
     return results
 
 
-def write_role_target_files(dispatch_plan: dict[str, object]) -> list[dict[str, object]]:
-    target_files: list[dict[str, object]] = []
-    sessions = dispatch_plan.get("managed_sessions", [])
-    if not isinstance(sessions, list):
-        return target_files
-
-    for session in sessions:
-        if not isinstance(session, dict):
-            continue
-        target_file = session.get("target_file")
-        target = session.get("target")
-        role = session.get("role")
-        title = session.get("title")
-        if not target_file or not target or not role or not title:
-            continue
-        path = Path(str(target_file))
-        body = (
-            f"# {title} target\n\n"
-            "kind: taskboard-role-target\n"
-            "managed_by: T0\n"
-            f"role: {role}\n"
-            f"title: {title}\n"
-            f"updated_at: {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}\n"
-            "boundary: T0 writes role targets only; the isolated worker session executes its own role work.\n\n"
-            "---\n\n"
-            f"{target}\n"
-        )
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(body, encoding="utf-8")
-        target_files.append(
-            {
-                "role": str(role),
-                "title": str(title),
-                "path": str(path),
-                "kind": "taskboard-role-target",
-            }
-        )
-    return target_files
-
-
 def run_once(
     root: Path,
     goal: Optional[str],
@@ -408,7 +368,12 @@ def run_once(
             "actions": build_stop_gate_actions(stop_gate_report),
         }
 
-    target_files = write_role_target_files(dispatch_plan) if target_dir is not None else []
+    managed_sessions = dispatch_plan.get("managed_sessions", [])
+    target_files = (
+        write_role_target_files(managed_sessions)
+        if target_dir is not None and isinstance(managed_sessions, list)
+        else []
+    )
     planned_launch_commands = choose_launch_commands(session_probe, dispatch_plan)
     requested_launch_commands = (
         choose_executable_launch_commands(session_probe, dispatch_plan)

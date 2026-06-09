@@ -153,7 +153,7 @@ T0 受控角色 heartbeat 检查入口：
 python scripts/taskboard_sessions.py --root . probe --stale-seconds 300
 ```
 
-当 `probe` 输出 missing/stale role 的恢复启动命令时，`--agent-template` 同样支持 `{target_file}`，默认指向 `.taskboard/targets/taskboard-T*.md`。这样 T0 恢复受控终端时，仍然使用同一套隔离角色目标文件，而不是空 prompt-file 或共享 chat context。
+当 `probe` 输出 missing/stale role 的恢复启动命令时，`--agent-template` 同样支持 `{target_file}`，默认指向 `.taskboard/targets/taskboard-T*.md`。`probe` 会同时写出这些恢复目标文件，并在 JSON/text 输出里返回 `target_files` 清单。这样 T0 恢复受控终端时，仍然使用同一套隔离角色目标文件，而不是空 prompt-file 或共享 chat context。
 
 每个受控角色在 loop 开始和 TASKBOARD handoff 后写一次 heartbeat：
 

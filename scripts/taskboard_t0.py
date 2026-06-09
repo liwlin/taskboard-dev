@@ -6,6 +6,7 @@ from pathlib import Path
 import json
 import shlex
 import sys
+import time
 from typing import Optional
 
 from taskboard_completion import report_completion
@@ -161,6 +162,40 @@ def build_sessions(
         build_session(role, goal, next_role, status, task_name, reason, target_dir)
         for role in ("T1", "T2", "T3")
     ]
+
+
+def write_role_target_files(sessions: list[dict[str, str]]) -> list[dict[str, object]]:
+    target_files: list[dict[str, object]] = []
+    for session in sessions:
+        target_file = session.get("target_file")
+        target = session.get("target")
+        role = session.get("role")
+        title = session.get("title")
+        if not target_file or not target or not role or not title:
+            continue
+        path = Path(str(target_file))
+        body = (
+            f"# {title} target\n\n"
+            "kind: taskboard-role-target\n"
+            "managed_by: T0\n"
+            f"role: {role}\n"
+            f"title: {title}\n"
+            f"updated_at: {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}\n"
+            "boundary: T0 writes role targets only; the isolated worker session executes its own role work.\n\n"
+            "---\n\n"
+            f"{target}\n"
+        )
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body, encoding="utf-8")
+        target_files.append(
+            {
+                "role": str(role),
+                "title": str(title),
+                "path": str(path),
+                "kind": "taskboard-role-target",
+            }
+        )
+    return target_files
 
 
 def powershell_quote(value: str) -> str:

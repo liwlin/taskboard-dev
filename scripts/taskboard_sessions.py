@@ -9,7 +9,7 @@ import sys
 import time
 from typing import Optional
 
-from taskboard_t0 import build_launch_commands, build_session, default_target_dir
+from taskboard_t0 import build_launch_commands, build_session, default_target_dir, write_role_target_files
 
 
 ROLES = ("T1", "T2", "T3")
@@ -160,6 +160,7 @@ def probe_sessions(
         "session-missing-or-stale",
         target_dir,
     )
+    target_files = write_role_target_files(recovery_sessions) if target_dir is not None else []
     return {
         "state": "attention" if recovery_roles else "healthy",
         "expected_roles": normalized_roles,
@@ -168,6 +169,7 @@ def probe_sessions(
         "stale_roles": stale_roles,
         "recovery_actions": recovery_actions,
         "recovery_commands": build_launch_commands(root, recovery_sessions, launcher, agent_template),
+        "target_files": target_files,
         "boundary": T0_BOUNDARY,
     }
 
@@ -192,6 +194,10 @@ def format_text(payload: dict[str, object]) -> str:
         lines.append("recovery_commands:")
         for command in payload["recovery_commands"]:
             lines.append(f"- {command}")
+    if payload.get("target_files"):
+        lines.append("target_files:")
+        for item in payload["target_files"]:
+            lines.append(f"- {item['role']} path={item['path']}")
     return "\n".join(lines)
 
 
