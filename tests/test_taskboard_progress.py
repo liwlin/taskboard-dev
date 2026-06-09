@@ -5,6 +5,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import contextlib
+import io
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,6 +16,7 @@ PROGRESS_SCRIPT = ROOT / "scripts" / "taskboard_progress.py"
 START_SCRIPT = ROOT / "scripts" / "taskboard_start.py"
 sys.path.insert(0, str(ROOT / "scripts"))
 from taskboard_next import ROLE_PRIORITY  # noqa: E402
+import taskboard_start as start_module  # noqa: E402
 
 
 T2_CODE_REVIEW = ROLE_PRIORITY["T0"][1][1]
@@ -211,6 +215,51 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("--assignment-lease-seconds 56", progress["resume_command"])
         self.assertIn("--launch-lease-seconds 78", progress["resume_command"])
         self.assertIn("--interval-seconds 9", progress["resume_command"])
+        self.assertIn(progress["resume_command"], text)
+
+    def test_progress_resumes_t0_from_persisted_interruption_snapshot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            with patch("taskboard_start.run_loop", side_effect=KeyboardInterrupt):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    result = start_module.main(
+                        [
+                            "--root",
+                            str(root),
+                            "--goal",
+                            "Ship demo",
+                            "--auto",
+                            "--launcher",
+                            "tmux",
+                            "--stale-minutes",
+                            "12",
+                            "--stale-seconds",
+                            "34",
+                            "--assignment-lease-seconds",
+                            "56",
+                            "--launch-lease-seconds",
+                            "78",
+                            "--interval-seconds",
+                            "9",
+                            "--format",
+                            "json",
+                        ]
+                    )
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertEqual(result, 130)
+        self.assertEqual(progress["state"], "interrupted")
+        self.assertIn("--launcher tmux", progress["resume_command"])
+        self.assertIn("--stale-minutes 12", progress["resume_command"])
+        self.assertIn("--stale-seconds 34", progress["resume_command"])
+        self.assertIn("--assignment-lease-seconds 56", progress["resume_command"])
+        self.assertIn("--launch-lease-seconds 78", progress["resume_command"])
+        self.assertIn("--interval-seconds 9", progress["resume_command"])
+        self.assertIn("Resume T0", progress["user_action"])
+        self.assertIn("do not manage T1/T2/T3", progress["user_action"])
         self.assertIn(progress["resume_command"], text)
 
     def test_progress_surfaces_failed_t0_launch_commands(self):

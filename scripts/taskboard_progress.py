@@ -192,6 +192,8 @@ def build_user_action(
         return "T0 stop gate requires user decision; answer T0's summarized question, not T1/T2/T3."
     if launch_failure_count:
         return "T0 launch/recovery failed; fix the T0 launcher configuration or rerun T0 with another launcher."
+    if state == "interrupted":
+        return "Resume T0 with resume_command; do not manage T1/T2/T3 directly."
     if state == "needs-supervisor-run":
         return "Start or resume T0 with taskboard_start.py or taskboard_loop.py."
     if dispatch_state == "needs-goal":

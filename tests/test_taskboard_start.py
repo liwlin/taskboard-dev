@@ -315,6 +315,52 @@ class TaskboardStartTest(unittest.TestCase):
         self.assertIn("Resume T0", payload["user_action"])
         self.assertIn("do not manage T1/T2/T3", payload["user_action"])
 
+    def test_starter_persists_t0_interruption_recovery_state(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+            with patch("taskboard_start.run_loop", side_effect=KeyboardInterrupt):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    code = start_module.main(
+                        [
+                            "--root",
+                            str(root),
+                            "--goal",
+                            "Ship demo",
+                            "--auto",
+                            "--launcher",
+                            "tmux",
+                            "--stale-minutes",
+                            "12",
+                            "--stale-seconds",
+                            "34",
+                            "--assignment-lease-seconds",
+                            "56",
+                            "--launch-lease-seconds",
+                            "78",
+                            "--interval-seconds",
+                            "9",
+                            "--format",
+                            "json",
+                        ]
+                    )
+            snapshot = json.loads((root / ".taskboard" / "t0" / "latest.json").read_text(encoding="utf-8"))
+            events = [
+                json.loads(line)
+                for line in (root / ".taskboard" / "t0" / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        latest = snapshot["latest"]
+        self.assertEqual(code, 130)
+        self.assertEqual(latest["kind"], "taskboard-t0-interruption")
+        self.assertEqual(latest["state"], "interrupted")
+        self.assertEqual(latest["resume_config"]["launcher"], "tmux")
+        self.assertEqual(latest["resume_config"]["stale_minutes"], 12)
+        self.assertEqual(events[-1]["state"], "interrupted")
+        self.assertEqual(events[-1]["dispatch_state"], "interrupted")
+        self.assertEqual(events[-1]["resume_config"]["launcher"], "tmux")
+
 
 if __name__ == "__main__":
     unittest.main()

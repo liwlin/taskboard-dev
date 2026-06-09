@@ -8,6 +8,7 @@ import sys
 from typing import Optional
 
 from taskboard_loop import (
+    append_event_log,
     build_resume_config,
     default_event_log_file,
     default_state_file,
@@ -83,8 +84,40 @@ def build_interruption_payload(
         "resume_config": resume_config,
         "resume_command": build_resume_command(root, goal, "interrupted", 0, False, resume_config),
         "user_action": "Resume T0 with resume_command; do not manage T1/T2/T3 directly.",
+        "dispatch": {"state": "interrupted", "next_role": "T0", "task": "none"},
+        "assignment": {
+            "state": "none",
+            "role": "T0",
+            "task": "none",
+            "assignment_id": "",
+            "reason": "t0-interrupted",
+        },
+        "queue_health": {"state": "unknown", "active_count": 0},
+        "session_probe": {"state": "unknown", "missing_roles": [], "stale_roles": []},
+        "stop_gate_report": {"stop_gate_count": 0, "stop_gates": []},
+        "actions": ["resume T0 from the persisted interruption command"],
+        "target_files": [],
+        "planned_launch_commands": [],
+        "requested_launch_commands": [],
+        "launch_commands": [],
+        "suppressed_launches": [],
+        "executed_commands": [],
         **metadata,
     }
+
+
+def persist_interruption_payload(
+    state_file: Optional[Path],
+    event_log_file: Optional[Path],
+    root: Path,
+    goal: str,
+    payload: dict[str, object],
+    stop_on_complete: bool,
+) -> None:
+    if state_file is not None:
+        write_state_snapshot(state_file, root, goal, [payload], stop_on_complete)
+    if event_log_file is not None:
+        append_event_log(event_log_file, root, goal, 1, payload)
 
 
 def format_interruption_text(payload: dict[str, object]) -> str:
@@ -229,6 +262,14 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.launch_lease_seconds,
             target_dir,
             args.auto,
+        )
+        persist_interruption_payload(
+            state_file,
+            event_log_file,
+            root,
+            effective_goal,
+            payload,
+            not args.no_stop_on_complete,
         )
         if args.format == "json":
             print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
