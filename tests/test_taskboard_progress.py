@@ -185,6 +185,9 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("Product decision", progress["stop_gates"][0]["gate"])
         self.assertIn("T0 stop gate requires user decision", progress["user_action"])
         self.assertIn("beta banner", progress["user_summary"])
+        self.assertIn("taskboard_decide.py", progress["decision_command"])
+        self.assertIn("--task TASK-009.v2.T1-decision.md", progress["decision_command"])
+        self.assertIn('--decision "<user answer>"', progress["decision_command"])
 
     def test_progress_surfaces_completion_audit_when_t0_is_complete(self):
         with tempfile.TemporaryDirectory() as tmp:

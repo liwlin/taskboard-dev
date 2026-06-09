@@ -141,6 +141,7 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("python scripts/taskboard_progress.py --root .", readme)
         self.assertIn("python scripts/taskboard_stopgates.py --root .", readme)
         self.assertIn("python scripts/taskboard_decide.py --root . --decision", readme)
+        self.assertIn("decision_command", readme)
         self.assertIn("让 T1 根据用户决策继续修订", readme)
         self.assertIn("T0 launch/recovery failed", readme)
         self.assertIn("healthy roles are not relaunched", readme)

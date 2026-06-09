@@ -19,6 +19,16 @@ T0_PROGRESS_BOUNDARY = (
 )
 
 
+def build_decision_command(root: Path, first_stop_gate: dict[str, object]) -> str:
+    task = str(first_stop_gate.get("task") or "")
+    if not task:
+        return ""
+    return (
+        f'python scripts/taskboard_decide.py --root "{root}" '
+        f'--task {task} --decision "<user answer>"'
+    )
+
+
 def read_latest_snapshot(root: Path) -> Optional[dict[str, object]]:
     path = default_state_file(root)
     if not path.exists():
@@ -145,6 +155,7 @@ def report_progress(root: Path) -> dict[str, object]:
     stop_gate_count = int(stop_gate_report.get("stop_gate_count") or 0)
     first_stop_gate = stop_gate_list[0] if stop_gate_list and isinstance(stop_gate_list[0], dict) else {}
     first_stop_gate_question = str(first_stop_gate.get("question") or "")
+    decision_command = build_decision_command(root, first_stop_gate)
     snapshot = read_latest_snapshot(root)
     if snapshot is None:
         goal = read_goal(root, "")
@@ -164,6 +175,7 @@ def report_progress(root: Path) -> dict[str, object]:
             "suppressed_launch_count": 0,
             "stop_gates": stop_gate_list,
             "stop_gate_count": stop_gate_count,
+            "decision_command": decision_command,
             "completion_audit": completion_audit,
             "completion_ready": bool(completion_audit.get("completion_ready")),
             "completion_missing_evidence": completion_missing_list,
@@ -265,6 +277,7 @@ def report_progress(root: Path) -> dict[str, object]:
         "suppressed_launch_count": len(suppressed_launch_list),
         "stop_gates": stop_gate_list,
         "stop_gate_count": stop_gate_count,
+        "decision_command": decision_command,
         "completion_audit": completion_audit,
         "completion_ready": bool(completion_audit.get("completion_ready")),
         "completion_missing_evidence": completion_missing_list,
@@ -304,6 +317,8 @@ def format_text(payload: dict[str, object]) -> str:
         f"summary={payload['user_summary']}",
         f"boundary={payload['boundary']}",
     ]
+    if payload.get("decision_command"):
+        lines.insert(-1, f"decision_command={payload['decision_command']}")
     return "\n".join(lines)
 
 
