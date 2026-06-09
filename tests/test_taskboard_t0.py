@@ -119,6 +119,26 @@ class TaskboardT0Test(unittest.TestCase):
         self.assertIn("taskboard-T2", commands[1])
         self.assertIn("taskboard-T3", commands[2])
 
+    def test_agent_template_can_reference_role_target_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            output = self.run_t0(
+                root,
+                "--goal",
+                "完成支付模块",
+                "--launcher",
+                "windows-terminal",
+                "--agent-template",
+                'codex --prompt-file "{target_file}"',
+            )
+
+        first_session = output["managed_sessions"][0]
+        self.assertEqual(first_session["target_file"], str(root.resolve() / ".taskboard" / "targets" / "taskboard-T1.md"))
+        self.assertIn("taskboard-T1.md", output["launch_commands"][0])
+        self.assertIn("codex --prompt-file", output["launch_commands"][0])
+
     def test_tmux_launcher_commands_create_isolated_role_windows(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

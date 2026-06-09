@@ -98,7 +98,7 @@ T0 也可以生成受控角色终端启动命令，例如 Windows Terminal：
 python scripts/taskboard_t0.py --goal "完成 <你的开发目标>" --root . --launcher windows-terminal --agent-template 'codex --prompt "{target}"'
 ```
 
-`--agent-template` 按你的实际 agent CLI 调整。T0 会自动把 T1/T2/T3 的角色目标注入 `{target}`。
+`--agent-template` 按你的实际 agent CLI 调整。T0 会自动把 T1/T2/T3 的角色目标注入 `{target}`，也会提供 `{target_file}` 供支持 prompt-file 的客户端读取 `.taskboard/targets/taskboard-T*.md`。
 
 脚本输出包含 `session_manifest`，供 T0 恢复和健康检查使用；它不是新的共享状态数据库。
 
@@ -133,6 +133,8 @@ python scripts/taskboard_loop.py --root . --goal "完成 <你的开发目标>" -
 ```
 
 By default the loop reports generated launcher commands without executing them. Add `--execute-launches` only when T0 should actually launch or recover managed role terminals. `--assignment-lease-seconds` controls how long T0 waits after a task assignment heartbeat before treating the assignment as expired and reissuing the role target. This executes manager launch/reissue commands only; T0 still does not perform T1/T2/T3 worker tasks.
+
+Each loop iteration writes isolated per-role targets to `.taskboard/targets/taskboard-T1.md`, `.taskboard/targets/taskboard-T2.md`, and `.taskboard/targets/taskboard-T3.md` by default. These files are runtime inboxes from T0 to each managed role, so workers can read only their own target without sharing hidden chat context. They are not task state or shared memory. Use `--target-dir <path>` to choose another target directory, or `--no-target-files` for no-write dry checks.
 
 Each loop iteration writes the latest T0 supervisor runtime snapshot to `.taskboard/t0/latest.json` by default. This `taskboard-t0-supervisor-state` file records T0's management view for recovery after interruption; it is not task state, not worker memory, and not a replacement for TASKBOARD filenames, history, dev-log, HANDOFF, or the completion sentinel. Use `--state-file <path>` to choose another snapshot path, or `--no-state-file` for dry checks that should leave no runtime snapshot.
 

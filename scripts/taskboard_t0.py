@@ -64,7 +64,23 @@ def build_target(role: str, status: str, task_name: str, goal: str, reason: str)
     )
 
 
-def build_session(role: str, goal: str, next_role: str, status: str, task_name: str, reason: str) -> dict[str, str]:
+def default_target_dir(root: Path) -> Path:
+    return root / ".taskboard" / "targets"
+
+
+def role_target_file(target_dir: Path, title: str) -> Path:
+    return target_dir / f"{title}.md"
+
+
+def build_session(
+    role: str,
+    goal: str,
+    next_role: str,
+    status: str,
+    task_name: str,
+    reason: str,
+    target_dir: Optional[Path] = None,
+) -> dict[str, str]:
     target_status = status if role == next_role else "managed-loop"
     target_task = task_name if role == next_role else "none"
     target_reason = reason if role == next_role else "t0-managed-background-role"
@@ -73,17 +89,28 @@ def build_session(role: str, goal: str, next_role: str, status: str, task_name: 
     if role == next_role and task_name != "none":
         heartbeat_command += f" --task {task_name} --assignment-id {role}:{task_name}"
     heartbeat = f"Session heartbeat: run `{heartbeat_command}` at loop start and after each TASKBOARD handoff."
-    return {
+    title = f"taskboard-{role}"
+    session = {
         "role": role,
-        "title": f"taskboard-{role}",
+        "title": title,
         "command": f"/taskboard-dev {role}",
         "target": f"{target}\n{heartbeat}",
     }
+    if target_dir is not None:
+        session["target_file"] = str(role_target_file(target_dir, title))
+    return session
 
 
-def build_sessions(goal: str, next_role: str, status: str, task_name: str, reason: str) -> list[dict[str, str]]:
+def build_sessions(
+    goal: str,
+    next_role: str,
+    status: str,
+    task_name: str,
+    reason: str,
+    target_dir: Optional[Path],
+) -> list[dict[str, str]]:
     return [
-        build_session(role, goal, next_role, status, task_name, reason)
+        build_session(role, goal, next_role, status, task_name, reason, target_dir)
         for role in ("T1", "T2", "T3")
     ]
 
@@ -104,6 +131,7 @@ def render_agent_command(session: dict[str, str], agent_template: Optional[str])
         title=session["title"],
         command=session["command"],
         target=compact_target,
+        target_file=session.get("target_file", ""),
     )
 
 
@@ -186,7 +214,8 @@ def dispatch(
     mode: str,
     launcher: str = "none",
     agent_template: Optional[str] = None,
-) -> dict[str, str]:
+    target_dir: Optional[Path] = None,
+) -> dict[str, object]:
     goal = read_goal(root, goal_arg)
 
     if not goal:
@@ -225,7 +254,7 @@ def dispatch(
     else:
         state = "dispatch"
         command = f"start managed terminals: /taskboard-dev T1, /taskboard-dev T2, /taskboard-dev T3"
-        sessions = build_sessions(goal, role, status, task_name, reason)
+        sessions = build_sessions(goal, role, status, task_name, reason, target_dir)
         target = next(session["target"] for session in sessions if session["role"] == role)
     launch_commands = build_launch_commands(root, sessions, launcher, agent_template)
     session_manifest = build_session_manifest(state, role, status, task_name, reason, sessions)
@@ -298,13 +327,22 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
     parser.add_argument(
         "--agent-template",
-        help="Command template used inside each launched role terminal. Supports {role}, {title}, {command}, and {target}.",
+        help=(
+            "Command template used inside each launched role terminal. Supports "
+            "{role}, {title}, {command}, {target}, and {target_file}."
+        ),
+    )
+    parser.add_argument(
+        "--target-dir",
+        help="Directory for generated per-role target files referenced by {target_file}. Defaults to .taskboard/targets.",
     )
     parser.add_argument("--format", choices=("text", "json"), default="text")
     args = parser.parse_args(argv)
+    root = Path(args.root).resolve()
+    target_dir = Path(args.target_dir).resolve() if args.target_dir else default_target_dir(root)
 
     try:
-        payload = dispatch(Path(args.root).resolve(), args.goal, args.mode, args.launcher, args.agent_template)
+        payload = dispatch(root, args.goal, args.mode, args.launcher, args.agent_template, target_dir)
     except ValueError as exc:
         print(exc, file=sys.stderr)
         return 2

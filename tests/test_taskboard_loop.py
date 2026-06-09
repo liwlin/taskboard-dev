@@ -167,6 +167,43 @@ class TaskboardLoopTest(unittest.TestCase):
 
         self.assertFalse((root / ".taskboard" / "t0" / "latest.json").exists())
 
+    def test_loop_writes_isolated_role_target_files_by_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            taskboard = root / "docs" / "taskboard"
+            taskboard.mkdir(parents=True)
+            task_name = f"TASK-003.v1.{T2_CODE_REVIEW}-L2.md"
+            (taskboard / task_name).write_text("# task\n\n**Wave**: 1\n", encoding="utf-8")
+
+            output = self.run_loop(root, "--goal", "Ship demo")
+            t1_target = root / ".taskboard" / "targets" / "taskboard-T1.md"
+            t2_target = root / ".taskboard" / "targets" / "taskboard-T2.md"
+            t3_target = root / ".taskboard" / "targets" / "taskboard-T3.md"
+            target_files_exist = [t1_target.exists(), t2_target.exists(), t3_target.exists()]
+            t2_text = t2_target.read_text(encoding="utf-8")
+            t1_text = t1_target.read_text(encoding="utf-8")
+
+        self.assertEqual(
+            [item["role"] for item in output[0]["target_files"]],
+            ["T1", "T2", "T3"],
+        )
+        self.assertEqual(target_files_exist, [True, True, True])
+        self.assertIn("managed_by: T0", t2_text)
+        self.assertIn(task_name, t2_text)
+        self.assertIn(f"--assignment-id T2:{task_name}", t2_text)
+        self.assertIn("managed-loop", t1_text)
+        self.assertIn("T0 writes role targets only", t2_text)
+
+    def test_loop_can_disable_role_target_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            output = self.run_loop(root, "--goal", "Ship demo", "--no-target-files")
+
+        self.assertEqual(output[0]["target_files"], [])
+        self.assertFalse((root / ".taskboard" / "targets").exists())
+
     def test_assignment_moves_from_pending_to_acknowledged_by_worker_heartbeat(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
