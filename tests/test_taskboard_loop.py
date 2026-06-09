@@ -225,6 +225,82 @@ class TaskboardLoopTest(unittest.TestCase):
         )
         self.assertIn("launch lease active", " ".join(output[1]["actions"]))
 
+    def test_execute_launches_does_not_relaunch_healthy_roles_after_launch_lease(self):
+        executed_batches = []
+
+        def fake_execute(commands):
+            executed_batches.append(list(commands))
+            return [
+                {
+                    "command": command,
+                    "returncode": 0,
+                    "output": "",
+                }
+                for command in commands
+            ]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+            session_dir = root / ".taskboard" / "sessions"
+            session_dir.mkdir(parents=True)
+            for role in ("T1", "T2", "T3"):
+                (session_dir / f"taskboard-{role}.json").write_text(
+                    json.dumps(
+                        {
+                            "role": role,
+                            "title": f"taskboard-{role}",
+                            "status": "alive",
+                            "last_seen": time.time(),
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+            launch_dir = root / ".taskboard" / "t0"
+            launch_dir.mkdir(parents=True)
+            old_success = time.time() - 600
+            (launch_dir / "launches.json").write_text(
+                json.dumps(
+                    {
+                        "kind": "taskboard-t0-launch-state",
+                        "version": 1,
+                        "roles": {
+                            role: {
+                                "last_success_at": old_success,
+                                "last_command": f"wt -w taskboard new-tab --title taskboard-{role}",
+                            }
+                            for role in ("T1", "T2", "T3")
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with patch("taskboard_loop.execute_commands", fake_execute):
+                output = loop_module.run_loop(
+                    root,
+                    "Ship demo",
+                    30,
+                    999999999,
+                    "windows-terminal",
+                    'codex --prompt-file "{target_file}"',
+                    True,
+                    1,
+                    0,
+                    300,
+                    True,
+                    root / ".taskboard" / "t0" / "latest.json",
+                    root / ".taskboard" / "targets",
+                    1,
+                )
+
+        self.assertEqual(executed_batches, [])
+        self.assertEqual(output[0]["session_probe"]["state"], "healthy")
+        self.assertEqual(len(output[0]["planned_launch_commands"]), 3)
+        self.assertEqual(output[0]["requested_launch_commands"], [])
+        self.assertEqual(output[0]["launch_commands"], [])
+        self.assertIn("keep taskboard-T1 active", " ".join(output[0]["actions"]))
+
     def test_loop_writes_latest_t0_state_snapshot_by_default(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

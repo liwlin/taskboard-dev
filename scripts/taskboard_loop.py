@@ -33,6 +33,13 @@ def choose_launch_commands(session_probe: dict[str, object], dispatch_plan: dict
     return list(dispatch_plan.get("launch_commands", []))
 
 
+def choose_executable_launch_commands(session_probe: dict[str, object], dispatch_plan: dict[str, object]) -> list[str]:
+    if dispatch_plan.get("state") == "complete":
+        return []
+    recovery_commands = session_probe.get("recovery_commands", [])
+    return list(recovery_commands) if recovery_commands else []
+
+
 def default_launch_state_file(root: Path) -> Path:
     return root / ".taskboard" / "t0" / "launches.json"
 
@@ -321,7 +328,12 @@ def run_once(
     queue_health = report_health(root, stale_minutes, goal)
     dispatch_plan = dispatch(root, goal, "terminal", launcher, agent_template, target_dir)
     target_files = write_role_target_files(dispatch_plan) if target_dir is not None else []
-    requested_launch_commands = choose_launch_commands(session_probe, dispatch_plan)
+    planned_launch_commands = choose_launch_commands(session_probe, dispatch_plan)
+    requested_launch_commands = (
+        choose_executable_launch_commands(session_probe, dispatch_plan)
+        if execute_launches
+        else planned_launch_commands
+    )
     current_time = time.time()
     launch_state_payload = launch_state if launch_state is not None else read_launch_state(root)
     if execute_launches:
@@ -361,6 +373,7 @@ def run_once(
         "dispatch": dispatch_plan,
         "assignment": assignment,
         "target_files": target_files,
+        "planned_launch_commands": planned_launch_commands,
         "requested_launch_commands": requested_launch_commands,
         "launch_commands": launch_commands,
         "suppressed_launches": suppressed_launches,
