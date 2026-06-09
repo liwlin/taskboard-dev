@@ -590,6 +590,7 @@ Use `scripts/taskboard_t0.py` to generate managed role sessions and optional lau
 
 ```bash
 python scripts/taskboard_t0.py --goal "<user goal>" --root .
+python scripts/taskboard_loop.py --root . --goal "<user goal>" --forever --launcher windows-terminal --agent-template 'codex --prompt "{target}"'
 python scripts/taskboard_t0.py --goal "<user goal>" --root . --launcher windows-terminal --agent-template 'codex --prompt "{target}"'
 python scripts/taskboard_t0.py --goal "<user goal>" --root . --launcher powershell --agent-template 'codex --prompt "{target}"'
 python scripts/taskboard_t0.py --goal "<user goal>" --root . --launcher tmux --agent-template 'codex --prompt "{target}"'
@@ -604,6 +605,7 @@ Launcher rules:
 - T0 must inject the generated role target. Users should not write separate T1/T2/T3 prompts.
 - If no launcher is requested, the script emits a dry orchestration plan only.
 - The script emits `session_manifest` for T0 recovery and health checks. This is not a new shared state database; it is an output summary of managed sessions, recovery order, sync contract, and check commands. Persistent recovery still belongs in `HANDOFF.md`.
+- Use `scripts/taskboard_loop.py` for the actual T0 supervisor loop. It combines session heartbeat probing, queue health, and dispatch into each iteration. Add `--execute-launches` only when T0 should execute generated launcher commands; those commands only launch/recover T1/T2/T3 and must not perform worker tasks in T0.
 
 Use `scripts/taskboard_health.py` when T0 needs a deterministic queue and liveness report before waking a role:
 
@@ -651,7 +653,7 @@ T0 schedules by event priority, not by arbitrary rotation:
 1. Capture or restate the user goal.
 2. Initialize `docs/taskboard/` if missing.
 3. Build the orchestration plan with `python scripts/taskboard_t0.py --goal "<user goal>" --root .`.
-4. Create or resume the three managed role terminals from that plan.
+4. Run `python scripts/taskboard_loop.py --root . --goal "<user goal>" --forever ...` as the T0 supervisor loop, creating or recovering managed role terminals when launch execution is enabled.
 5. Run `/taskboard-progress`.
 6. If there is no active milestone context, T1 creates or refreshes PROJECT/MAP/REQUIREMENTS/STATE and initial tasks.
 7. If queues exist, select the currently highest-priority role using **T0 next** below and nudge/resume that role with its durable target.

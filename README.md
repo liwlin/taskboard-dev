@@ -28,6 +28,7 @@
 └── scripts/
     ├── package.sh                   # 生成发布包
     ├── taskboard_t0.py              # 生成 T0 自动创建/恢复角色终端的调度计划
+    ├── taskboard_loop.py            # T0 supervisor loop: session probe + queue health + dispatch
     ├── taskboard_health.py          # T0 queue health and stalled-task report
     ├── taskboard_sessions.py        # T0 managed role heartbeat probe/recovery report
     ├── taskboard_next.py            # 根据文件名状态选择下一个角色/任务
@@ -123,6 +124,14 @@ python scripts/taskboard_sessions.py --root . heartbeat --role T1
 
 Heartbeat files live under `.taskboard/sessions/` and are runtime liveness signals only. They are not task state, not shared role memory, and not a replacement for TASKBOARD filenames, history, or HANDOFF.
 
+T0 supervisor loop entry:
+
+```bash
+python scripts/taskboard_loop.py --root . --goal "完成 <你的开发目标>" --forever --launcher windows-terminal --agent-template 'codex --prompt "{target}"'
+```
+
+By default the loop reports generated launcher commands without executing them. Add `--execute-launches` only when T0 should actually launch or recover managed role terminals. This executes manager launch commands only; T0 still does not perform T1/T2/T3 worker tasks.
+
 高级用户仍可手动运行 T1/T2/T3；这是兼容模式，不是默认用法：
 
 ```text
@@ -151,6 +160,7 @@ Heartbeat files live under `.taskboard/sessions/` and are runtime liveness signa
 
 ```bash
 python scripts/taskboard_t0.py --goal "完成示例目标" --root .
+python scripts/taskboard_loop.py --root . --goal "完成示例目标" --iterations 1
 python scripts/taskboard_health.py --root . --stale-minutes 30
 python scripts/taskboard_sessions.py --root . probe --stale-seconds 300
 python scripts/taskboard_next.py --role T0 --root .
@@ -186,6 +196,7 @@ VERSION=v4.3 ./scripts/package.sh
 
 - [ ] `git diff --check`
 - [ ] `python scripts/taskboard_t0.py --goal "完成示例目标" --root .`
+- [ ] `python scripts/taskboard_loop.py --root . --goal "完成示例目标" --iterations 1`
 - [ ] `python scripts/taskboard_health.py --root . --stale-minutes 30`
 - [ ] `python scripts/taskboard_sessions.py --root . probe --stale-seconds 300`
 - [ ] `python scripts/taskboard_next.py --role T0 --root .`

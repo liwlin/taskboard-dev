@@ -36,6 +36,7 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn('mkdir -p "$STAGE_DIR/references" "$STAGE_DIR/scripts"', package_script)
         self.assertIn('cp "$ROOT_DIR/scripts/package.sh"', package_script)
         self.assertIn('cp "$ROOT_DIR/scripts/taskboard_t0.py"', package_script)
+        self.assertIn('cp "$ROOT_DIR/scripts/taskboard_loop.py"', package_script)
         self.assertIn('cp "$ROOT_DIR/scripts/taskboard_health.py"', package_script)
         self.assertIn('cp "$ROOT_DIR/scripts/taskboard_sessions.py"', package_script)
         self.assertIn('cp "$ROOT_DIR/scripts/taskboard_next.py"', package_script)
@@ -124,6 +125,7 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("Windows Terminal", manual)
         self.assertIn("tmux", manual)
         self.assertIn("--launcher windows-terminal", readme)
+        self.assertIn("python scripts/taskboard_loop.py --root . --goal", readme)
         self.assertIn("python scripts/taskboard_health.py --root . --stale-minutes 30", readme)
         self.assertIn("python scripts/taskboard_sessions.py --root . probe --stale-seconds 300", readme)
 

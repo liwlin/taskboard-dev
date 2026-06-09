@@ -97,6 +97,7 @@ def verify_t0_contract() -> None:
     require_contains("README.md", "不直接执行开发任务")
     require_contains("README.md", "--launcher windows-terminal")
     require_contains("README.md", "python scripts/taskboard_t0.py --goal")
+    require_contains("README.md", "python scripts/taskboard_loop.py --root . --goal")
     require_contains("README.md", "python scripts/taskboard_health.py --root . --stale-minutes 30")
     require_contains("README.md", "python scripts/taskboard_sessions.py --root . probe --stale-seconds 300")
     require_contains("README.md", "python scripts/taskboard_next.py --role T0 --root .")
@@ -107,6 +108,10 @@ def verify_t0_contract() -> None:
 
     require_contains("scripts/package.sh", 'VERSION="${VERSION:-v4.3}"')
     require_contains("scripts/package.sh", 'cp "$ROOT_DIR/scripts/taskboard_t0.py"')
+    require_contains("scripts/package.sh", 'cp "$ROOT_DIR/scripts/taskboard_loop.py"')
+    require_contains("scripts/taskboard_loop.py", "T0 supervisor-only")
+    require_contains("scripts/taskboard_loop.py", "--execute-launches")
+    require_contains("scripts/taskboard_loop.py", "do not perform design")
     require_contains("scripts/taskboard_t0.py", 'default="terminal"')
     require_contains("scripts/taskboard_t0.py", "T0 manager-only")
     require_contains("scripts/taskboard_t0.py", "--launcher")

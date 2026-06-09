@@ -119,6 +119,14 @@ python scripts/taskboard_sessions.py --root . heartbeat --role T1
 
 Heartbeat 文件位于 `.taskboard/sessions/`，只表示运行时 liveness。它不是任务状态、不是共享记忆，也不能替代 TASKBOARD 文件名、history、dev-log 或 HANDOFF。
 
+T0 supervisor loop 入口：
+
+```bash
+python scripts/taskboard_loop.py --root . --goal "完成 <你的开发目标>" --forever --launcher windows-terminal --agent-template 'codex --prompt "{target}"'
+```
+
+默认只输出恢复/启动命令，不执行。只有 T0 明确需要实际创建或恢复受控角色终端时才加 `--execute-launches`。该选项只执行 manager launch commands；T0 仍不能做 T1/T2/T3 的开发任务。
+
 #### 兼容：手动启动 T1/T2/T3
 
 高级用户仍可手动打开 3 个 agent CLI 终端，分别运行 T1/T2/T3。T0 模式下不需要用户这样做。
