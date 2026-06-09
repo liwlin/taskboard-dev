@@ -171,6 +171,7 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("latest_event_next_role", readme)
         self.assertIn("assignment_role", readme)
         self.assertIn("assignment_reason", readme)
+        self.assertIn("assignment_expected_id", readme)
         self.assertIn("queue_metrics", readme)
         self.assertIn("queue_metrics_active_count", readme)
         self.assertIn("--no-event-log", readme)

@@ -631,6 +631,28 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertEqual(events[0]["executed_command_count"], 3)
         self.assertEqual(events[0]["suppressed_launch_count"], 0)
 
+    def test_loop_event_log_records_assignment_recovery_details(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            taskboard = root / "docs" / "taskboard"
+            taskboard.mkdir(parents=True)
+            task_name = f"TASK-006.v1.{T2_CODE_REVIEW}-L2.md"
+            (taskboard / task_name).write_text("# review\n\n**Wave**: 1\n", encoding="utf-8")
+
+            self.run_loop(root, "--goal", "Ship demo")
+            event_log = root / ".taskboard" / "t0" / "events.jsonl"
+            events = [
+                json.loads(line)
+                for line in event_log.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(events[0]["assignment_state"], "unassigned")
+        self.assertEqual(events[0]["assignment_role"], "T2")
+        self.assertEqual(events[0]["assignment_task"], task_name)
+        self.assertEqual(events[0]["assignment_expected_id"], f"T2:{task_name}")
+        self.assertIn("taskboard-T2 is missing", events[0]["assignment_reason"])
+
     def test_loop_can_disable_t0_event_log(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
