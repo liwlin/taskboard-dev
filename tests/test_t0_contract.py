@@ -131,6 +131,7 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("python scripts/taskboard_demo.py --root .taskboard-demo --with-heartbeats", readme)
         self.assertIn("python scripts/taskboard_start.py --goal", readme)
         self.assertIn("python scripts/taskboard_progress.py --root .", readme)
+        self.assertIn("T0 launch/recovery failed", readme)
         self.assertIn("python scripts/taskboard_loop.py --root . --goal", readme)
         self.assertIn("--assignment-lease-seconds 300", readme)
         self.assertIn("**Goal Complete**: yes", readme)

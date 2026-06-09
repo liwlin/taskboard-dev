@@ -82,6 +82,8 @@ python scripts/taskboard_progress.py --root .
 
 这个摘要只汇报目标、T0 状态、下一受控角色、当前任务和是否需要用户动作；它不会让用户去管理 T1/T2/T3。
 
+如果摘要显示 `T0 launch/recovery failed`，这不是让用户去手动管理 T1/T2/T3，而是表示 T0 控制面的终端启动/恢复命令失败。处理方式是修正 T0 的 `--launcher` / `--agent-template`，或让 T0 换一种 launcher 重新恢复受控角色。
+
 #### T0 启动器脚本
 
 `scripts/taskboard_t0.py` 是 T0 的本地启动器/调度器辅助脚本。它不会让用户管理 T1/T2/T3，而是为 T0 生成受控角色会话和可执行启动命令。

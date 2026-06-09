@@ -22,7 +22,7 @@ def read_latest_snapshot(root: Path) -> Optional[dict[str, object]]:
     if not path.exists():
         return None
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
     return payload if isinstance(payload, dict) else None
@@ -35,7 +35,13 @@ def build_user_summary(
     task: str,
     assignment_state: str,
     active_count: int,
+    launch_failure_count: int = 0,
 ) -> str:
+    if launch_failure_count:
+        return (
+            f"T0 could not launch or recover {launch_failure_count} managed role command(s) "
+            f"for goal '{goal}'. T0 should retry or switch launcher mode; this is not T1/T2/T3 user management."
+        )
     if state == "needs-supervisor-run":
         return (
             f"T0 has the goal '{goal}' but no supervisor snapshot yet. "
@@ -52,7 +58,14 @@ def build_user_summary(
     return f"T0 is managing the goal '{goal}' and monitoring for the next role action."
 
 
-def build_user_action(state: str, dispatch_state: str, actions: list[str]) -> str:
+def build_user_action(
+    state: str,
+    dispatch_state: str,
+    actions: list[str],
+    launch_failure_count: int = 0,
+) -> str:
+    if launch_failure_count:
+        return "T0 launch/recovery failed; fix the T0 launcher configuration or rerun T0 with another launcher."
     if state == "needs-supervisor-run":
         return "Start or resume T0 with taskboard_start.py or taskboard_loop.py."
     if dispatch_state == "needs-goal":
@@ -78,6 +91,8 @@ def report_progress(root: Path) -> dict[str, object]:
             "active_count": 0,
             "missing_roles": [],
             "stale_roles": [],
+            "launch_failures": [],
+            "launch_failure_count": 0,
             "user_summary": build_user_summary("needs-supervisor-run", goal, "T0", "none", "none", 0),
             "user_action": build_user_action("needs-supervisor-run", "needs-supervisor-run", []),
             "boundary": T0_PROGRESS_BOUNDARY,
@@ -95,6 +110,25 @@ def report_progress(root: Path) -> dict[str, object]:
     session_payload = session_probe if isinstance(session_probe, dict) else {}
     actions = latest_payload.get("actions", [])
     action_list = [str(action) for action in actions] if isinstance(actions, list) else []
+    executed_commands = latest_payload.get("executed_commands", [])
+    launch_failures: list[dict[str, object]] = []
+    if isinstance(executed_commands, list):
+        for item in executed_commands:
+            if not isinstance(item, dict):
+                continue
+            try:
+                returncode = int(item.get("returncode", 0))
+            except (TypeError, ValueError):
+                returncode = 0
+            if returncode == 0:
+                continue
+            launch_failures.append(
+                {
+                    "command": str(item.get("command") or ""),
+                    "returncode": returncode,
+                    "output": str(item.get("output") or ""),
+                }
+            )
 
     goal = str(snapshot.get("goal") or latest_payload.get("goal") or read_goal(root, ""))
     state = str(latest_payload.get("state") or dispatch_payload.get("state") or "unknown")
@@ -120,8 +154,23 @@ def report_progress(root: Path) -> dict[str, object]:
         "stale_roles": list(session_payload.get("stale_roles", []))
         if isinstance(session_payload.get("stale_roles", []), list)
         else [],
-        "user_summary": build_user_summary(state, goal, next_role, task, assignment_state, active_count),
-        "user_action": build_user_action(state, str(dispatch_payload.get("state") or ""), action_list),
+        "launch_failures": launch_failures,
+        "launch_failure_count": len(launch_failures),
+        "user_summary": build_user_summary(
+            state,
+            goal,
+            next_role,
+            task,
+            assignment_state,
+            active_count,
+            len(launch_failures),
+        ),
+        "user_action": build_user_action(
+            state,
+            str(dispatch_payload.get("state") or ""),
+            action_list,
+            len(launch_failures),
+        ),
         "actions": action_list,
         "boundary": T0_PROGRESS_BOUNDARY,
     }

@@ -64,6 +64,68 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("Start or resume T0", progress["user_action"])
         self.assertIn("not ask you to manage T1/T2/T3", progress["user_summary"])
 
+    def test_progress_surfaces_failed_t0_launch_commands(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_dir = root / ".taskboard" / "t0"
+            state_dir.mkdir(parents=True)
+            snapshot = {
+                "kind": "taskboard-t0-supervisor-state",
+                "goal": "Ship demo",
+                "latest": {
+                    "state": "attention",
+                    "actions": ["launch/recover managed role sessions with generated commands"],
+                    "dispatch": {
+                        "state": "dispatch",
+                        "next_role": "T1",
+                        "task": "none",
+                    },
+                    "assignment": {"state": "none"},
+                    "queue_health": {"active_count": 0},
+                    "session_probe": {"missing_roles": ["T1"], "stale_roles": []},
+                    "executed_commands": [
+                        {
+                            "command": "wt -w taskboard new-tab --title taskboard-T1",
+                            "returncode": 1,
+                            "output": "wt was not found",
+                        }
+                    ],
+                },
+            }
+            (state_dir / "latest.json").write_text(json.dumps(snapshot), encoding="utf-8")
+
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+
+        self.assertEqual(progress["launch_failure_count"], 1)
+        self.assertIn("wt was not found", progress["launch_failures"][0]["output"])
+        self.assertIn("T0 launch/recovery failed", progress["user_action"])
+        self.assertIn("T0 could not launch or recover", progress["user_summary"])
+
+    def test_progress_reads_bom_encoded_snapshot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_dir = root / ".taskboard" / "t0"
+            state_dir.mkdir(parents=True)
+            snapshot = {
+                "kind": "taskboard-t0-supervisor-state",
+                "goal": "Ship demo",
+                "latest": {
+                    "state": "attention",
+                    "dispatch": {"state": "dispatch", "next_role": "T1", "task": "none"},
+                    "assignment": {"state": "none"},
+                    "queue_health": {"active_count": 0},
+                    "session_probe": {"missing_roles": ["T1"], "stale_roles": []},
+                },
+            }
+            (state_dir / "latest.json").write_bytes(
+                json.dumps(snapshot).encode("utf-8-sig")
+            )
+
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+
+        self.assertEqual(progress["goal"], "Ship demo")
+        self.assertEqual(progress["state"], "attention")
+
 
 if __name__ == "__main__":
     unittest.main()

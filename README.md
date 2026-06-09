@@ -32,6 +32,7 @@
     ├── taskboard_demo.py            # 生成可重复的 T0 dry-run TASKBOARD 示例
     ├── taskboard_health.py          # T0 queue health and stalled-task report
     ├── taskboard_sessions.py        # T0 managed role heartbeat probe/recovery report
+    ├── taskboard_progress.py        # 用户侧 T0 progress summary
     ├── taskboard_next.py            # 根据文件名状态选择下一个角色/任务
     └── verify_t0_contract.py        # 校验 T0 协议和发布文档
 ```
@@ -96,6 +97,8 @@ python scripts/taskboard_progress.py --root .
 ```
 
 这个摘要只汇报目标、T0 状态、下一受控角色、当前任务和是否需要用户动作；它不会让用户去管理 T1/T2/T3。
+
+如果摘要显示 `T0 launch/recovery failed`，表示 T0 自己的终端启动/恢复命令失败，例如 launcher 不存在或 agent template 不适配。用户仍不需要接管 T1/T2/T3；应修正 T0 的 `--launcher` / `--agent-template` 配置，或让 T0 用另一种 launcher 重新恢复。
 
 ### T0 — 用户入口 + 编排器
 
