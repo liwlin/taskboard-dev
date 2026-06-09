@@ -130,6 +130,38 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn(f"assignment_task={task_name}", text)
         self.assertIn("assignment_reason=taskboard-T2 is missing", text)
 
+    def test_progress_reports_acknowledged_assignment_as_t0_monitored_work(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            taskboard = root / "docs" / "taskboard"
+            taskboard.mkdir(parents=True)
+            task_name = f"TASK-006.v1.{T2_CODE_REVIEW}-L2.md"
+            (taskboard / task_name).write_text("# review\n\n**Wave**: 1\n", encoding="utf-8")
+            session_dir = root / ".taskboard" / "sessions"
+            session_dir.mkdir(parents=True)
+            for role in ("T1", "T2", "T3"):
+                payload = {
+                    "role": role,
+                    "title": f"taskboard-{role}",
+                    "status": "alive",
+                    "pid": 123,
+                    "last_seen": 4102444800,
+                }
+                if role == "T2":
+                    payload.update({"task": task_name, "assignment_id": f"T2:{task_name}"})
+                (session_dir / f"taskboard-{role}.json").write_text(json.dumps(payload), encoding="utf-8")
+
+            self.run_json(LOOP_SCRIPT, root, "--goal", "Ship demo", "--stale-seconds", "999999999")
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertEqual(progress["state"], "active")
+        self.assertEqual(progress["assignment_state"], "acknowledged")
+        self.assertEqual(progress["assignment_role"], "T2")
+        self.assertIn("T0 is monitoring taskboard-T2", progress["user_action"])
+        self.assertIn("already acknowledged", progress["user_action"])
+        self.assertIn("assignment_state=acknowledged", text)
+
     def test_progress_uses_saved_goal_when_no_snapshot_exists(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

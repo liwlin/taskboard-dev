@@ -236,6 +236,11 @@ def build_user_action(
         and (has_active_completion_gap or not completion_missing_evidence)
     ):
         return f"No user action required; T0 will reissue target to taskboard-{assignment_role} until assignment is acknowledged."
+    if assignment_state == "acknowledged" and assignment_role:
+        return (
+            f"No user action required; T0 is monitoring taskboard-{assignment_role}'s "
+            "already acknowledged assignment."
+        )
     if completion_missing_evidence and not has_active_completion_gap:
         return "No user action required; T0 will wake T1 to record or revise missing completion evidence."
     if actions:
