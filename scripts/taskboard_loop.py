@@ -529,6 +529,8 @@ def append_event_log(
     stop_gate_payload = stop_gate_report if isinstance(stop_gate_report, dict) else {}
     completion_audit = payload.get("completion_audit", {})
     completion_payload = completion_audit if isinstance(completion_audit, dict) else {}
+    auto_mode = payload.get("auto_mode")
+    starter_mode = payload.get("starter_mode")
     launch_failure_count = 0
     for item in executed_command_list:
         if not isinstance(item, dict):
@@ -561,6 +563,8 @@ def append_event_log(
         "suppressed_launch_count": len(suppressed_launch_list),
         "stop_gate_count": int(stop_gate_payload.get("stop_gate_count") or 0),
         "completion_ready": bool(completion_payload.get("completion_ready")),
+        "auto_mode": bool(auto_mode) if auto_mode is not None else False,
+        "starter_mode": str(starter_mode or ""),
         "boundary": (
             "T0 append-only event log: record supervisor decisions for audit/recovery; "
             "do not treat events as TASKBOARD state or worker memory."
@@ -588,6 +592,7 @@ def run_loop(
     launch_lease_seconds: int = 300,
     event_log_file: Optional[Path] = None,
     stop_on_stop_gate: bool = True,
+    runtime_metadata: Optional[dict[str, object]] = None,
 ) -> list[dict[str, object]]:
     if interval_seconds < 0:
         raise ValueError("--interval-seconds must be >= 0")
@@ -617,6 +622,8 @@ def run_loop(
             launch_state,
             launch_lease_seconds,
         )
+        if runtime_metadata:
+            payload.update(runtime_metadata)
         results.append(payload)
         count += 1
         if state_file is not None:

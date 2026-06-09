@@ -19,13 +19,20 @@ STARTER_AUTO_BOUNDARY = (
 
 
 def annotate_starter_mode(results: list[dict[str, object]], auto_mode: bool) -> list[dict[str, object]]:
+    metadata = starter_metadata(auto_mode)
+    for payload in results:
+        payload.update(metadata)
+    return results
+
+
+def starter_metadata(auto_mode: bool) -> dict[str, object]:
     mode = "auto" if auto_mode else "dry-check"
     boundary = STARTER_AUTO_BOUNDARY if auto_mode else "T0 starter dry-check mode: report orchestration without launching workers."
-    for payload in results:
-        payload["auto_mode"] = auto_mode
-        payload["starter_mode"] = mode
-        payload["starter_boundary"] = boundary
-    return results
+    return {
+        "auto_mode": auto_mode,
+        "starter_mode": mode,
+        "starter_boundary": boundary,
+    }
 
 
 def option_was_provided(argv: Optional[list[str]], option: str) -> bool:
@@ -142,6 +149,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.launch_lease_seconds,
             event_log_file,
             not args.no_stop_on_stop_gate,
+            starter_metadata(args.auto),
         )
         results = annotate_starter_mode(results, args.auto)
         if state_file is not None and results:
