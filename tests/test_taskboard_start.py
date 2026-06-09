@@ -169,6 +169,35 @@ class TaskboardStartTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(captured["iterations"], 1)
 
+    def test_starter_can_disable_stop_gate_stop_for_monitoring(self):
+        captured = {}
+
+        def fake_run_loop(*args):
+            captured["stop_on_stop_gate"] = args[15]
+            return [{"state": "stop-gate"}]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+            with patch("taskboard_start.run_loop", fake_run_loop):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    code = start_module.main(
+                        [
+                            "--root",
+                            str(root),
+                            "--goal",
+                            "Ship demo",
+                            "--iterations",
+                            "1",
+                            "--no-stop-on-stop-gate",
+                            "--format",
+                            "json",
+                        ]
+                    )
+
+        self.assertEqual(code, 0)
+        self.assertFalse(captured["stop_on_stop_gate"])
+
 
 if __name__ == "__main__":
     unittest.main()

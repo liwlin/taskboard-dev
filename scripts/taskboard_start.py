@@ -75,6 +75,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         help="Keep looping after completion sentinel for monitoring/debugging.",
     )
     parser.add_argument(
+        "--no-stop-on-stop-gate",
+        action="store_true",
+        help="Keep looping after a user stop gate for monitoring/debugging.",
+    )
+    parser.add_argument(
         "--state-file",
         help="Path for the latest T0 supervisor runtime snapshot. Defaults to .taskboard/t0/latest.json.",
     )
@@ -136,6 +141,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             target_dir,
             args.launch_lease_seconds,
             event_log_file,
+            not args.no_stop_on_stop_gate,
         )
         results = annotate_starter_mode(results, args.auto)
     except ValueError as exc:

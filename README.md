@@ -191,6 +191,8 @@ T0 stops the loop only when there are no active TASK files and `docs/STATE.md` c
 
 When T0 sees a `T1-待决策` / stop-gate TASK, the supervisor enters `stop-gate` state, suppresses worker launch/target/assignment for that gate, and asks the summarized question through T0 only. This keeps the user-facing decision path on T0 instead of leaking role management back to the user.
 
+By default, the loop stops after the first `stop-gate` iteration so T0 can wait for the user's answer instead of continuing to poll. Use `--no-stop-on-stop-gate` only for monitoring/debugging when T0 should keep reporting the same gate.
+
 可重复 dry-run demo：
 
 ```bash
@@ -270,6 +272,7 @@ VERSION=v4.3 ./scripts/package.sh
 - [ ] `python scripts/taskboard_demo.py --root .taskboard-demo --with-heartbeats`
 - [ ] `python scripts/taskboard_start.py --goal "完成示例目标" --auto --iterations 1 --launcher none`
 - [ ] `python scripts/taskboard_loop.py --root . --goal "完成示例目标" --iterations 1`
+- [ ] `python scripts/taskboard_loop.py --root <demo-with-stop-gate> --goal "完成示例目标" --iterations 3 --interval-seconds 0` stops after one `stop-gate` iteration
 - [ ] `.taskboard/t0/events.jsonl` contains `taskboard-t0-supervisor-event` entries after a loop run
 - [ ] `python scripts/taskboard_health.py --root . --stale-minutes 30`
 - [ ] `python scripts/taskboard_sessions.py --root . probe --stale-seconds 300`

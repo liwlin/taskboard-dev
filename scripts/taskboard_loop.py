@@ -535,6 +535,7 @@ def run_loop(
     target_dir: Optional[Path],
     launch_lease_seconds: int = 300,
     event_log_file: Optional[Path] = None,
+    stop_on_stop_gate: bool = True,
 ) -> list[dict[str, object]]:
     if interval_seconds < 0:
         raise ValueError("--interval-seconds must be >= 0")
@@ -570,6 +571,8 @@ def run_loop(
             write_state_snapshot(state_file, root, effective_goal, results, stop_on_complete)
         if event_log_file is not None:
             append_event_log(event_log_file, root, effective_goal, count, payload)
+        if stop_on_stop_gate and payload.get("state") == "stop-gate":
+            break
         if stop_on_complete and payload["dispatch"].get("state") == "complete":
             break
         if iterations is not None and count >= iterations:
@@ -629,6 +632,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         "--no-stop-on-complete",
         action="store_true",
         help="Keep looping after completion sentinel for monitoring/debugging.",
+    )
+    parser.add_argument(
+        "--no-stop-on-stop-gate",
+        action="store_true",
+        help="Keep looping after a user stop gate for monitoring/debugging.",
     )
     parser.add_argument(
         "--state-file",
@@ -702,6 +710,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             target_dir,
             args.launch_lease_seconds,
             event_log_file,
+            not args.no_stop_on_stop_gate,
         )
     except ValueError as exc:
         print(exc, file=sys.stderr)

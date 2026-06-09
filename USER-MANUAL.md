@@ -181,6 +181,8 @@ T0 只有在 active TASK 队列为空，并且 `docs/STATE.md` 写有 `**Goal Co
 
 当 T0 看到 `T1-待决策` / stop-gate TASK 时，supervisor 会进入 `stop-gate` 状态，暂停该停止门的 worker launch、target 写入和 assignment，下一个动作只保留“通过 T0 向用户提问”。这保证用户只和 T0 对话，而不是被要求去打开或判断 T1/T2/T3。
 
+默认情况下，loop 会在第一轮 `stop-gate` 后停下，让 T0 等待用户回答，而不是继续轮询同一个停止门。只有监控/调试需要持续报告同一停止门时，才使用 `--no-stop-on-stop-gate`。
+
 可重复 dry-run demo：
 
 ```bash

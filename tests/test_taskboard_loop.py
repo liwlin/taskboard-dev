@@ -171,6 +171,62 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertIn("Should T0 continue with option A?", " ".join(payload["actions"]))
         self.assertNotIn("reissue target to taskboard-T1", " ".join(payload["actions"]))
 
+    def test_loop_stops_after_first_stop_gate_iteration_by_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            taskboard = root / "docs" / "taskboard"
+            taskboard.mkdir(parents=True)
+            (taskboard / "TASK-001.v1.T1-待决策.md").write_text(
+                "\n".join(
+                    [
+                        "# Decide scope",
+                        "",
+                        "**Wave**: 1",
+                        "**Gate**: Product decision",
+                        "**Question**: Which option should T0 resume with?",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            output = self.run_loop(
+                root,
+                "--goal",
+                "Ship demo",
+                "--iterations",
+                "3",
+                "--interval-seconds",
+                "0",
+            )
+
+        self.assertEqual(len(output), 1)
+        self.assertEqual(output[0]["state"], "stop-gate")
+
+    def test_loop_can_continue_after_stop_gate_when_requested(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            taskboard = root / "docs" / "taskboard"
+            taskboard.mkdir(parents=True)
+            (taskboard / "TASK-001.v1.T1-待决策.md").write_text(
+                "# Decide scope\n\n**Wave**: 1\n**Gate**: Product decision\n**Question**: Continue?\n",
+                encoding="utf-8",
+            )
+
+            output = self.run_loop(
+                root,
+                "--goal",
+                "Ship demo",
+                "--iterations",
+                "2",
+                "--interval-seconds",
+                "0",
+                "--no-stop-on-stop-gate",
+            )
+
+        self.assertEqual(len(output), 2)
+        self.assertEqual(output[0]["state"], "stop-gate")
+        self.assertEqual(output[1]["state"], "stop-gate")
+
     def test_loop_stops_after_first_complete_iteration_by_default(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
