@@ -79,6 +79,14 @@ dist/taskboard-dev-v4.3.zip
 
 T0 只做管理员和调度器，不直接执行开发任务。需求拆解交给 T1，审核和验证交给 T2，实现、测试、提交交给 T3。
 
+一条命令入口：
+
+```bash
+python scripts/taskboard_start.py --goal "完成 <你的开发目标>" --execute-launches --forever
+```
+
+默认使用 Windows Terminal 创建/恢复 `taskboard-T1/T2/T3`，并用 `codex --prompt-file "{target_file}"` 让每个 worker 读取自己的 `.taskboard/targets/taskboard-T*.md`。不加 `--execute-launches` 时只做 dry-run 调度检查。
+
 ### T0 — 用户入口 + 编排器
 
 ```text

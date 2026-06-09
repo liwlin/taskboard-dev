@@ -35,6 +35,7 @@ class T0ContractTest(unittest.TestCase):
 
         self.assertIn('mkdir -p "$STAGE_DIR/references" "$STAGE_DIR/scripts"', package_script)
         self.assertIn('cp "$ROOT_DIR/scripts/package.sh"', package_script)
+        self.assertIn('cp "$ROOT_DIR/scripts/taskboard_start.py"', package_script)
         self.assertIn('cp "$ROOT_DIR/scripts/taskboard_t0.py"', package_script)
         self.assertIn('cp "$ROOT_DIR/scripts/taskboard_loop.py"', package_script)
         self.assertIn('cp "$ROOT_DIR/scripts/taskboard_demo.py"', package_script)
@@ -127,6 +128,7 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("tmux", manual)
         self.assertIn("--launcher windows-terminal", readme)
         self.assertIn("python scripts/taskboard_demo.py --root .taskboard-demo --with-heartbeats", readme)
+        self.assertIn("python scripts/taskboard_start.py --goal", readme)
         self.assertIn("python scripts/taskboard_loop.py --root . --goal", readme)
         self.assertIn("--assignment-lease-seconds 300", readme)
         self.assertIn("**Goal Complete**: yes", readme)

@@ -589,6 +589,7 @@ If the client cannot create terminals, T0 may degrade to native subagents if the
 Use `scripts/taskboard_t0.py` to generate managed role sessions and optional launch commands. T0 may execute these commands when the active client allows terminal/process creation; the user should not manually manage T1/T2/T3.
 
 ```bash
+python scripts/taskboard_start.py --goal "<user goal>" --execute-launches --forever
 python scripts/taskboard_t0.py --goal "<user goal>" --root .
 python scripts/taskboard_demo.py --root .taskboard-demo --with-heartbeats
 python scripts/taskboard_loop.py --root . --goal "<user goal>" --forever --assignment-lease-seconds 300 --launcher windows-terminal --agent-template 'codex --prompt "{target}"'
@@ -599,6 +600,7 @@ python scripts/taskboard_t0.py --goal "<user goal>" --root . --launcher tmux --a
 
 Launcher rules:
 
+- `scripts/taskboard_start.py` is the one-command T0 entry point. It defaults to `--launcher windows-terminal` and `codex --prompt-file "{target_file}"`; add `--execute-launches --forever` when T0 should actually create/recover managed worker terminals and keep supervising.
 - `--launcher windows-terminal` emits `wt` commands for managed `taskboard-T1/T2/T3` tabs.
 - `--launcher powershell` emits `Start-Process powershell` commands for separate managed windows.
 - `--launcher tmux` emits `tmux new-session/new-window` commands for Unix-like terminals.

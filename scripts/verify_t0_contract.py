@@ -112,6 +112,7 @@ def verify_t0_contract() -> None:
     require_contains("references/taskboard-template.md", "执行: /taskboard-dev T0")
 
     require_contains("scripts/package.sh", 'VERSION="${VERSION:-v4.3}"')
+    require_contains("scripts/package.sh", 'cp "$ROOT_DIR/scripts/taskboard_start.py"')
     require_contains("scripts/package.sh", 'cp "$ROOT_DIR/scripts/taskboard_t0.py"')
     require_contains("scripts/package.sh", 'cp "$ROOT_DIR/scripts/taskboard_loop.py"')
     require_contains("scripts/package.sh", 'cp "$ROOT_DIR/scripts/taskboard_demo.py"')
@@ -119,6 +120,10 @@ def verify_t0_contract() -> None:
     require_contains("scripts/taskboard_demo.py", "--with-heartbeats")
     require_contains("scripts/taskboard_demo.py", "pass --force or choose an empty demo root")
     require_contains("scripts/taskboard_loop.py", "T0 supervisor-only")
+    require_contains("scripts/taskboard_start.py", "DEFAULT_AGENT_TEMPLATE")
+    require_contains("scripts/taskboard_start.py", 'default="windows-terminal"')
+    require_contains("scripts/taskboard_start.py", "--execute-launches")
+    require_contains("scripts/taskboard_start.py", "run_loop")
     require_contains("scripts/taskboard_loop.py", "build_assignment")
     require_contains("scripts/taskboard_loop.py", "pending-ack")
     require_contains("scripts/taskboard_loop.py", "lease-expired")

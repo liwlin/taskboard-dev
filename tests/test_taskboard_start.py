@@ -1,0 +1,55 @@
+from pathlib import Path
+import json
+import subprocess
+import sys
+import tempfile
+import unittest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SCRIPT = ROOT / "scripts" / "taskboard_start.py"
+
+
+class TaskboardStartTest(unittest.TestCase):
+    def run_start(self, root: Path, *args: str) -> list[dict]:
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--root", str(root), "--format", "json", *args],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout)
+        return json.loads(result.stdout)
+
+    def test_starter_uses_file_backed_t0_defaults_without_executing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            output = self.run_start(root, "--goal", "Ship demo", "--iterations", "1")
+            t1_target = root / ".taskboard" / "targets" / "taskboard-T1.md"
+            t1_exists = t1_target.exists()
+
+        payload = output[0]
+        self.assertEqual(payload["dispatch"]["launcher"], "windows-terminal")
+        self.assertEqual(len(payload["launch_commands"]), 3)
+        self.assertEqual(payload["executed_commands"], [])
+        self.assertIn("codex --prompt-file", payload["launch_commands"][0])
+        self.assertIn("taskboard-T1.md", payload["launch_commands"][0])
+        self.assertTrue(t1_exists)
+
+    def test_starter_can_use_tmux_launcher(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            output = self.run_start(root, "--goal", "Ship demo", "--iterations", "1", "--launcher", "tmux")
+
+        self.assertEqual(output[0]["dispatch"]["launcher"], "tmux")
+        self.assertIn("tmux new-session", output[0]["launch_commands"][0])
+
+
+if __name__ == "__main__":
+    unittest.main()
