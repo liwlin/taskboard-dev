@@ -90,6 +90,14 @@ python scripts/taskboard_stopgates.py --root .
 
 这个报告只读取任务板并汇总真正需要用户决策的问题，例如 `T1-待决策` / `T1-decision` 任务里的 Gate、Question、Options、Recommended。T0 只把汇总后的问题交给用户；它不做 T1 的设计、不做 T2 的审核、不做 T3 的实现/验证/提交。
 
+查看 T0 完成前证据审计：
+
+```bash
+python scripts/taskboard_completion.py --root .
+```
+
+这个审计只读 active TASK 队列、`docs/taskboard/archive/`、`docs/STATE.md` 的 completion sentinel 和 `docs/dev-log.md`。只有 active 队列为空、存在完成 sentinel、存在归档任务证据、dev-log 有完成记录时，T0 才可以向用户汇总完成结果；否则 T0 继续唤醒 T1/T2/T3 补齐证据或推进剩余工作。
+
 如果摘要显示 `T0 launch/recovery failed`，这不是让用户去手动管理 T1/T2/T3，而是表示 T0 控制面的终端启动/恢复命令失败。处理方式是修正 T0 的 `--launcher` / `--agent-template`，或让 T0 换一种 launcher 重新恢复受控角色。
 
 #### T0 启动器脚本

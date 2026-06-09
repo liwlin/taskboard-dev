@@ -186,6 +186,29 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("T0 stop gate requires user decision", progress["user_action"])
         self.assertIn("beta banner", progress["user_summary"])
 
+    def test_progress_surfaces_completion_audit_when_t0_is_complete(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            archive = root / "docs" / "taskboard" / "archive"
+            archive.mkdir(parents=True)
+            (archive / "TASK-001.v1.done.md").write_text("# done\n", encoding="utf-8")
+            (root / "docs" / "PROJECT.md").write_text("# PROJECT\n\nShip demo\n", encoding="utf-8")
+            (root / "docs" / "STATE.md").write_text(
+                "# STATE\n\n**Goal Complete**: yes\n", encoding="utf-8"
+            )
+            (root / "docs" / "dev-log.md").write_text(
+                "# Development Log\n\n- TASK-001 completed and verified.\n",
+                encoding="utf-8",
+            )
+            self.run_json(LOOP_SCRIPT, root, "--goal", "Ship demo")
+
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+
+        self.assertTrue(progress["completion_ready"])
+        self.assertEqual(progress["completion_missing_evidence"], [])
+        self.assertEqual(progress["completion_audit"]["state"], "complete-ready")
+        self.assertIn("Review T0's completion summary", progress["user_action"])
+
 
 if __name__ == "__main__":
     unittest.main()

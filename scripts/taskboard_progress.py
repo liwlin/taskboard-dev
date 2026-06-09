@@ -7,6 +7,7 @@ import json
 import sys
 from typing import Optional
 
+from taskboard_completion import report_completion
 from taskboard_loop import default_state_file
 from taskboard_stopgates import report_stop_gates
 from taskboard_t0 import read_goal
@@ -95,6 +96,9 @@ def build_user_action(
 
 
 def report_progress(root: Path) -> dict[str, object]:
+    completion_audit = report_completion(root)
+    completion_missing = completion_audit.get("missing_evidence", [])
+    completion_missing_list = completion_missing if isinstance(completion_missing, list) else []
     stop_gate_report = report_stop_gates(root)
     stop_gates = stop_gate_report.get("stop_gates", [])
     stop_gate_list = stop_gates if isinstance(stop_gates, list) else []
@@ -120,6 +124,9 @@ def report_progress(root: Path) -> dict[str, object]:
             "suppressed_launch_count": 0,
             "stop_gates": stop_gate_list,
             "stop_gate_count": stop_gate_count,
+            "completion_audit": completion_audit,
+            "completion_ready": bool(completion_audit.get("completion_ready")),
+            "completion_missing_evidence": completion_missing_list,
             "user_summary": build_user_summary(
                 "needs-supervisor-run",
                 goal,
@@ -217,6 +224,9 @@ def report_progress(root: Path) -> dict[str, object]:
         "suppressed_launch_count": len(suppressed_launch_list),
         "stop_gates": stop_gate_list,
         "stop_gate_count": stop_gate_count,
+        "completion_audit": completion_audit,
+        "completion_ready": bool(completion_audit.get("completion_ready")),
+        "completion_missing_evidence": completion_missing_list,
         "user_summary": build_user_summary(
             state,
             goal,

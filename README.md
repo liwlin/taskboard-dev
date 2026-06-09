@@ -30,6 +30,7 @@
     ├── taskboard_t0.py              # 生成 T0 自动创建/恢复角色终端的调度计划
     ├── taskboard_loop.py            # T0 supervisor loop: session probe + queue health + dispatch
     ├── taskboard_demo.py            # 生成可重复的 T0 dry-run TASKBOARD 示例
+    ├── taskboard_completion.py      # T0 completion evidence audit
     ├── taskboard_health.py          # T0 queue health and stalled-task report
     ├── taskboard_sessions.py        # T0 managed role heartbeat probe/recovery report
     ├── taskboard_progress.py        # 用户侧 T0 progress summary
@@ -108,6 +109,14 @@ python scripts/taskboard_stopgates.py --root .
 ```
 
 这个报告只聚合真正需要用户决策的 stop gates，例如 `T1-待决策` / `T1-decision` 任务中的 Gate、Question、Options、Recommended。用户只回答 T0 汇总的问题，不直接管理 T1/T2/T3。
+
+查看 T0 完成前证据审计：
+
+```bash
+python scripts/taskboard_completion.py --root .
+```
+
+这个审计只读 active TASK、archive、`STATE.md` completion sentinel 和 `dev-log.md`，用于判断 T0 是否可以向用户汇总完成结果。它不会让 T0 归档任务、跑验证、提交代码或执行 T1/T2/T3 工作。
 
 ### T0 — 用户入口 + 编排器
 
@@ -217,6 +226,7 @@ python scripts/taskboard_health.py --root . --stale-minutes 30
 python scripts/taskboard_sessions.py --root . probe --stale-seconds 300
 python scripts/taskboard_next.py --role T0 --root .
 python scripts/taskboard_stopgates.py --root .
+python scripts/taskboard_completion.py --root .
 python scripts/verify_t0_contract.py
 python -m unittest
 ```
@@ -255,6 +265,7 @@ VERSION=v4.3 ./scripts/package.sh
 - [ ] `python scripts/taskboard_sessions.py --root . probe --stale-seconds 300`
 - [ ] `python scripts/taskboard_next.py --role T0 --root .`
 - [ ] `python scripts/taskboard_stopgates.py --root .`
+- [ ] `python scripts/taskboard_completion.py --root .`
 - [ ] `python scripts/verify_t0_contract.py`
 - [ ] `python -m unittest`
 - [ ] `./scripts/package.sh`

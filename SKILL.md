@@ -632,6 +632,8 @@ If the progress summary reports suppressed launches, T0 is intentionally waiting
 
 Use `scripts/taskboard_stopgates.py --root .` to aggregate true stop gates for the user. This is a read-only T0 control-plane report: it extracts Gate, Question, Options, and Recommended fields from T1 decision / stop-gate tasks, then asks the user one summarized question through T0 only. It must not execute design, review, implementation, verification, commit, or release work.
 
+Use `scripts/taskboard_completion.py --root .` before T0 summarizes completion. This is a read-only evidence audit over active TASK files, archived TASK files, `STATE.md` completion sentinel, and `dev-log.md`. T0 may report the evidence and missing evidence, but must not archive tasks, run worker verification, commit, release, or execute T1/T2/T3 work from this audit.
+
 Use `scripts/taskboard_sessions.py` for managed role liveness. Each T1/T2/T3 role should write a heartbeat at loop start and after each TASKBOARD handoff:
 
 ```bash
