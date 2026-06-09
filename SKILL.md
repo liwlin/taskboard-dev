@@ -6,13 +6,13 @@ description: >
   Invoke with role argument such as /taskboard-dev T1, /taskboard-dev T2, or /taskboard-dev T3.
   Uses filename-as-status pattern for zero-content polling, tiered code review, and version
   experience management on spec revision. No shared index file, no locks, no parsing overhead.
-  v4.0 adds read-only context layer, verification gate, decision escalation, handoff, and
-  deterministic progress/next commands.
+  v4.2 enables mostly autonomous long-running development loops for Claude Code and
+  Codex, using goal/target execution, modern loop commands, and explicit stop gates.
 ---
 
-# TASKBOARD-Driven Development v4.0
+# TASKBOARD-Driven Development v4.2
 
-Three-terminal collaborative development. Status encoded in filenames. Polling via Glob with zero file content reads. Read-only context layer for cross-session memory.
+Three-terminal collaborative development. Status encoded in filenames. Polling via Glob with zero file content reads. Read-only context layer for cross-session memory. v4.2 keeps the same file protocol as v4.0, but changes the operating model from human-steered handoffs to mostly autonomous long-running loops for Claude Code and Codex. Humans approve goals and true product decisions; agents handle routine planning, review, implementation, verification, task renames, and commits.
 
 ## Five Principles (non-negotiable)
 
@@ -20,7 +20,7 @@ Three-terminal collaborative development. Status encoded in filenames. Polling v
 2. **Context layer is read-only reference.** PROJECT.md / MAP.md / REQUIREMENTS.md / STATE.md are written by T1, read at defined moments by T2/T3. They never participate in rename or glob queues.
 3. **Task file is the only execution unit.** Only `TASK-xxx...md` files get worked on, reviewed, and handed off. Context files are the stable foundation; task files are the moving pieces.
 4. **Recovery info is snapshot-on-pause, not always-on.** HANDOFF.md is written only when user explicitly pauses. No per-task sidecar files.
-5. **Designed for 5–20 task scale.** No phase layer in v4. REQUIREMENTS.md is a flat list with priority and REQ-ID. Evaluate phase layer at v4.2 if needed.
+5. **Designed for 5–20 task scale.** No phase layer in v4. REQUIREMENTS.md is a flat list with priority and REQ-ID. Evaluate phase layer only when a milestone grows beyond this range.
 
 ## Invocation
 
@@ -30,7 +30,66 @@ Three-terminal collaborative development. Status encoded in filenames. Polling v
 /taskboard-dev T3    # Executor (code + compile + commit)
 ```
 
-> **Model hint**: T1/T2 benefit from deeper reasoning (Opus/Sonnet). T3 can use faster models (Sonnet/Haiku) for implementation tasks.
+### Goal-First Invocation (recommended)
+
+For modern Claude Code / Codex runs, start each role with an explicit **目标 / target** before invoking the skill. The target is the durable instruction the loop should pursue across `/taskboard-next`, tool calls, resumes, and context refreshes.
+
+Use this shape:
+
+```text
+目标: <role-specific outcome>. Continue autonomously until the target is complete or a stop gate is hit.
+停止门: product decision / destructive shared-state operation / credential-payment-privacy risk / repeated verify failure / scope expansion.
+执行: /taskboard-dev T{1|2|3}
+```
+
+Default role targets:
+
+```text
+目标(T1): Maintain PROJECT/MAP/REQUIREMENTS/STATE, create and revise TASK files, resolve safe design choices autonomously, and keep the milestone moving until no unblocked T1 work remains.
+执行: /taskboard-dev T1
+
+目标(T2): Continuously review all pending designs and code, run necessary verification, approve/archive passing tasks, and route failures to T3 or stop gates to T1.
+执行: /taskboard-dev T2
+
+目标(T3): Complete every unblocked T3 task within its Files/Acceptance scope, run Verify, fix failures within retry budget, commit verified work, and hand off to T2.
+执行: /taskboard-dev T3
+```
+
+If the CLI provides a dedicated goal/target flag or command, put the `目标` text there. If not, paste it immediately before `/taskboard-dev T{N}` in the session.
+
+> **Model hint**: T1/T2 benefit from the strongest/deepest reasoning model available. T3 can use a faster coding-oriented model once the task is well specified. For long autonomous runs, prefer models/CLI modes that support background execution, resumable sessions, tool-use checkpoints, and explicit goals/targets.
+
+## Autonomy Model
+
+Default stance: **autonomous unless a stop gate is hit**. Earlier versions required the user to manually confirm many handoffs because loop/goal tooling was limited. v4.2 assumes Claude Code and Codex can run long tasks, loop on commands, and pursue an explicit target. Do not ask for confirmation for routine work.
+
+### Human Approval Required Only For Stop Gates
+
+Stop and surface a concise decision request only when one of these gates is hit:
+
+1. **Product decision**: requirements conflict, acceptance criteria are ambiguous, or the user must choose between materially different product behaviors.
+2. **Destructive/shared-state operation**: force push, hard reset, deleting directories, irreversible DB operations, production deploy, or hardware flashing that wipes state.
+3. **Credential/payment/privacy risk**: new secrets, paid services, external data sharing, or handling sensitive user data beyond the approved goal.
+4. **Repeated failure**: the same verify item fails after the configured retry budget and no safe local fix remains.
+5. **Scope expansion**: satisfying the task would require work outside the accepted requirement/task boundary.
+
+### Autonomous Without Asking
+
+Agents SHOULD proceed without asking for:
+
+- Creating/updating task files, specs, plans, STATE entries, history, and review reports.
+- Renaming task files through normal status transitions.
+- Running builds, tests, linters, formatters, type checks, and read-only verification.
+- Applying code changes that are inside the current task's Files/Acceptance scope.
+- Committing verified work on the current branch.
+- Retrying failed commands within the task retry budget.
+- Restarting or resuming a long-running loop when the current goal and task are unambiguous.
+
+### Long-Run Goal Contract
+
+At session start, the user or T1 defines a goal/target in plain language, then the three roles keep working until the goal is complete or a stop gate is hit. The active goal should be reflected in `PROJECT.md`/`REQUIREMENTS.md` for milestone goals, in the current `TASK-xxx` file for task-level goals, and in the session's goal/target instruction when the CLI supports one. If the session has no explicit target, the role MUST synthesize one from the current milestone before entering autonomous loop mode; ask the user only when no milestone/task context exists.
+
+---
 
 ## Initialization (All Roles)
 
@@ -40,10 +99,11 @@ Three-terminal collaborative development. Status encoded in filenames. Polling v
 4. Read context files: PROJECT.md, MAP.md, REQUIREMENTS.md, STATE.md
 5. Read HANDOFF.md if it exists (recovery scenario)
 6. Glob `docs/taskboard/TASK-*.T*.md` to display current task summary (excludes history/)
-7. Detect available skills (superpowers, codex) and set review mode
-8. Set up role-specific polling
-9. **Silently re-read own role's "Boundaries" subsection** (see Role Boundary Enforcement below). Do NOT echo the rules to the user — just internalize them for this session.
-10. Confirm: "T{N} {role} ready. Review mode: {full/standard/manual}. Active tasks: {count}."
+7. Detect available long-run capabilities: loop command, goal/target mode, background task support, resume/session restore, review/planning tools, and sandbox/approval policy.
+8. Set run mode: `autonomous` by default; `supervised` only if the user explicitly requests step-by-step confirmation.
+9. Set up role-specific polling or goal-driven loop.
+10. **Silently re-read own role's "Boundaries" subsection** (see Role Boundary Enforcement below). Do NOT echo the rules to the user — just internalize them for this session.
+11. Confirm once: "T{N} {role} ready. Run mode: {autonomous/supervised}. Review mode: {full/standard/assisted/manual}. Active tasks: {count}. Stop gates: product/destructive/credential/repeated-failure/scope."
 
 ### Auto-Generated Directory Structure
 
@@ -58,13 +118,14 @@ docs/
   STATE.md                # Live decisions + blockers (≤100 lines, replace not append)
   HANDOFF.md              # Recovery snapshot (only on explicit pause)
   dev-log.md              # Completed task summaries
-  codex/                  # Review reports from T2
-  superpowers/
+  codex/                  # Review reports from T2 (legacy path; keep for compatibility)
+  reviews/                # Optional modern review reports from agents/tools
+  superpowers/            # Legacy/compatible planning artifacts
     specs/                # Design specs from T1
     plans/                # Implementation plans from T1
 ```
 
-On first run: 4 context file stubs + 1 dev-log.md + 6 empty directories. Task files created on demand.
+On first run: 4 context file stubs + 1 dev-log.md + 7 empty directories. Task files created on demand. Existing v4.0 boards do not need migration; create `docs/reviews/` lazily when a reviewer wants the modern report path.
 
 > **Git config for Chinese filenames**: Run `git config core.quotepath false` in the repo so that `git status` and `git mv` display Chinese characters correctly instead of octal escapes.
 
@@ -239,7 +300,7 @@ T1 creates → .v1.T2-待审核方案 → T2 reviews design
   │                                            └─ verify fail → stay in .v1.T3-待验证, fix and retry (≤2 rounds)
   │                                                             if still failing → .v1.T3-待执行 (rethink implementation)
   ├─ REVISION → .v1.T1-方案需修改 → T1 revises → .v2.T2-待审核方案
-  ├─ ESCALATION → .v1.T1-待决策 → user decides → T1 revises → .v2.T2-待审核方案
+  ├─ STOP GATE → .v1.T1-待决策 → T1 resolves autonomously if safe, otherwise asks user → .v2.T2-待审核方案
   └─ ABORT → archive/.v1.中止
 ```
 
@@ -255,14 +316,31 @@ T2: Glob docs/taskboard/TASK-*.T2-*.md
 T3: Glob docs/taskboard/TASK-*.T3-*.md
 ```
 
-### Two-Mode Polling
+### Long-Running Loop Modes
 
-Since Claude Code /loop only supports fixed intervals:
+Use the strongest loop primitive supported by the active client:
 
-- **Active mode** (tasks found for this role): `/loop 30s` — fast response
-- **Idle mode** (no tasks found): Output "No tasks for T{N}." and return immediately.
+1. **Goal/target loop (preferred)**: run the role with an explicit target such as "finish all unblocked T3 tasks and hand them to T2". The agent continues selecting next tasks until the target is complete or a stop gate is hit.
+2. **Command loop**: run `/taskboard-next` or `/taskboard-dev T{N}` repeatedly through the client's loop command.
+3. **Fixed interval loop**: for clients with interval loops, use a short active interval and cheap idle return.
 
-When a task is completed and no more tasks remain, suggest the user exit `/loop` to avoid idle token consumption.
+Example patterns (adapt names to the active CLI):
+
+```
+# Claude Code-style fixed interval with a goal instruction
+目标: T3 complete every unblocked T3 task, verify, commit, and hand off to T2 until the queue is empty or a stop gate is hit.
+/loop 30s /taskboard-dev T3
+
+# Goal/target-style long run
+目标: T3 complete every unblocked T3 task, verify, commit, and hand off to T2 until the queue is empty or a stop gate is hit.
+/taskboard-dev T3
+```
+
+Loop behavior:
+
+- **Active mode** (tasks found for this role): select `/taskboard-next`, execute, verify, transition, and continue.
+- **Idle mode** (no tasks found): output "No tasks for T{N}." and return immediately for interval loops; in goal/target loops, sleep/yield according to client capability.
+- **Completion**: when the goal is complete and all queues are empty, summarize completed tasks and stop. Do not require the user to manually exit unless the client itself keeps the interval loop alive.
 
 ---
 
@@ -366,8 +444,8 @@ Mechanical rules — no subjective judgment required.
 | Condition | Action |
 |-----------|--------|
 | Same TASK-ID, same version, ≤2 consecutive fix rounds | **Keep** context |
-| Switching to a different TASK-ID | **Suggest** restart (output warning, user decides) |
-| Version bumped (v1 → v2) | **Require** restart |
+| Switching to a different TASK-ID | Continue if context budget is healthy; otherwise compact/summarize and resume autonomously |
+| Version bumped (v1 → v2) | Refresh context by re-reading the minimum read set; restart only if the client cannot reliably isolate the old context |
 
 ### Minimum Read Set After Restart
 
@@ -388,16 +466,17 @@ T1 pre-assigns review level in the filename (L1/L2/L3). T2 may override if actua
 
 | Level | Trigger | Review Method | Token Cost |
 |-------|---------|---------------|------------|
-| L1 | Only .md files | superpowers single review | ~3K |
-| L2 | 1-2 files, under 100 lines | codex:review only | ~8K |
-| L3 | 3+ files OR drivers/memory/security | Dual review (codex + superpowers) | ~20K |
+| L1 | Only .md files | Manual checklist or docs-review skill | ~3K |
+| L2 | 1-2 files, under 100 lines | Primary code review tool (Codex review, review subagent, Claude review, or equivalent) | ~8K |
+| L3 | 3+ files OR drivers/memory/security | Dual-pass review: primary code review + specialized skill/subagent/manual checklist | ~20K |
 
 ### Skill Fallback
 
 | Available | Review Mode |
 |-----------|-------------|
-| codex + superpowers | full — tiered review |
-| codex only | standard — codex for all levels |
+| Primary review tool + specialized skill/subagent | full — tiered dual-pass review for L3 |
+| Primary review tool only | standard — tool-assisted review for all levels |
+| Planning/review skills only | assisted — skill checklist plus manual verification |
 | none | manual — T2 reviews with checklist |
 
 ---
@@ -405,10 +484,11 @@ T1 pre-assigns review level in the filename (L1/L2/L3). T2 may override if actua
 ## Role Boundary Enforcement
 
 Each role has a strict **scope of action**. These boundaries are enforced
-**by Claude's own discipline**, not by the permission system — the skill is
-global, but `.claude/settings.local.json` is project-local. Claude reading
-this skill in any role session MUST respect the relevant "Boundaries"
-subsection below.
+**by the agent's own discipline**, not by the permission system — the skill is
+global, while client-specific controls such as `.claude/settings.local.json`
+(Claude Code) or Codex sandbox/approval settings are project/session-local.
+Any agent reading this skill in any role session MUST respect the relevant
+"Boundaries" subsection below.
 
 ### Why boundaries exist
 
@@ -422,13 +502,13 @@ subsection below.
 ### Universal rules (apply to all roles)
 
 - **NEVER** run `git push --force`, `git push -f`, `git reset --hard`,
-  `rm -rf <path>` without explicit user confirmation per invocation.
+  `rm -rf <path>` without explicit user confirmation per invocation. These are stop gates, not routine confirmations.
 - **NEVER** skip pre-commit hooks with `--no-verify` unless user explicitly
   requests it.
 - **NEVER** bypass another role's turn. If work crosses a boundary, rename
-  the task to the appropriate role's status and stop.
+  the task to the appropriate role's status and continue/stop according to the next role's queue and the current long-run goal.
 
-### User override protocol
+### User Override Protocol
 
 If the user explicitly says "直接改" / "不用审核" / "you handle it" / similar
 override language, the current role MAY cross its boundary ONCE for that
@@ -440,7 +520,7 @@ specific action. When this happens, the role MUST:
 3. **Record the exception** in the relevant task history file or
    `HANDOFF.md` session notes, so the audit trail stays visible.
 
-Without an explicit override, stay inside your lane.
+Without an explicit override, stay inside your lane, but do not ask the user to approve routine in-lane operations.
 
 ---
 
@@ -454,11 +534,11 @@ Design solutions, write tasks, maintain context layer, monitor progress. Never w
 
 **T1 MAY** (normal work):
 - Write / edit under `docs/**` — specs, plans, task files, STATE, HANDOFF, dev-log, checklists, PROJECT.md, MAP.md, REQUIREMENTS.md
-- Write / edit auto-memory files (`~/.claude/projects/**/memory/**`)
+- Write / edit auto-memory files when supported by the active client (for example `~/.claude/projects/**/memory/**` or Codex skill memory paths)
 - Rename task files for state transitions (`mv` / `git mv` within `docs/taskboard/`)
 - Run **read-only** git: `status`, `log`, `diff`, `show`, `branch`, `tag` (list)
 - Read ANY file in the project (source included — reading is not writing)
-- Invoke `superpowers:brainstorming`, `superpowers:writing-plans`
+- Invoke available planning skills/tools (for example `superpowers:brainstorming`, `superpowers:writing-plans`, Codex skills, or manual planning)
 - Commit DOC-ONLY changes (specs, plans, task renames) — show diff first, use conventional commit style
 
 **T1 MUST NOT** (without user override):
@@ -496,9 +576,9 @@ T1 must fill ALL required fields before setting status to `T2-待审核方案`:
 ### Workflow
 
 1. User describes a requirement
-2. Generate spec via `superpowers:brainstorming` (or manual)
-3. *(Optional)* Research: investigate implementation approaches, write `docs/superpowers/research/YYYY-MM-DD-topic.md`
-4. Generate plan via `superpowers:writing-plans` (or manual)
+2. Generate spec via an available brainstorming/planning skill (for example `superpowers:brainstorming`) or manual design
+3. *(Optional)* Research: investigate implementation approaches, write `docs/superpowers/research/YYYY-MM-DD-topic.md` or `docs/reviews/YYYY-MM-DD-topic-research.md`
+4. Generate plan via an available planning skill (for example `superpowers:writing-plans`) or manual planning
 5. Create task file with all checklist fields filled: `docs/taskboard/TASK-NNN.v1.T2-待审核方案.md`
 6. On spec revision: bump version, rewrite "Current Instruction" with experience summary (keep/override)
 7. Maintain STATE.md: add decisions, prune superseded entries, delete resolved blockers
@@ -532,11 +612,11 @@ Review designs and code against goals. Verify task outcomes match requirements. 
 
 **T2 MAY** (normal work):
 - Everything T1 MAY do
-- Write review reports to `docs/codex/` and `docs/taskboard/history/`
+- Write review reports to `docs/reviews/` (preferred), `docs/codex/` (legacy compatibility), and `docs/taskboard/history/`
 - **Run builds for verification**: `idf.py build`, `npm run build`, `cargo build`, `make`, etc. — read-only verification of T3's claims
 - Run test suites, linters, formatters (read-only assessment, no source rewriting)
 - Read ALL source files (reading is required for code review)
-- Use review agents: `codex:rescue`, `superpowers:requesting-code-review`, per-language review skills
+- Use available review agents/skills: Codex review tools, `superpowers:requesting-code-review`, per-language review skills, or manual checklist
 - Rename task files across all status transitions T2 owns (see Status Flow)
 - Update `dev-log.md` on archive, `STATE.md` on found blockers
 
@@ -634,10 +714,7 @@ Implement code, run builds, verify, commit. Never design or review.
 3. Rename to `T1-待决策`
 4. Do NOT "patch around" the spec mismatch — that creates silent drift
 
-**T3 destructive-op rule**: any command that touches shared state (push,
-force push, reset --hard, mass delete, DB migrations, flash that wipes NVS)
-MUST be surfaced to the user BEFORE execution with a one-line summary of
-what's about to happen. Default to stopping and asking if unsure.
+**T3 destructive-op rule**: destructive/shared-state operations are stop gates. Normal commits, local builds, local tests, formatting, non-destructive migrations in a disposable test database, and task-file renames are routine autonomous actions. Force push, hard reset, mass delete, production deploy, paid-service changes, and flash operations that wipe persistent state MUST be surfaced to the user BEFORE execution with a one-line summary.
 
 **Exception**: user override — see "User override protocol" above.
 
@@ -683,7 +760,7 @@ Rules:
 
 ### Stale Context Rule
 
-If task version in filename is higher than version this session has processed, output `[STALE CONTEXT]` warning and pause. User should restart T3 for fresh context.
+If task version in filename is higher than the version this session has processed, output `[STALE CONTEXT]`, re-read the Minimum Read Set, summarize what changed, and continue autonomously. Pause only if the new version creates a stop gate or the client cannot safely refresh context.
 
 ---
 
@@ -708,7 +785,7 @@ Last completed: TASK-006 — 舵机控制模块 (12min ago)
 
 ### /taskboard-next
 
-Deterministic selection rules. No model discretion.
+Deterministic selection rules. No model discretion. In autonomous long-run mode, each role repeatedly executes `/taskboard-next` until its queue is empty, the goal is complete, or a stop gate is hit.
 
 **T1 next** (priority order):
 1. `T1-待决策` (needs user, surface first)
@@ -742,7 +819,7 @@ T1 analyzes existing codebase and generates/updates `MAP.md`:
 
 ### /taskboard-pause
 
-Writes `docs/HANDOFF.md` with current state snapshot. Only triggered by user request or when T1 detects session ending with active tasks.
+Writes `docs/HANDOFF.md` with current state snapshot. Triggered by user request, context compaction/restart, client shutdown, or a stop gate that cannot be resolved locally. Long-running agents should write HANDOFF before yielding if active work remains.
 
 ```markdown
 # Handoff — YYYY-MM-DD HH:MM
@@ -764,7 +841,7 @@ Writes `docs/HANDOFF.md` with current state snapshot. Only triggered by user req
 
 ## Resume Order
 1. T1: read STATE.md, check T1-待决策 queue
-2. T3: restart fresh, read HANDOFF.md, continue TASK-003
+2. T3: resume/refresh context, read HANDOFF.md, continue TASK-003
 3. T2: review TASK-004
 ```
 
@@ -777,9 +854,10 @@ HANDOFF.md is always overwritten (latest snapshot only), never appended.
 On initialization:
 
 1. `git status` — detect uncommitted changes
-2. If dirty + TASK file in T3 status: ask user to continue or rollback
-3. Check for HANDOFF.md — if exists, display resume order
-4. Glob for stale task files (no change in 30+ minutes): warn user
+2. If dirty changes match the active T3 task scope, continue autonomously and verify before commit
+3. If dirty changes are outside any active task or imply destructive rollback, treat as a stop gate and ask the user
+4. Check for HANDOFF.md — if exists, display resume order and continue according to the current role/goal
+5. Glob for stale task files (no change in 30+ minutes): warn in the summary, then continue if unblocked
 
 ---
 

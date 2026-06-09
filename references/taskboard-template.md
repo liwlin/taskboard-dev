@@ -1,4 +1,4 @@
-# TASKBOARD v4.0 Templates
+# TASKBOARD v4.2 Templates
 
 ## Directory Structure (auto-generated on first run)
 
@@ -13,12 +13,33 @@ docs/
   STATE.md
   HANDOFF.md              # Only created on explicit pause
   dev-log.md
-  codex/
-  superpowers/
+  codex/                  # Legacy-compatible T2 review reports
+  reviews/                # Optional modern review/research reports
+  superpowers/            # Legacy/compatible planning artifacts
     specs/
     plans/
     research/             # Optional: T1 research output
 ```
+
+
+---
+
+## Goal Instruction Templates
+
+Paste one goal before invoking the role, or pass it through the CLI's goal/target field if available.
+
+```text
+目标(T1): Maintain PROJECT/MAP/REQUIREMENTS/STATE, create and revise TASK files, resolve safe design choices autonomously, and keep the milestone moving until no unblocked T1 work remains.
+执行: /taskboard-dev T1
+
+目标(T2): Continuously review all pending designs and code, run necessary verification, approve/archive passing tasks, and route failures to T3 or stop gates to T1.
+执行: /taskboard-dev T2
+
+目标(T3): Complete every unblocked T3 task within its Files/Acceptance scope, run Verify, fix failures within retry budget, commit verified work, and hand off to T2.
+执行: /taskboard-dev T3
+```
+
+Stop gates: product decision / destructive shared-state operation / credential-payment-privacy risk / repeated verify failure / scope expansion.
 
 ---
 
@@ -46,7 +67,7 @@ docs/
 - (e.g., Single-core only — K10 dual-core FreeRTOS not stable)
 
 ## Success Criteria
-- (e.g., Complete demo for 粤港澳大赛 deadline 2025-05-15)
+- (e.g., Complete demo for 粤港澳大赛 deadline 2026-05-15)
 - (e.g., All 5 REQs implemented and verified)
 ```
 
@@ -155,7 +176,7 @@ Filename: `TASK-{NNN}.v{V}.{STATUS}[-{REVIEW_LEVEL}].md`
 
 ---
 
-## Task File with Decision Needed (T1-待决策 status)
+## Task File with Stop Gate Decision Needed (T1-待决策 status)
 
 ```markdown
 # TASK-001: Title
@@ -167,7 +188,8 @@ Filename: `TASK-{NNN}.v{V}.{STATUS}[-{REVIEW_LEVEL}].md`
 
 ## Current Instruction
 
-### Decision Needed
+### Stop Gate Decision Needed
+**Gate**: Product decision
 **Question**: 是否继续使用 HuskyLens，还是切换到 MaixCAM？
 **Options**:
 - A. 保持 HuskyLens，修改识别逻辑
@@ -273,7 +295,7 @@ Filename: `history/TASK-NNN.history.md`
 
 ```
 .T1-方案需修改        T1 revises design (autonomous)
-.T1-待决策            T1 escalates to user for decision
+.T1-待决策            T1 handles stop-gate decision; ask user only for product/destructive/credential/repeated-failure/scope gates
 .T2-待审核方案        T2 reviews design
 .T2-待审核代码-L1     T2 reviews code (docs only)
 .T2-待审核代码-L2     T2 reviews code (simple)
