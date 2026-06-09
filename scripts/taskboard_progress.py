@@ -432,6 +432,13 @@ def report_progress(root: Path) -> dict[str, object]:
             if latest_event_suppressed_list
             else safe_int(latest_event_payload.get("suppressed_launch_count"), 0)
         )
+        if (
+            fallback_state == "needs-supervisor-run"
+            and latest_event_state == "attention"
+            and latest_event_assignment_state == "acknowledged"
+            and latest_event_assignment_role
+        ):
+            fallback_state = "attention"
         if fallback_state == "needs-supervisor-run" and latest_event_suppressed_count:
             fallback_state = "attention"
         if (

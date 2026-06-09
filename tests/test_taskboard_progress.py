@@ -985,6 +985,56 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("latest_event_state=active", text)
         self.assertIn("latest_event_assignment_state=acknowledged", text)
 
+    def test_progress_recovers_attention_state_from_real_event_without_snapshot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            taskboard = root / "docs" / "taskboard"
+            taskboard.mkdir(parents=True)
+            task_name = f"TASK-008.v1.{T2_CODE_REVIEW}-L2.md"
+            task_path = taskboard / task_name
+            task_path.write_text("# stalled review\n\n**Wave**: 1\n", encoding="utf-8")
+            old_time = task_path.stat().st_mtime - (45 * 60)
+            os.utime(task_path, (old_time, old_time))
+            session_dir = root / ".taskboard" / "sessions"
+            session_dir.mkdir(parents=True)
+            for role in ("T1", "T2", "T3"):
+                payload = {
+                    "role": role,
+                    "title": f"taskboard-{role}",
+                    "status": "alive",
+                    "pid": 123,
+                    "last_seen": 4102444800,
+                }
+                if role == "T2":
+                    payload.update({"task": task_name, "assignment_id": f"T2:{task_name}"})
+                (session_dir / f"taskboard-{role}.json").write_text(json.dumps(payload), encoding="utf-8")
+
+            loop_module.run_loop(
+                root,
+                "Ship demo",
+                30,
+                999999999,
+                "none",
+                None,
+                False,
+                1,
+                0,
+                300,
+                True,
+                None,
+                root / ".taskboard" / "targets",
+                300,
+                root / ".taskboard" / "t0" / "events.jsonl",
+            )
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertFalse((root / ".taskboard" / "t0" / "latest.json").exists())
+        self.assertEqual(progress["latest_event"]["state"], "attention")
+        self.assertEqual(progress["state"], "attention")
+        self.assertEqual(progress["assignment_state"], "acknowledged")
+        self.assertIn("latest_event_state=attention", text)
+
     def test_progress_surfaces_queue_metrics_for_user_dashboard(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
