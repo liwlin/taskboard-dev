@@ -151,6 +151,8 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("decision_command", readme)
         self.assertIn("让 T1 根据用户决策继续修订", readme)
         self.assertIn("T0 launch/recovery failed", readme)
+        self.assertIn("fix T0 launcher configuration", readme)
+        self.assertIn("not to manage T1/T2/T3 directly", readme)
         self.assertIn("healthy roles are not relaunched", readme)
         self.assertIn("python scripts/taskboard_loop.py --root . --goal", readme)
         self.assertIn("--assignment-lease-seconds 300", readme)

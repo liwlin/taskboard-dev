@@ -683,6 +683,46 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertEqual(events[0]["executed_command_count"], 3)
         self.assertEqual(events[0]["suppressed_launch_count"], 0)
 
+    def test_loop_actions_surface_launch_failure_as_t0_control_plane_recovery(self):
+        def fake_execute(commands):
+            return [
+                {
+                    "command": command,
+                    "returncode": 1,
+                    "output": "launcher missing",
+                }
+                for command in commands
+            ]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            with patch("taskboard_loop.execute_commands", fake_execute):
+                output = loop_module.run_loop(
+                    root,
+                    "Ship demo",
+                    30,
+                    300,
+                    "windows-terminal",
+                    'codex --prompt-file "{target_file}"',
+                    True,
+                    1,
+                    0,
+                    300,
+                    True,
+                    root / ".taskboard" / "t0" / "latest.json",
+                    root / ".taskboard" / "targets",
+                    300,
+                    root / ".taskboard" / "t0" / "events.jsonl",
+                )
+
+        actions = " ".join(output[0]["actions"])
+        self.assertEqual(output[0]["state"], "attention")
+        self.assertIn("T0 launch/recovery failed", actions)
+        self.assertIn("fix the T0 launcher configuration", actions)
+        self.assertIn("do not manage T1/T2/T3", actions)
+
     def test_loop_event_log_records_assignment_recovery_details(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

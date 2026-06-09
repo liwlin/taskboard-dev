@@ -207,8 +207,19 @@ def build_actions(
     assignment: dict[str, object],
     suppressed_launches: list[dict[str, object]],
     completion_audit: Optional[dict[str, object]] = None,
+    executed_commands: Optional[list[dict[str, object]]] = None,
 ) -> list[str]:
     actions: list[str] = []
+    launch_failure_count = 0
+    for item in executed_commands or []:
+        if not isinstance(item, dict):
+            continue
+        try:
+            returncode = int(item.get("returncode", 0))
+        except (TypeError, ValueError):
+            returncode = 0
+        if returncode != 0:
+            launch_failure_count += 1
     if completion_audit and not completion_audit.get("completion_ready"):
         actions.extend(str(action) for action in session_probe.get("recovery_actions", []))
         actions.append(str(completion_audit.get("user_action") or "Do not summarize completion yet."))
@@ -224,6 +235,11 @@ def build_actions(
 
     if launch_commands:
         actions.append("launch/recover managed role sessions with generated commands")
+        if launch_failure_count:
+            actions.append(
+                "T0 launch/recovery failed; fix the T0 launcher configuration or retry another launcher; "
+                "do not manage T1/T2/T3 directly."
+            )
     elif suppressed_launches:
         roles = ", ".join(str(item.get("role")) for item in suppressed_launches)
         actions.append(f"wait for {roles} launch lease active; do not duplicate managed terminals")
@@ -452,6 +468,7 @@ def run_once(
             assignment,
             suppressed_launches,
             completion_audit_payload,
+            executed_commands,
         ),
     }
     if completion_audit_payload is not None:
