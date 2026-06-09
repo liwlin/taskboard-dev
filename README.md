@@ -70,7 +70,7 @@ dist/taskboard-dev-v4.3.zip
 
 ## 快速开始
 
-推荐只启动 T0。T0 会在目标完成前持续运行，并自动管理 T1/T2/T3。
+默认只需要 1 个终端，只启动 T0。T0 会在目标完成前持续运行，并自动管理 T1/T2/T3。你不需要开 4 个终端，也不需要分别给 T1/T2/T3 定义角色。
 
 ### T0 — 用户入口 + 编排器
 
@@ -79,7 +79,7 @@ dist/taskboard-dev-v4.3.zip
 执行：/taskboard-dev T0
 ```
 
-高级用户仍可手动运行 T1/T2/T3：
+高级用户仍可手动运行 T1/T2/T3；这是兼容模式，不是默认用法：
 
 ```text
 目标：维护 PROJECT/MAP/REQUIREMENTS/STATE，创建和修订 TASK 文件，自主解决安全的设计取舍，持续推进 milestone，直到没有未阻塞的 T1 工作。

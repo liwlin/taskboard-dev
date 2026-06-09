@@ -57,6 +57,15 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("## Multi-agent 借鉴原则", manual)
         self.assertIn("T0 是 manager，不是 worker", manual)
 
+    def test_one_terminal_t0_default_is_unambiguous(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
+
+        self.assertIn("默认只需要 1 个终端", readme)
+        self.assertIn("不需要开 4 个终端", readme)
+        self.assertIn("默认只需要 1 个终端", manual)
+        self.assertIn("不需要开 4 个终端", manual)
+
 
 if __name__ == "__main__":
     unittest.main()

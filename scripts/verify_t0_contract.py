@@ -55,6 +55,8 @@ def verify_t0_contract() -> None:
     require_contains("README.md", "当前版本：**v4.3**")
     require_contains("README.md", "T0 用户入口")
     require_contains("README.md", "执行：/taskboard-dev T0")
+    require_contains("README.md", "默认只需要 1 个终端")
+    require_contains("README.md", "不需要开 4 个终端")
     require_contains("README.md", "python scripts/taskboard_next.py --role T0 --root .")
 
     require_contains("references/taskboard-template.md", "# TASKBOARD v4.3 Templates")
