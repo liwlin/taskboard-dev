@@ -7,7 +7,7 @@ import json
 import sys
 from typing import Optional
 
-from taskboard_loop import default_state_file, format_text, run_loop
+from taskboard_loop import default_event_log_file, default_state_file, format_text, run_loop
 from taskboard_t0 import default_target_dir
 
 
@@ -60,6 +60,15 @@ def main(argv: Optional[list[str]] = None) -> int:
         help="Disable writing the latest T0 supervisor runtime snapshot.",
     )
     parser.add_argument(
+        "--event-log-file",
+        help="Path for the append-only T0 supervisor event log. Defaults to .taskboard/t0/events.jsonl.",
+    )
+    parser.add_argument(
+        "--no-event-log",
+        action="store_true",
+        help="Disable writing the append-only T0 supervisor event log.",
+    )
+    parser.add_argument(
         "--target-dir",
         help="Directory for per-role T1/T2/T3 target files. Defaults to .taskboard/targets.",
     )
@@ -73,6 +82,13 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     root = Path(args.root).resolve()
     state_file = None if args.no_state_file else Path(args.state_file).resolve() if args.state_file else default_state_file(root)
+    event_log_file = (
+        None
+        if args.no_event_log
+        else Path(args.event_log_file).resolve()
+        if args.event_log_file
+        else default_event_log_file(root)
+    )
     target_dir = None if args.no_target_files else Path(args.target_dir).resolve() if args.target_dir else default_target_dir(root)
 
     try:
@@ -91,6 +107,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             state_file,
             target_dir,
             args.launch_lease_seconds,
+            event_log_file,
         )
     except ValueError as exc:
         print(exc, file=sys.stderr)

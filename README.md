@@ -92,6 +92,8 @@ python scripts/taskboard_start.py --goal "完成 <你的开发目标>" --execute
 
 首次传入 `--goal` 后，T0 会把用户目标保存到 `.taskboard/t0/goal.json`。T0 重启或恢复时可以不再重复输入目标；这个 `taskboard-t0-goal` 文件只是 T0 控制面恢复状态，不是 TASKBOARD 任务状态。
 
+`taskboard_start.py` 使用和 supervisor loop 相同的运行态文件：默认写 `.taskboard/t0/latest.json`、`.taskboard/t0/events.jsonl` 和 `.taskboard/targets/taskboard-T*.md`。需要 dry check 且不留下事件日志时使用 `--no-event-log`。
+
 查看 T0 给用户的进度摘要：
 
 ```bash
@@ -262,6 +264,7 @@ VERSION=v4.3 ./scripts/package.sh
 - [ ] `git diff --check`
 - [ ] `python scripts/taskboard_t0.py --goal "完成示例目标" --root .`
 - [ ] `python scripts/taskboard_demo.py --root .taskboard-demo --with-heartbeats`
+- [ ] `python scripts/taskboard_start.py --goal "完成示例目标" --iterations 1`
 - [ ] `python scripts/taskboard_loop.py --root . --goal "完成示例目标" --iterations 1`
 - [ ] `.taskboard/t0/events.jsonl` contains `taskboard-t0-supervisor-event` entries after a loop run
 - [ ] `python scripts/taskboard_health.py --root . --stale-minutes 30`

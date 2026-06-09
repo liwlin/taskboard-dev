@@ -33,6 +33,12 @@ class TaskboardStartTest(unittest.TestCase):
             saved_goal = json.loads(goal_file.read_text(encoding="utf-8"))
             t1_target = root / ".taskboard" / "targets" / "taskboard-T1.md"
             t1_exists = t1_target.exists()
+            event_log = root / ".taskboard" / "t0" / "events.jsonl"
+            events = [
+                json.loads(line)
+                for line in event_log.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
 
         payload = output[0]
         self.assertEqual(saved_goal["kind"], "taskboard-t0-goal")
@@ -43,6 +49,8 @@ class TaskboardStartTest(unittest.TestCase):
         self.assertIn("codex --prompt-file", payload["launch_commands"][0])
         self.assertIn("taskboard-T1.md", payload["launch_commands"][0])
         self.assertTrue(t1_exists)
+        self.assertEqual(events[0]["kind"], "taskboard-t0-supervisor-event")
+        self.assertEqual(events[0]["goal"], "Ship demo")
 
     def test_starter_resumes_saved_goal_without_retyping_it(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -65,6 +73,15 @@ class TaskboardStartTest(unittest.TestCase):
 
         self.assertEqual(output[0]["dispatch"]["launcher"], "tmux")
         self.assertIn("tmux new-session", output[0]["launch_commands"][0])
+
+    def test_starter_can_disable_event_log(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            self.run_start(root, "--goal", "Ship demo", "--iterations", "1", "--no-event-log")
+
+        self.assertFalse((root / ".taskboard" / "t0" / "events.jsonl").exists())
 
 
 if __name__ == "__main__":
