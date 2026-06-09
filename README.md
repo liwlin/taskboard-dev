@@ -187,6 +187,8 @@ When launch execution is enabled, T0 also writes `.taskboard/t0/launches.json` a
 
 T0 stops the loop only when there are no active TASK files and `docs/STATE.md` contains `**Goal Complete**: yes` or `Goal Complete: yes`. Without that completion sentinel, an empty queue plus a user goal wakes T1 to create or revise the next TASK files. `--forever` runs until completion or interruption; use `--no-stop-on-complete` only for monitoring/debugging after completion.
 
+When T0 sees a `T1-待决策` / stop-gate TASK, the supervisor enters `stop-gate` state, suppresses worker launch/target/assignment for that gate, and asks the summarized question through T0 only. This keeps the user-facing decision path on T0 instead of leaking role management back to the user.
+
 可重复 dry-run demo：
 
 ```bash

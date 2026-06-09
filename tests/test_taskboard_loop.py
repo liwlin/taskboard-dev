@@ -130,6 +130,47 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertEqual(output[0]["dispatch"]["reason"], "goal-complete-sentinel")
         self.assertIn("summarize completion to the user", output[0]["actions"])
 
+    def test_loop_pauses_worker_launches_for_user_stop_gate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            taskboard = root / "docs" / "taskboard"
+            taskboard.mkdir(parents=True)
+            (taskboard / "TASK-001.v1.T1-待决策.md").write_text(
+                "\n".join(
+                    [
+                        "# Decide scope",
+                        "",
+                        "**Wave**: 1",
+                        "**Gate**: Product decision",
+                        "**Question**: Should T0 continue with option A?",
+                        "**Options**:",
+                        "- A",
+                        "- B",
+                        "**Recommended**: A",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            output = self.run_loop(
+                root,
+                "--goal",
+                "Ship demo",
+                "--launcher",
+                "windows-terminal",
+                "--agent-template",
+                'codex --prompt-file "{target_file}"',
+            )
+
+        payload = output[0]
+        self.assertEqual(payload["state"], "stop-gate")
+        self.assertEqual(payload["assignment"]["state"], "user-stop-gate")
+        self.assertEqual(payload["launch_commands"], [])
+        self.assertEqual(payload["target_files"], [])
+        self.assertEqual(payload["stop_gate_report"]["stop_gate_count"], 1)
+        self.assertIn("Should T0 continue with option A?", " ".join(payload["actions"]))
+        self.assertNotIn("reissue target to taskboard-T1", " ".join(payload["actions"]))
+
     def test_loop_stops_after_first_complete_iteration_by_default(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -12,6 +12,7 @@ from typing import Optional
 
 from taskboard_health import report_health
 from taskboard_sessions import probe_sessions
+from taskboard_stopgates import report_stop_gates
 from taskboard_t0 import default_target_dir, dispatch, read_goal, write_runtime_goal
 
 
@@ -242,6 +243,17 @@ def build_actions(
     return deduped
 
 
+def build_stop_gate_actions(stop_gate_report: dict[str, object]) -> list[str]:
+    stop_gates = stop_gate_report.get("stop_gates", [])
+    first_gate = stop_gates[0] if isinstance(stop_gates, list) and stop_gates else {}
+    question = str(first_gate.get("question") or "Review the T0 stop gate.") if isinstance(first_gate, dict) else ""
+    task = str(first_gate.get("task") or "none") if isinstance(first_gate, dict) else "none"
+    return [
+        f"ask user through T0 stop gate for {task}: {question}",
+        "pause T1/T2/T3 launch and assignment until the T0 stop gate is answered",
+    ]
+
+
 def execute_commands(commands: list[str]) -> list[dict[str, object]]:
     results = []
     for command in commands:
@@ -327,6 +339,37 @@ def run_once(
     )
     queue_health = report_health(root, stale_minutes, goal)
     dispatch_plan = dispatch(root, goal, "terminal", launcher, agent_template, target_dir)
+    stop_gate_report = report_stop_gates(root)
+    stop_gate_count = int(stop_gate_report.get("stop_gate_count") or 0)
+    if stop_gate_count:
+        stop_gates = stop_gate_report.get("stop_gates", [])
+        first_gate = stop_gates[0] if isinstance(stop_gates, list) and stop_gates else {}
+        task = str(first_gate.get("task") or "none") if isinstance(first_gate, dict) else "none"
+        return {
+            "state": "stop-gate",
+            "goal": goal or "",
+            "boundary": T0_BOUNDARY,
+            "session_probe": session_probe,
+            "queue_health": queue_health,
+            "dispatch": dispatch_plan,
+            "stop_gate_report": stop_gate_report,
+            "assignment": {
+                "state": "user-stop-gate",
+                "role": "T0",
+                "task": task,
+                "assignment_id": "",
+                "reason": "t0-user-decision-required",
+                "boundary": "T0 asks the user for a decision; T0 does not assign this stop gate to T1/T2/T3.",
+            },
+            "target_files": [],
+            "planned_launch_commands": [],
+            "requested_launch_commands": [],
+            "launch_commands": [],
+            "suppressed_launches": [],
+            "executed_commands": [],
+            "actions": build_stop_gate_actions(stop_gate_report),
+        }
+
     target_files = write_role_target_files(dispatch_plan) if target_dir is not None else []
     planned_launch_commands = choose_launch_commands(session_probe, dispatch_plan)
     requested_launch_commands = (
@@ -371,6 +414,7 @@ def run_once(
         "session_probe": session_probe,
         "queue_health": queue_health,
         "dispatch": dispatch_plan,
+        "stop_gate_report": stop_gate_report,
         "assignment": assignment,
         "target_files": target_files,
         "planned_launch_commands": planned_launch_commands,
