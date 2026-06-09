@@ -22,6 +22,14 @@ T0-managed collaborative development. The user gives T0 one goal, and T0 manages
 4. **Recovery info is snapshot-on-pause, not always-on.** HANDOFF.md is written only when user explicitly pauses. No per-task sidecar files.
 5. **Designed for 5–20 task scale.** No phase layer in v4. REQUIREMENTS.md is a flat list with priority and REQ-ID. Evaluate phase layer only when a milestone grows beyond this range.
 
+### Multi-Agent Patterns Adopted
+
+- **Manager/Worker**: T0 is the manager and user-facing control plane. T1/T2/T3 are workers with bounded roles. T0 assigns, resumes, and monitors work; it does not design, review, or implement inside the same role context.
+- **Blackboard**: `docs/taskboard/TASK-*.md` filenames are the shared coordination board. Agents do not depend on private chat history or direct agent-to-agent conversation for handoff.
+- **Independent Critic**: T2 remains independent from T0 and T3. T0 can request review, but T0 must not approve its own orchestration decisions as T2, and T3 must not review its own implementation.
+- **Liveness / Heartbeat**: T0 watches queue mtime, role idleness, HANDOFF state, and repeated verify failures. Stalled work is recovered by re-issuing the relevant role target or escalating a true stop gate.
+- **Stop-Gate Aggregation**: T1/T2/T3 can detect stop gates, but T0 is the only routine user-facing aggregator. Users see product/destructive/credential/repeated-failure/scope questions, not routine role handoffs.
+
 ## Invocation
 
 ```
@@ -575,6 +583,16 @@ Own the user's goal from intake to completion. T0 is the only role that should r
 6. After each role handoff, run `/taskboard-progress` again.
 7. If a role is idle but the milestone is incomplete, leave it available for future handoffs or re-run it after the configured loop interval.
 8. Continue until all tasks are archived, `dev-log.md` is current, `HANDOFF.md` is saved if pausing, and the user's goal is satisfied.
+
+### T0 Liveness / Heartbeat Rules
+
+T0 uses lightweight filesystem signals, not a new database:
+
+- **Healthy**: a role reports progress, a task file mtime changes, a task status advances, or `dev-log.md` receives a completion entry.
+- **Idle**: a role queue is empty while other queues still have work. T0 keeps the role available and checks again after the loop interval.
+- **Stalled**: a task file mtime is older than 30 minutes while the user's goal is incomplete. T0 runs `/taskboard-progress`, then re-issues the durable target for the owning role.
+- **Repeated failure**: the same Verify item fails beyond retry budget. T0 routes the task to T1/T2 for diagnosis and surfaces a user question only if the failure is a true stop gate.
+- **Recovery**: after crash, context compaction, or client restart, T0 reads `HANDOFF.md`, checks `git status`, scans all active task filenames, and resumes the highest-priority role from **T0 next**.
 
 ### T0 User Output Contract
 

@@ -23,8 +23,11 @@
 ├── README.md                        # 发布/安装说明
 ├── references/
 │   └── taskboard-template.md        # 初始化 docs/taskboard 时使用的模板参考
+├── tests/
+│   └── test_t0_contract.py          # T0 协议 smoke test
 └── scripts/
-    └── package.sh                   # 生成发布包
+    ├── package.sh                   # 生成发布包
+    └── verify_t0_contract.py        # 校验 T0 协议和发布文档
 ```
 
 ## 安装
@@ -126,6 +129,7 @@ VERSION=v4.3 ./scripts/package.sh
 ## 发布检查清单
 
 - [ ] `git diff --check`
+- [ ] `python scripts/verify_t0_contract.py`
 - [ ] `./scripts/package.sh`
 - [ ] 解压 `dist/taskboard-dev-v*.tar.gz`，确认包含 `SKILL.md`、`USER-MANUAL.md`、`README.md`、`references/taskboard-template.md`
 - [ ] 推送到 GitHub

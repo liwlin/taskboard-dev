@@ -8,12 +8,14 @@ DIST_DIR="$ROOT_DIR/dist"
 STAGE_DIR="$DIST_DIR/$NAME"
 
 rm -rf "$STAGE_DIR"
-mkdir -p "$STAGE_DIR/references" "$DIST_DIR"
+mkdir -p "$STAGE_DIR/references" "$STAGE_DIR/scripts" "$DIST_DIR"
 
 cp "$ROOT_DIR/SKILL.md" "$STAGE_DIR/SKILL.md"
 cp "$ROOT_DIR/USER-MANUAL.md" "$STAGE_DIR/USER-MANUAL.md"
 cp "$ROOT_DIR/README.md" "$STAGE_DIR/README.md"
 cp "$ROOT_DIR/references/taskboard-template.md" "$STAGE_DIR/references/taskboard-template.md"
+cp "$ROOT_DIR/scripts/package.sh" "$STAGE_DIR/scripts/package.sh"
+cp "$ROOT_DIR/scripts/verify_t0_contract.py" "$STAGE_DIR/scripts/verify_t0_contract.py"
 
 (
   cd "$DIST_DIR"

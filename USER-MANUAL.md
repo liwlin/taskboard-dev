@@ -158,6 +158,14 @@ docs/
 
 `✅*`：T0 只在初始化、暂停、恢复、停止门记录时写文档；常规设计和任务内容仍交给 T1。
 
+## Multi-agent 借鉴原则
+
+- **T0 是 manager，不是 worker**：T0 负责目标、调度、恢复和用户沟通；T1/T2/T3 继续分别承担设计、审核、执行。
+- **任务板是 blackboard**：共享状态只通过 `docs/taskboard/TASK-*.md` 文件名和上下文文件表达，不依赖某个 agent 的私有聊天记录。
+- **T2 是 independent critic**：T0 可以要求 T2 审核，但不能替 T2 通过；T3 也不能审核自己的实现。
+- **T0 负责 liveness / heartbeat**：T0 根据 mtime、HANDOFF、history、重复失败来判断 stalled work，并重新唤起对应角色。
+- **T0 汇总 stop gate**：用户只看到真正需要人的产品/安全/破坏性/凭据/重复失败/范围扩张问题，不管理日常 handoff。
+
 ### 用户 override 协议
 
 如果用户明确说"直接改" / "不用审核" / "你处理" / 类似授权语，当前角色**可以单次越界**。越界时必须：
