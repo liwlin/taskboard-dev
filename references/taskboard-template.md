@@ -46,6 +46,38 @@ Stop gates: product decision / destructive shared-state operation / credential-p
 
 T0 is the preferred user-facing entry point. Users give goals to T0; T0 manages T1/T2/T3. In the default auto-terminal mode, the user manually starts only T0, and T0 creates or resumes the managed taskboard-T1/taskboard-T2/taskboard-T3 role terminals. The T1/T2/T3 templates remain for compatibility or for advanced users who want to run role sessions manually.
 
+## Current T0 Control-Plane Entries
+
+Use these entries from the project root. They are T0 control-plane tools; they must not make the user manage T1/T2/T3 directly.
+
+```bash
+python scripts/taskboard_start.py --goal "<user goal>" --auto
+python scripts/taskboard_progress.py --root .
+python scripts/taskboard_watchdog.py --root . --execute
+python scripts/taskboard_completion.py --root .
+python scripts/taskboard_stopgates.py --root .
+python scripts/taskboard_decide.py --root . --decision "<user answer>"
+python scripts/taskboard_health.py --root . --stale-minutes 30
+python scripts/taskboard_sessions.py --root . probe --stale-seconds 300
+```
+
+T0 runtime files:
+
+- `.taskboard/t0/goal.json`: persisted user goal for T0 resume.
+- `.taskboard/t0/latest.json`: latest `taskboard-t0-supervisor-state` snapshot with `resume_config`.
+- `.taskboard/t0/events.jsonl`: append-only `taskboard-t0-supervisor-event` audit log.
+- `.taskboard/t0/launches.json`: launch lease state that prevents duplicate managed terminals.
+- `.taskboard/targets/taskboard-T1.md`, `.taskboard/targets/taskboard-T2.md`, `.taskboard/targets/taskboard-T3.md`: isolated role inbox files written by T0.
+
+Current v4.3 recovery rules:
+
+- `taskboard_start.py --auto` is the one-command T0 entry and runs until completion, interruption, or a stop gate unless bounded with `--iterations`.
+- `taskboard_progress.py` reports `resume_command`, `t0_supervisor_state`, queue metrics, assignment state, latest event recovery data, completion audit state, fallback launcher state, and stalled recovery state.
+- `taskboard_watchdog.py --execute` resumes only T0 from the recorded `resume_command` when the T0 supervisor snapshot is stale or missing; it returns `taskboard-t0-watchdog` and must not launch or manage T1/T2/T3 directly.
+- Stop gates are aggregated through T0: progress exposes `decision_command`, and `taskboard_decide.py` records the user's answer before T1 continues.
+- Completion is gated by empty active queues, `STATE.md` goal-complete sentinel, archived TASK evidence, and dev-log completion evidence.
+- Assignment lease expiry, pending-ack timeout, stalled TASK detection, launch lease suppression, launcher failures, and fallback launchers are handled inside T0; user action should remain T0-level.
+
 ---
 
 ## Context File Templates
