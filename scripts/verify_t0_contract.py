@@ -61,7 +61,7 @@ def verify_t0_contract() -> None:
     )
     require_not_contains("SKILL.md", "| `T0-")
 
-    require_contains("USER-MANUAL.md", "# taskboard-dev v4.4 用户手册")
+    require_contains("USER-MANUAL.md", "# taskboard-dev v4.4.1 用户手册")
     require_contains("USER-MANUAL.md", "## 5. T0 编排器操作手册")
     require_contains("USER-MANUAL.md", "## Multi-agent 借鉴原则")
     require_contains("USER-MANUAL.md", "T0 是 manager，不是 worker")
@@ -90,7 +90,7 @@ def verify_t0_contract() -> None:
     require_contains("USER-MANUAL.md", "| T0 | `T1-待决策`")
     require_not_contains("USER-MANUAL.md", "| `T0-")
 
-    require_contains("README.md", "当前版本：**v4.4**")
+    require_contains("README.md", "当前版本：**v4.4.1**")
     require_contains("README.md", "T0 用户入口")
     require_contains("README.md", "执行：/taskboard-dev T0")
     require_contains("README.md", "用户默认只需要手动打开 1 个入口终端")
@@ -117,7 +117,7 @@ def verify_t0_contract() -> None:
     require_contains("README.md", "use `--launcher none` for no-write dry checks")
     require_contains("README.md", "python scripts/taskboard_next.py --role T0 --root .")
 
-    require_contains("references/taskboard-template.md", "# TASKBOARD v4.4 Templates")
+    require_contains("references/taskboard-template.md", "# TASKBOARD v4.4.1 Templates")
     require_contains("references/taskboard-template.md", "## Current T0 Control-Plane Entries")
     require_contains("references/taskboard-template.md", "python scripts/taskboard_start.py --goal")
     require_contains("references/taskboard-template.md", "--dry-run --iterations 1 --launcher none")
@@ -133,7 +133,7 @@ def verify_t0_contract() -> None:
     require_contains("references/taskboard-template.md", "目标(T0):")
     require_contains("references/taskboard-template.md", "执行: /taskboard-dev T0")
 
-    require_contains("scripts/package.sh", 'VERSION="${VERSION:-v4.4}"')
+    require_contains("scripts/package.sh", 'VERSION="${VERSION:-v4.4.1}"')
     require_contains("scripts/package.sh", 'cp "$ROOT_DIR/scripts/taskboard_start.py"')
     require_contains("scripts/package.sh", 'cp "$ROOT_DIR/scripts/taskboard_t0.py"')
     require_contains("scripts/package.sh", 'cp "$ROOT_DIR/scripts/taskboard_loop.py"')

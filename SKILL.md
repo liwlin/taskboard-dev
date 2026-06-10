@@ -9,9 +9,9 @@ description: >
   /taskboard-dev T1, /taskboard-dev T2, or /taskboard-dev T3.
 ---
 
-# TASKBOARD-Driven Development v4.4
+# TASKBOARD-Driven Development v4.4.1
 
-T0-managed collaborative development. The user gives T0 one goal, and T0 manages the T1 architect/scheduler, T2 reviewer/verifier, and T3 executor loops until the goal is complete or a stop gate is hit. Status is still encoded in filenames. Polling still uses Glob with zero file content reads. The read-only context layer remains the cross-session memory. v4.4 keeps the same task file protocol and T0 orchestration as v4.3, but moves the four role definitions into `references/role-t0.md` through `role-t3.md`, loaded per assigned role so a single-role session never carries the other roles' detail.
+T0-managed collaborative development. The user gives T0 one goal, and T0 manages the T1 architect/scheduler, T2 reviewer/verifier, and T3 executor loops until the goal is complete or a stop gate is hit. Status is still encoded in filenames. Polling still uses Glob with zero file content reads. The read-only context layer remains the cross-session memory. v4.4.1 keeps the same task file protocol and T0 orchestration as v4.4, with patch-level defaults for one-command T0 startup and generated role target contracts.
 
 ## Five Principles (non-negotiable)
 
