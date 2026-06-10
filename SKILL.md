@@ -1,13 +1,12 @@
 ---
 name: taskboard-dev
 description: >
-  T0-managed TASKBOARD-driven development workflow with orchestrator, architect, reviewer, and executor roles.
-  This skill should be used when starting a multi-terminal collaborative development session.
-  Invoke with role argument such as /taskboard-dev T0, /taskboard-dev T1, /taskboard-dev T2, or /taskboard-dev T3.
-  Uses filename-as-status pattern for zero-content polling, tiered code review, and version
-  experience management on spec revision. No shared index file, no locks, no parsing overhead.
-  v4.3 adds T0 as the user-facing orchestration layer that manages T1/T2/T3 until
-  the user's goal is complete or an explicit stop gate is hit.
+  This skill should be used when starting or resuming a multi-terminal
+  collaborative development session with a T0 orchestrator managing architect
+  (T1), reviewer (T2), and executor (T3) roles, and before performing any work
+  in an assigned T0-T3 role — each role has strict boundaries defined in the
+  skill body. Invoke with a role argument such as /taskboard-dev T0,
+  /taskboard-dev T1, /taskboard-dev T2, or /taskboard-dev T3.
 ---
 
 # TASKBOARD-Driven Development v4.3
