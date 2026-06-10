@@ -130,6 +130,49 @@ class TaskboardStartTest(unittest.TestCase):
         self.assertEqual(events[-1]["state"], "config-error")
         self.assertIn("agent-template references {target_file}", events[-1]["error"])
 
+    def test_starter_preflights_missing_agent_command_before_launching_workers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--root",
+                    str(root),
+                    "--format",
+                    "json",
+                    "--goal",
+                    "Ship demo",
+                    "--iterations",
+                    "1",
+                    "--launcher",
+                    "powershell",
+                    "--agent-template",
+                    "__taskboard_missing_agent__ --prompt-file \"{target_file}\"",
+                ],
+                cwd=ROOT,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+            snapshot = json.loads((root / ".taskboard" / "t0" / "latest.json").read_text(encoding="utf-8"))
+            events = [
+                json.loads(line)
+                for line in (root / ".taskboard" / "t0" / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("agent command '__taskboard_missing_agent__'", result.stdout)
+        self.assertIn("not found on PATH", result.stdout)
+        self.assertEqual(snapshot["latest"]["state"], "config-error")
+        self.assertIn("agent command '__taskboard_missing_agent__'", snapshot["latest"]["error"])
+        self.assertEqual(events[-1]["state"], "config-error")
+        self.assertIn("agent command '__taskboard_missing_agent__'", events[-1]["error"])
+
     def test_starter_resumes_saved_goal_without_retyping_it(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

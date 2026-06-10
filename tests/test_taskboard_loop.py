@@ -1001,6 +1001,57 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertEqual(events[0]["dispatch_state"], "config-error")
         self.assertIn("agent-template references {target_file}", events[0]["error"])
 
+    def test_loop_persists_agent_preflight_failure_before_launching_workers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--root",
+                    str(root),
+                    "--format",
+                    "json",
+                    "--goal",
+                    "Ship demo",
+                    "--iterations",
+                    "1",
+                    "--launcher",
+                    "powershell",
+                    "--agent-template",
+                    f'"{sys.executable}" -c "import sys; sys.exit(0)" --prompt-file "{{target_file}}"',
+                    "--agent-preflight-command",
+                    f'"{sys.executable}" -c "import sys; sys.exit(7)"',
+                    "--execute-launches",
+                ],
+                cwd=ROOT,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+            state_file = root / ".taskboard" / "t0" / "latest.json"
+            event_log = root / ".taskboard" / "t0" / "events.jsonl"
+
+            self.assertTrue(state_file.exists(), result.stdout)
+            self.assertTrue(event_log.exists(), result.stdout)
+            snapshot = json.loads(state_file.read_text(encoding="utf-8"))
+            events = [
+                json.loads(line)
+                for line in event_log.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("agent preflight command failed", result.stdout)
+        self.assertIn("returncode=7", result.stdout)
+        self.assertEqual(snapshot["latest"]["state"], "config-error")
+        self.assertIn("agent preflight command failed", snapshot["latest"]["error"])
+        self.assertEqual(events[0]["state"], "config-error")
+        self.assertIn("agent preflight command failed", events[0]["error"])
+
     def test_loop_persists_interruption_recovery_state(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -71,6 +71,11 @@ def build_resume_command(
     agent_template = str(config.get("agent_template") or "")
     if agent_template and agent_template != DEFAULT_RESUME_AGENT_TEMPLATE:
         parts.extend(["--agent-template", quote_cli_value(agent_template)])
+    if config.get("agent_preflight_enabled") is False:
+        parts.append("--no-agent-preflight")
+    agent_preflight_command = str(config.get("agent_preflight_command") or "")
+    if agent_preflight_command:
+        parts.extend(["--agent-preflight-command", quote_cli_value(agent_preflight_command)])
     numeric_options = (
         ("stale_minutes", "--stale-minutes", 30),
         ("stale_seconds", "--stale-seconds", 300),

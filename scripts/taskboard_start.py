@@ -62,6 +62,8 @@ def build_interruption_payload(
     target_dir: Optional[Path],
     auto_mode: bool,
     fallback_launchers: Optional[list[str]] = None,
+    agent_preflight_enabled: bool = True,
+    agent_preflight_command: Optional[str] = None,
 ) -> dict[str, object]:
     resume_config = build_resume_config(
         launcher,
@@ -73,6 +75,8 @@ def build_interruption_payload(
         launch_lease_seconds,
         target_dir,
         fallback_launchers,
+        agent_preflight_enabled,
+        agent_preflight_command,
     )
     metadata = starter_metadata(auto_mode)
     return {
@@ -122,6 +126,8 @@ def build_config_error_payload(
     target_dir: Optional[Path],
     auto_mode: bool,
     fallback_launchers: Optional[list[str]] = None,
+    agent_preflight_enabled: bool = True,
+    agent_preflight_command: Optional[str] = None,
 ) -> dict[str, object]:
     resume_config = build_resume_config(
         launcher,
@@ -133,6 +139,8 @@ def build_config_error_payload(
         launch_lease_seconds,
         target_dir,
         fallback_launchers,
+        agent_preflight_enabled,
+        agent_preflight_command,
     )
     metadata = starter_metadata(auto_mode)
     return {
@@ -222,6 +230,15 @@ def main(argv: Optional[list[str]] = None) -> int:
         "--execute-launches",
         action="store_true",
         help="Actually launch/recover T1/T2/T3 role terminals. Without this, start runs as a dry orchestration check.",
+    )
+    parser.add_argument(
+        "--no-agent-preflight",
+        action="store_true",
+        help="Disable the worker agent command preflight before executing launcher commands.",
+    )
+    parser.add_argument(
+        "--agent-preflight-command",
+        help="Optional command T0 runs once before worker launches to verify agent CLI readiness.",
     )
     parser.add_argument(
         "--auto",
@@ -320,6 +337,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             not args.no_stop_on_stop_gate,
             starter_metadata(auto_mode),
             args.fallback_launcher,
+            not args.no_agent_preflight,
+            args.agent_preflight_command,
         )
         results = annotate_starter_mode(results, auto_mode)
         if state_file is not None and results:
@@ -341,6 +360,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             target_dir,
             auto_mode,
             args.fallback_launcher,
+            not args.no_agent_preflight,
+            args.agent_preflight_command,
         )
         persist_interruption_payload(
             state_file,
@@ -372,6 +393,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             target_dir,
             auto_mode,
             args.fallback_launcher,
+            not args.no_agent_preflight,
+            args.agent_preflight_command,
         )
         persist_interruption_payload(
             state_file,

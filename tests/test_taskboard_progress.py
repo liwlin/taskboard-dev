@@ -387,6 +387,7 @@ class TaskboardProgressTest(unittest.TestCase):
                 "powershell",
                 "--agent-template",
                 'custom-agent --file "{target_file}"',
+                "--no-agent-preflight",
                 "--stale-minutes",
                 "12",
                 "--stale-seconds",
@@ -403,6 +404,7 @@ class TaskboardProgressTest(unittest.TestCase):
 
         self.assertIn("--launcher tmux", progress["resume_command"])
         self.assertIn('--agent-template "custom-agent --file \\"{target_file}\\""', progress["resume_command"])
+        self.assertIn("--no-agent-preflight", progress["resume_command"])
         self.assertIn("--stale-minutes 12", progress["resume_command"])
         self.assertIn("--stale-seconds 34", progress["resume_command"])
         self.assertIn("--assignment-lease-seconds 56", progress["resume_command"])
@@ -487,6 +489,7 @@ class TaskboardProgressTest(unittest.TestCase):
                 "powershell",
                 "--agent-template",
                 'custom-agent --file "{target_file}"',
+                "--no-agent-preflight",
                 "--stale-minutes",
                 "12",
                 "--stale-seconds",
@@ -508,6 +511,7 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("--launcher tmux", progress["resume_command"])
         self.assertIn("--fallback-launcher powershell", progress["resume_command"])
         self.assertIn('--agent-template "custom-agent --file \\"{target_file}\\""', progress["resume_command"])
+        self.assertIn("--no-agent-preflight", progress["resume_command"])
         self.assertIn("--stale-minutes 12", progress["resume_command"])
         self.assertIn("--stale-seconds 34", progress["resume_command"])
         self.assertIn("--assignment-lease-seconds 56", progress["resume_command"])

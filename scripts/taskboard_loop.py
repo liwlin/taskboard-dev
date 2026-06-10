@@ -5,6 +5,8 @@ from argparse import ArgumentParser
 from pathlib import Path
 import json
 import re
+import shlex
+import shutil
 import subprocess
 import sys
 import time
@@ -466,6 +468,79 @@ def command_failed(item: dict[str, object]) -> bool:
         return True
 
 
+def extract_agent_command(agent_template: Optional[str]) -> str:
+    if not agent_template or not agent_template.strip():
+        return ""
+    try:
+        tokens = shlex.split(agent_template, posix=False)
+    except ValueError:
+        tokens = agent_template.strip().split()
+    if not tokens:
+        return ""
+    return tokens[0].strip("\"'")
+
+
+def validate_agent_preflight(
+    agent_template: Optional[str],
+    execute_launches: bool,
+    launcher: str,
+    enabled: bool = True,
+    preflight_command: Optional[str] = None,
+) -> dict[str, object]:
+    if not execute_launches or launcher == "none":
+        return {
+            "enabled": enabled,
+            "state": "skipped",
+            "reason": "launches-disabled",
+            "command": "",
+        }
+    if not enabled:
+        return {
+            "enabled": False,
+            "state": "disabled",
+            "reason": "agent-preflight-disabled",
+            "command": "",
+        }
+    if preflight_command and preflight_command.strip():
+        completed = subprocess.run(
+            preflight_command,
+            shell=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+        output = completed.stdout.strip()
+        if completed.returncode != 0:
+            raise ValueError(
+                "agent preflight command failed "
+                f"returncode={completed.returncode}: {preflight_command}: {output}"
+            )
+        return {
+            "enabled": True,
+            "state": "passed",
+            "mode": "command",
+            "command": preflight_command,
+            "returncode": completed.returncode,
+            "output": output[:2000],
+        }
+
+    command = extract_agent_command(agent_template)
+    if not command:
+        raise ValueError("agent-template is empty; configure a worker agent command before launching roles")
+    if shutil.which(command) is None:
+        raise ValueError(
+            f"agent command '{command}' from --agent-template was not found on PATH; "
+            "fix T0 --agent-template or install/login to the agent CLI before launching workers"
+        )
+    return {
+        "enabled": True,
+        "state": "passed",
+        "mode": "path",
+        "command": command,
+    }
+
+
 def successful_launch_roles(executed_commands: list[dict[str, object]]) -> set[str]:
     roles: set[str] = set()
     for item in executed_commands:
@@ -562,6 +637,7 @@ def run_once(
     launch_lease_seconds: int = 300,
     fallback_launchers: Optional[list[str]] = None,
     assignment_watch: Optional[dict[str, object]] = None,
+    agent_preflight: Optional[dict[str, object]] = None,
 ) -> dict[str, object]:
     session_probe = probe_sessions(
         root,
@@ -725,6 +801,7 @@ def run_once(
         ),
         "fallback_launch_attempts": fallback_attempts,
         "assignment_watch": json.loads(json.dumps(assignment_watch_payload, ensure_ascii=False)),
+        "agent_preflight": agent_preflight or {},
     }
     if completion_audit_payload is not None:
         payload["completion_audit"] = completion_audit_payload
@@ -789,11 +866,15 @@ def build_resume_config(
     launch_lease_seconds: int,
     target_dir: Optional[Path],
     fallback_launchers: Optional[list[str]] = None,
+    agent_preflight_enabled: bool = True,
+    agent_preflight_command: Optional[str] = None,
 ) -> dict[str, object]:
     payload: dict[str, object] = {
         "launcher": launcher,
         "agent_template": agent_template or "",
         "fallback_launchers": fallback_launchers or [],
+        "agent_preflight_enabled": agent_preflight_enabled,
+        "agent_preflight_command": agent_preflight_command or "",
         "stale_minutes": stale_minutes,
         "stale_seconds": stale_seconds,
         "interval_seconds": interval_seconds,
@@ -832,6 +913,11 @@ def build_t0_resume_command(
     default_agent_template = 'codex --prompt-file "{target_file}"'
     if agent_template and agent_template != default_agent_template:
         parts.extend(["--agent-template", quote_cli_value(agent_template)])
+    if resume_config.get("agent_preflight_enabled") is False:
+        parts.append("--no-agent-preflight")
+    agent_preflight_command = str(resume_config.get("agent_preflight_command") or "")
+    if agent_preflight_command:
+        parts.extend(["--agent-preflight-command", quote_cli_value(agent_preflight_command)])
     numeric_options = (
         ("stale_minutes", "--stale-minutes", 30),
         ("stale_seconds", "--stale-seconds", 300),
@@ -869,6 +955,8 @@ def build_interruption_payload(
     launch_lease_seconds: int,
     target_dir: Optional[Path],
     fallback_launchers: Optional[list[str]] = None,
+    agent_preflight_enabled: bool = True,
+    agent_preflight_command: Optional[str] = None,
 ) -> dict[str, object]:
     resume_config = build_resume_config(
         launcher,
@@ -880,6 +968,8 @@ def build_interruption_payload(
         launch_lease_seconds,
         target_dir,
         fallback_launchers,
+        agent_preflight_enabled,
+        agent_preflight_command,
     )
     return {
         "kind": "taskboard-t0-interruption",
@@ -926,6 +1016,8 @@ def build_config_error_payload(
     launch_lease_seconds: int,
     target_dir: Optional[Path],
     fallback_launchers: Optional[list[str]] = None,
+    agent_preflight_enabled: bool = True,
+    agent_preflight_command: Optional[str] = None,
 ) -> dict[str, object]:
     return {
         "kind": "taskboard-t0-config-error",
@@ -946,6 +1038,8 @@ def build_config_error_payload(
             launch_lease_seconds,
             target_dir,
             fallback_launchers,
+            agent_preflight_enabled,
+            agent_preflight_command,
         ),
         "resume_command": "",
         "user_action": "T0 configuration failed; fix T0 launcher configuration before resuming.",
@@ -1134,6 +1228,8 @@ def run_loop(
     stop_on_stop_gate: bool = True,
     runtime_metadata: Optional[dict[str, object]] = None,
     fallback_launchers: Optional[list[str]] = None,
+    agent_preflight_enabled: bool = True,
+    agent_preflight_command: Optional[str] = None,
 ) -> list[dict[str, object]]:
     if interval_seconds < 0:
         raise ValueError("--interval-seconds must be >= 0")
@@ -1147,6 +1243,13 @@ def run_loop(
     write_runtime_goal(root, goal)
     effective_goal = read_goal(root, goal)
     launch_state = read_launch_state(root) if execute_launches else None
+    agent_preflight = validate_agent_preflight(
+        agent_template,
+        execute_launches,
+        launcher,
+        agent_preflight_enabled,
+        agent_preflight_command,
+    )
     resume_config = build_resume_config(
         launcher,
         agent_template,
@@ -1157,6 +1260,8 @@ def run_loop(
         launch_lease_seconds,
         target_dir,
         fallback_launchers,
+        agent_preflight_enabled,
+        agent_preflight_command,
     )
     results: list[dict[str, object]] = []
     count = 0
@@ -1176,6 +1281,7 @@ def run_loop(
             launch_lease_seconds,
             fallback_launchers,
             assignment_watch,
+            agent_preflight,
         )
         if runtime_metadata:
             payload.update(runtime_metadata)
@@ -1335,6 +1441,15 @@ def main(argv: Optional[list[str]] = None) -> int:
         action="store_true",
         help="Execute generated launcher commands. This only launches/recover roles; T0 still does not do worker tasks.",
     )
+    parser.add_argument(
+        "--no-agent-preflight",
+        action="store_true",
+        help="Disable the worker agent command preflight before executing launcher commands.",
+    )
+    parser.add_argument(
+        "--agent-preflight-command",
+        help="Optional command T0 runs once before worker launches to verify agent CLI readiness.",
+    )
     parser.add_argument("--format", choices=("text", "json"), default="text")
     args = parser.parse_args(argv)
     root = Path(args.root).resolve()
@@ -1367,6 +1482,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             event_log_file,
             not args.no_stop_on_stop_gate,
             fallback_launchers=args.fallback_launcher,
+            agent_preflight_enabled=not args.no_agent_preflight,
+            agent_preflight_command=args.agent_preflight_command,
         )
     except KeyboardInterrupt:
         effective_goal = read_goal(root, args.goal)
@@ -1383,6 +1500,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.launch_lease_seconds,
             target_dir,
             args.fallback_launcher,
+            not args.no_agent_preflight,
+            args.agent_preflight_command,
         )
         if state_file is not None:
             write_state_snapshot(state_file, root, effective_goal, [payload], not args.no_stop_on_complete)
@@ -1409,6 +1528,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.launch_lease_seconds,
             target_dir,
             args.fallback_launcher,
+            not args.no_agent_preflight,
+            args.agent_preflight_command,
         )
         if state_file is not None:
             write_state_snapshot(state_file, root, effective_goal, [payload], not args.no_stop_on_complete)
