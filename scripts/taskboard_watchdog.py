@@ -13,6 +13,10 @@ from taskboard_progress import report_progress
 
 Runner = Callable[[str], int]
 Sleeper = Callable[[int], None]
+WatchdogReporter = Callable[[Path, bool, Optional[Runner]], dict[str, object]]
+
+
+TERMINAL_PROGRESS_STATES = {"complete", "stop-gate", "needs-goal", "config-error"}
 
 
 def run_resume_command(command: str) -> int:
@@ -46,6 +50,7 @@ def report_watchdog(root: Path, execute: bool = False, runner: Optional[Runner] 
     return {
         "kind": "taskboard-t0-watchdog",
         "state": state,
+        "progress_state": str(progress.get("state") or ""),
         "goal": str(progress.get("goal") or ""),
         "should_resume": should_resume,
         "executed_resume": executed_resume,
@@ -69,25 +74,40 @@ def report_guardian(
     interval_seconds: int = 300,
     runner: Optional[Runner] = None,
     sleeper: Optional[Sleeper] = None,
+    forever: bool = True,
+    reporter: Optional[WatchdogReporter] = None,
 ) -> dict[str, object]:
     bounded_iterations = max(1, iterations)
     cycles: list[dict[str, object]] = []
     sleep_fn = sleeper or time.sleep
+    watchdog_reporter = reporter or report_watchdog
+    stop_reason = "iteration-limit"
 
-    for index in range(bounded_iterations):
-        cycle = report_watchdog(root, execute=execute, runner=runner)
-        cycle["guardian_iteration"] = index + 1
+    index = 0
+    while True:
+        index += 1
+        cycle = watchdog_reporter(root, execute, runner)
+        cycle["guardian_iteration"] = index
         cycles.append(cycle)
-        if index + 1 < bounded_iterations:
-            sleep_fn(interval_seconds)
+        progress_state = str(cycle.get("progress_state") or cycle.get("state") or "")
+        if progress_state in TERMINAL_PROGRESS_STATES:
+            stop_reason = f"terminal-state:{progress_state}"
+            break
+        if not forever and index >= bounded_iterations:
+            break
+        sleep_fn(interval_seconds)
 
     resumed_count = sum(1 for cycle in cycles if cycle.get("executed_resume"))
     should_resume_count = sum(1 for cycle in cycles if cycle.get("should_resume"))
+    final_cycle = cycles[-1] if cycles else {}
     return {
         "kind": "taskboard-t0-guardian",
-        "state": "monitoring",
-        "iterations": bounded_iterations,
+        "state": str(final_cycle.get("progress_state") or final_cycle.get("state") or "monitoring"),
+        "forever": forever,
+        "iterations": len(cycles),
+        "requested_iterations": None if forever else bounded_iterations,
         "interval_seconds": interval_seconds,
+        "stop_reason": stop_reason,
         "execute": execute,
         "should_resume_count": should_resume_count,
         "executed_resume_count": resumed_count,
@@ -108,7 +128,9 @@ def format_text(payload: dict[str, object]) -> str:
         lines = [
             f"kind={payload['kind']}",
             f"state={payload['state']}",
+            f"forever={payload['forever']}",
             f"iterations={payload['iterations']}",
+            f"stop_reason={payload['stop_reason']}",
             f"interval_seconds={payload['interval_seconds']}",
             f"should_resume_count={payload['should_resume_count']}",
             f"executed_resume_count={payload['executed_resume_count']}",
@@ -147,7 +169,21 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument(
         "--guardian",
         action="store_true",
-        help="Run bounded guardian cycles that keep checking and resuming T0.",
+        help="Run guardian cycles that keep checking and resuming T0.",
+    )
+    guardian_lifetime = parser.add_mutually_exclusive_group()
+    guardian_lifetime.add_argument(
+        "--forever",
+        dest="forever",
+        action="store_true",
+        default=True,
+        help="Keep guardian mode running until T0 reaches complete, stop-gate, needs-goal, or config-error. This is the default.",
+    )
+    guardian_lifetime.add_argument(
+        "--bounded",
+        dest="forever",
+        action="store_false",
+        help="Run only the requested --iterations guardian cycles.",
     )
     parser.add_argument("--iterations", type=int, default=1)
     parser.add_argument("--interval-seconds", type=int, default=300)
@@ -156,7 +192,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     root = Path(args.root).resolve()
     if args.guardian:
-        payload = report_guardian(root, args.execute, args.iterations, args.interval_seconds)
+        payload = report_guardian(root, args.execute, args.iterations, args.interval_seconds, forever=args.forever)
     else:
         payload = report_watchdog(root, args.execute)
     if args.format == "json":

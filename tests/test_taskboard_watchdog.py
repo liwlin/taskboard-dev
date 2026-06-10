@@ -105,6 +105,7 @@ class TaskboardWatchdogTest(unittest.TestCase):
                 execute=True,
                 iterations=2,
                 interval_seconds=0,
+                forever=False,
                 runner=fake_runner,
                 sleeper=fake_sleep,
             )
@@ -118,6 +119,51 @@ class TaskboardWatchdogTest(unittest.TestCase):
         self.assertEqual(sleeps, [0])
         self.assertIn("kept T0 under supervision", report["user_action"])
         self.assertIn("must not launch or manage T1/T2/T3 directly", report["boundary"])
+
+    def test_guardian_defaults_to_forever_until_t0_reaches_terminal_state(self):
+        cycles = [
+            {
+                "kind": "taskboard-t0-watchdog",
+                "state": "resumed",
+                "progress_state": "attention",
+                "executed_resume": True,
+                "should_resume": True,
+                "resume_command": "python scripts/taskboard_start.py --root . --auto",
+            },
+            {
+                "kind": "taskboard-t0-watchdog",
+                "state": "complete",
+                "progress_state": "complete",
+                "executed_resume": False,
+                "should_resume": False,
+                "resume_command": "",
+            },
+        ]
+        sleeps = []
+
+        def fake_reporter(*args, **kwargs):
+            return dict(cycles.pop(0))
+
+        def fake_sleep(seconds: int):
+            sleeps.append(seconds)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            report = report_guardian(
+                Path(tmp),
+                execute=True,
+                interval_seconds=0,
+                reporter=fake_reporter,
+                sleeper=fake_sleep,
+            )
+
+        self.assertEqual(report["kind"], "taskboard-t0-guardian")
+        self.assertEqual(report["state"], "complete")
+        self.assertTrue(report["forever"])
+        self.assertEqual(report["iterations"], 2)
+        self.assertEqual(report["stop_reason"], "terminal-state:complete")
+        self.assertEqual(report["executed_resume_count"], 1)
+        self.assertEqual(sleeps, [0])
+        self.assertEqual(len(cycles), 0)
 
 
 if __name__ == "__main__":

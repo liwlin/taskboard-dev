@@ -276,9 +276,14 @@ class T0ContractTest(unittest.TestCase):
         role_t0 = (ROOT / "references" / "role-t0.md").read_text(encoding="utf-8")
 
         command = "python scripts/taskboard_watchdog.py --root . --guardian --execute"
+        bounded_command = "python scripts/taskboard_watchdog.py --root . --guardian --execute --bounded --iterations 3"
         self.assertIn(command, readme)
+        self.assertIn(bounded_command, readme)
         self.assertIn(command, manual)
+        self.assertIn(bounded_command, manual)
         self.assertIn(command, role_t0)
+        self.assertIn(bounded_command, role_t0)
+        self.assertIn("By default, guardian keeps checking until T0 reports", readme)
         self.assertIn("taskboard-t0-guardian", readme)
 
     def test_session_manifest_contract_is_documented(self):
