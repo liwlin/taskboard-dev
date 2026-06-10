@@ -61,6 +61,14 @@ destructive/shared-state operations. In those cases, stay solo and record the re
 T3 remains responsible for integration, final verification, and commit even
 when subagents perform implementation slices.
 
+### External Tool Boundaries
+
+- Use GitHub tooling for repository, PR, issue, release, and CI-check work when that evidence is needed for implementation, CI triage, or release handoff within the task scope.
+- Use Chrome/Browser tooling for web UI inspection, browser-side debugging, screenshots, and rendered frontend verification.
+- Use Computer Use only for local desktop or GUI workflows that cannot be verified through shell, browser, or repository tools.
+- Do not ask the user to operate these tools for routine role work; use the available tool yourself unless a stop gate applies.
+- Respect role boundaries when using external tools: T3 may implement, verify, and commit within the task scope, but must not redesign the spec or approve its own work.
+
 ### Process
 
 1. Glob `TASK-*.T3-*.md`

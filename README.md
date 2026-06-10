@@ -2,7 +2,7 @@
 
 `taskboard-dev` 是一个给 Claude Code / OpenAI Codex 等 agent CLI 使用的 **TASKBOARD 全自动流程开发 skill**。用户把目标交给 T0，T0 自动管理 T1 架构调度、T2 审核验证、T3 执行提交三个长期运行角色，通过文件名状态机驱动任务流转，适合 5–20 个任务规模的 milestone / feature batch。
 
-当前版本：**v4.4.1**
+当前版本：**v4.4.2**
 
 ## 核心优势
 

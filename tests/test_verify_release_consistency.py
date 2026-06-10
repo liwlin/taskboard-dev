@@ -151,7 +151,7 @@ class VerifyReleaseConsistencyTest(unittest.TestCase):
     def test_real_repo_is_consistent(self):
         returncode, payload = self.run_check(ROOT)
         self.assertEqual(returncode, 0, payload.get("mismatches"))
-        self.assertEqual(payload["version"], "v4.4.1")
+        self.assertEqual(payload["version"], "v4.4.2")
 
 
 if __name__ == "__main__":

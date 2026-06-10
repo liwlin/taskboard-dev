@@ -61,7 +61,7 @@ def verify_t0_contract() -> None:
     )
     require_not_contains("SKILL.md", "| `T0-")
 
-    require_contains("USER-MANUAL.md", "# taskboard-dev v4.4.1 用户手册")
+    require_contains("USER-MANUAL.md", "# taskboard-dev v4.4.2 用户手册")
     require_contains("USER-MANUAL.md", "## 5. T0 编排器操作手册")
     require_contains("USER-MANUAL.md", "## Multi-agent 借鉴原则")
     require_contains("USER-MANUAL.md", "T0 是 manager，不是 worker")
@@ -90,7 +90,7 @@ def verify_t0_contract() -> None:
     require_contains("USER-MANUAL.md", "| T0 | `T1-待决策`")
     require_not_contains("USER-MANUAL.md", "| `T0-")
 
-    require_contains("README.md", "当前版本：**v4.4.1**")
+    require_contains("README.md", "当前版本：**v4.4.2**")
     require_contains("README.md", "T0 用户入口")
     require_contains("README.md", "执行：/taskboard-dev T0")
     require_contains("README.md", "用户默认只需要手动打开 1 个入口终端")
@@ -117,7 +117,7 @@ def verify_t0_contract() -> None:
     require_contains("README.md", "use `--launcher none` for no-write dry checks")
     require_contains("README.md", "python scripts/taskboard_next.py --role T0 --root .")
 
-    require_contains("references/taskboard-template.md", "# TASKBOARD v4.4.1 Templates")
+    require_contains("references/taskboard-template.md", "# TASKBOARD v4.4.2 Templates")
     require_contains("references/taskboard-template.md", "## Current T0 Control-Plane Entries")
     require_contains("references/taskboard-template.md", "python scripts/taskboard_start.py --goal")
     require_contains("references/taskboard-template.md", "--dry-run --iterations 1 --launcher none")
@@ -133,7 +133,7 @@ def verify_t0_contract() -> None:
     require_contains("references/taskboard-template.md", "目标(T0):")
     require_contains("references/taskboard-template.md", "执行: /taskboard-dev T0")
 
-    require_contains("scripts/package.sh", 'VERSION="${VERSION:-v4.4.1}"')
+    require_contains("scripts/package.sh", 'VERSION="${VERSION:-v4.4.2}"')
     require_contains("scripts/package.sh", 'cp "$ROOT_DIR/scripts/taskboard_start.py"')
     require_contains("scripts/package.sh", 'cp "$ROOT_DIR/scripts/taskboard_t0.py"')
     require_contains("scripts/package.sh", 'cp "$ROOT_DIR/scripts/taskboard_loop.py"')
@@ -357,6 +357,17 @@ def verify_t0_contract() -> None:
     require_contains("references/role-t0.md", "stalled_recovery_count")
     require_contains("references/role-t0.md", "stalled_recoveries")
     require_contains("references/role-t0.md", "auto vs dry-check")
+    for role_reference in (
+        "references/role-t1.md",
+        "references/role-t2.md",
+        "references/role-t3.md",
+    ):
+        require_contains(role_reference, "### External Tool Boundaries")
+        require_contains(role_reference, "Use GitHub tooling for repository, PR, issue, release, and CI-check work")
+        require_contains(role_reference, "Use Chrome/Browser tooling for web UI inspection")
+        require_contains(role_reference, "Use Computer Use only for local desktop or GUI workflows")
+        require_contains(role_reference, "Do not ask the user to operate these tools for routine role work")
+        require_contains(role_reference, "Respect role boundaries when using external tools")
     require_contains("README.md", "latest_event_state")
     require_contains("README.md", "latest_event_dispatch_state")
     require_contains("README.md", "latest_event_next_role")

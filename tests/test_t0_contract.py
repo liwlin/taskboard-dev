@@ -68,6 +68,14 @@ class T0ContractTest(unittest.TestCase):
         )
         self.assertIn("stay solo and record the reason", role_t3)
 
+        for role_text in (role_t1, role_t2, role_t3):
+            self.assertIn("### External Tool Boundaries", role_text)
+            self.assertIn("Use GitHub tooling for repository, PR, issue, release, and CI-check work", role_text)
+            self.assertIn("Use Chrome/Browser tooling for web UI inspection", role_text)
+            self.assertIn("Use Computer Use only for local desktop or GUI workflows", role_text)
+            self.assertIn("Do not ask the user to operate these tools for routine role work", role_text)
+            self.assertIn("Respect role boundaries when using external tools", role_text)
+
     def test_multi_agent_patterns_are_explicit(self):
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
         role_t0 = (ROOT / "references" / "role-t0.md").read_text(encoding="utf-8")

@@ -51,6 +51,14 @@ Use manual planning only when planning skills/tools are unavailable or clearly
 inapplicable to the current client. If T1 falls back to manual planning, record
 the fallback reason in the spec, plan, or task's Current Instruction.
 
+### External Tool Boundaries
+
+- Use GitHub tooling for repository, PR, issue, release, and CI-check work when that evidence is needed for T1 planning or task creation.
+- Use Chrome/Browser tooling for web UI inspection, browser-side requirement clarification, screenshots, and rendered frontend evidence that informs the plan.
+- Use Computer Use only for local desktop or GUI workflows that cannot be verified through shell, browser, or repository tools.
+- Do not ask the user to operate these tools for routine role work; use the available tool yourself unless a stop gate applies.
+- Respect role boundaries when using external tools: T1 may gather planning evidence and write docs/TASK files, but must not implement, verify code, or review code.
+
 ### Task Creation Checklist (blocking)
 
 T1 must fill ALL required fields before setting status to `T2-待审核方案`:

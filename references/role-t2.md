@@ -54,6 +54,14 @@ L3 code reviews MUST run dual-pass review: T2's own review plus one independent
 or specialized review pass. T2 remains the final decision owner and must
 reconcile conflicting findings before renaming the task.
 
+### External Tool Boundaries
+
+- Use GitHub tooling for repository, PR, issue, release, and CI-check work when that evidence is needed for review or verification.
+- Use Chrome/Browser tooling for web UI inspection, browser-side debugging evidence, screenshots, and rendered frontend verification.
+- Use Computer Use only for local desktop or GUI workflows that cannot be verified through shell, browser, or repository tools.
+- Do not ask the user to operate these tools for routine role work; use the available tool yourself unless a stop gate applies.
+- Respect role boundaries when using external tools: T2 may review and verify, but must not patch source code or create product designs.
+
 ### Design Review Process
 
 1. Glob `TASK-*.T2-待审核方案*.md`
