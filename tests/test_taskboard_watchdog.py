@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 import sys
 
 sys.path.insert(0, str(ROOT / "scripts"))
-from taskboard_watchdog import report_watchdog  # noqa: E402
+from taskboard_watchdog import report_guardian, report_watchdog  # noqa: E402
 
 
 class TaskboardWatchdogTest(unittest.TestCase):
@@ -84,6 +84,40 @@ class TaskboardWatchdogTest(unittest.TestCase):
         self.assertNotIn("taskboard-T1", calls[0])
         self.assertNotIn("taskboard-T2", calls[0])
         self.assertNotIn("taskboard-T3", calls[0])
+
+    def test_guardian_runs_bounded_watchdog_cycles_without_worker_management(self):
+        calls = []
+        sleeps = []
+
+        def fake_runner(command: str):
+            calls.append(command)
+            return 0
+
+        def fake_sleep(seconds: int):
+            sleeps.append(seconds)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write_snapshot(root, "2000-01-01T00:00:00Z")
+
+            report = report_guardian(
+                root,
+                execute=True,
+                iterations=2,
+                interval_seconds=0,
+                runner=fake_runner,
+                sleeper=fake_sleep,
+            )
+
+        self.assertEqual(report["kind"], "taskboard-t0-guardian")
+        self.assertEqual(report["iterations"], 2)
+        self.assertEqual(len(report["cycles"]), 2)
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(all("taskboard_start.py" in command for command in calls))
+        self.assertTrue(all("taskboard-T1" not in command for command in calls))
+        self.assertEqual(sleeps, [0])
+        self.assertIn("kept T0 under supervision", report["user_action"])
+        self.assertIn("must not launch or manage T1/T2/T3 directly", report["boundary"])
 
 
 if __name__ == "__main__":

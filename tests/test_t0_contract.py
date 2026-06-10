@@ -270,6 +270,17 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("T0 Completion Report", manual)
         self.assertIn("python scripts/taskboard_completion.py --root . --format markdown", role_t0)
 
+    def test_t0_guardian_mode_is_documented(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
+        role_t0 = (ROOT / "references" / "role-t0.md").read_text(encoding="utf-8")
+
+        command = "python scripts/taskboard_watchdog.py --root . --guardian --execute"
+        self.assertIn(command, readme)
+        self.assertIn(command, manual)
+        self.assertIn(command, role_t0)
+        self.assertIn("taskboard-t0-guardian", readme)
+
     def test_session_manifest_contract_is_documented(self):
         role_t0 = (ROOT / "references" / "role-t0.md").read_text(encoding="utf-8")
         manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
