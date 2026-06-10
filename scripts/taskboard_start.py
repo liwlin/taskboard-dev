@@ -226,7 +226,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument(
         "--auto",
         action="store_true",
-        help="One-command T0 automation mode: execute managed-role launches and run until completion unless --iterations is set.",
+        help="One-command T0 automation mode. This is now the default unless --dry-run is set.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report T0 orchestration without executing managed-role launches or running indefinitely.",
     )
     parser.add_argument("--stale-minutes", type=int, default=30)
     parser.add_argument("--stale-seconds", type=int, default=300)
@@ -289,9 +294,10 @@ def main(argv: Optional[list[str]] = None) -> int:
         else default_event_log_file(root)
     )
     target_dir = None if args.no_target_files else Path(args.target_dir).resolve() if args.target_dir else default_target_dir(root)
-    execute_launches = args.execute_launches or args.auto
+    auto_mode = args.auto or not args.dry_run
+    execute_launches = args.execute_launches or auto_mode
     iterations = args.iterations
-    if args.auto and not option_was_provided(argv, "--iterations") and not args.forever:
+    if auto_mode and not option_was_provided(argv, "--iterations") and not args.forever:
         iterations = None
 
     try:
@@ -312,10 +318,10 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.launch_lease_seconds,
             event_log_file,
             not args.no_stop_on_stop_gate,
-            starter_metadata(args.auto),
+            starter_metadata(auto_mode),
             args.fallback_launcher,
         )
-        results = annotate_starter_mode(results, args.auto)
+        results = annotate_starter_mode(results, auto_mode)
         if state_file is not None and results:
             snapshot_goal = str(results[-1].get("goal") or args.goal or "")
             write_state_snapshot(state_file, root, snapshot_goal, results, not args.no_stop_on_complete)
@@ -333,7 +339,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.assignment_lease_seconds,
             args.launch_lease_seconds,
             target_dir,
-            args.auto,
+            auto_mode,
             args.fallback_launcher,
         )
         persist_interruption_payload(
@@ -364,7 +370,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.assignment_lease_seconds,
             args.launch_lease_seconds,
             target_dir,
-            args.auto,
+            auto_mode,
             args.fallback_launcher,
         )
         persist_interruption_payload(

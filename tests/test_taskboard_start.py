@@ -33,7 +33,7 @@ class TaskboardStartTest(unittest.TestCase):
             root = Path(tmp)
             (root / "docs" / "taskboard").mkdir(parents=True)
 
-            output = self.run_start(root, "--goal", "Ship demo", "--iterations", "1")
+            output = self.run_start(root, "--goal", "Ship demo", "--dry-run", "--iterations", "1")
             goal_file = root / ".taskboard" / "t0" / "goal.json"
             saved_goal = json.loads(goal_file.read_text(encoding="utf-8"))
             t1_target = root / ".taskboard" / "targets" / "taskboard-T1.md"
@@ -56,6 +56,39 @@ class TaskboardStartTest(unittest.TestCase):
         self.assertTrue(t1_exists)
         self.assertEqual(events[0]["kind"], "taskboard-t0-supervisor-event")
         self.assertEqual(events[0]["goal"], "Ship demo")
+
+    def test_starter_goal_defaults_to_auto_mode_until_completion(self):
+        captured = {}
+
+        def fake_run_loop(*args):
+            captured["execute_launches"] = args[6]
+            captured["iterations"] = args[7]
+            captured["metadata"] = args[16]
+            return [{"state": "active"}]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+            with patch("taskboard_start.run_loop", fake_run_loop):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    code = start_module.main(
+                        [
+                            "--root",
+                            str(root),
+                            "--goal",
+                            "Ship demo",
+                            "--launcher",
+                            "none",
+                            "--format",
+                            "json",
+                        ]
+                    )
+
+        self.assertEqual(code, 0)
+        self.assertTrue(captured["execute_launches"])
+        self.assertIsNone(captured["iterations"])
+        self.assertTrue(captured["metadata"]["auto_mode"])
+        self.assertEqual(captured["metadata"]["starter_mode"], "auto")
 
     def test_starter_rejects_target_file_template_when_targets_are_disabled(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -102,8 +135,8 @@ class TaskboardStartTest(unittest.TestCase):
             root = Path(tmp)
             (root / "docs" / "taskboard").mkdir(parents=True)
 
-            self.run_start(root, "--goal", "Ship demo", "--iterations", "1")
-            resumed = self.run_start(root, "--iterations", "1")
+            self.run_start(root, "--goal", "Ship demo", "--dry-run", "--iterations", "1")
+            resumed = self.run_start(root, "--dry-run", "--iterations", "1")
 
         self.assertEqual(resumed[0]["goal"], "Ship demo")
         self.assertEqual(resumed[0]["dispatch"]["state"], "dispatch")
@@ -114,7 +147,7 @@ class TaskboardStartTest(unittest.TestCase):
             root = Path(tmp)
             (root / "docs" / "taskboard").mkdir(parents=True)
 
-            output = self.run_start(root, "--goal", "Ship demo", "--iterations", "1", "--launcher", "tmux")
+            output = self.run_start(root, "--goal", "Ship demo", "--dry-run", "--iterations", "1", "--launcher", "tmux")
 
         self.assertEqual(output[0]["dispatch"]["launcher"], "tmux")
         self.assertIn("tmux new-session", output[0]["launch_commands"][0])
@@ -124,7 +157,7 @@ class TaskboardStartTest(unittest.TestCase):
             root = Path(tmp)
             (root / "docs" / "taskboard").mkdir(parents=True)
 
-            self.run_start(root, "--goal", "Ship demo", "--iterations", "1", "--no-event-log")
+            self.run_start(root, "--goal", "Ship demo", "--dry-run", "--iterations", "1", "--no-event-log")
 
         self.assertFalse((root / ".taskboard" / "t0" / "events.jsonl").exists())
 
@@ -376,7 +409,8 @@ class TaskboardStartTest(unittest.TestCase):
         self.assertEqual(payload["kind"], "taskboard-t0-interruption")
         self.assertEqual(payload["state"], "interrupted")
         self.assertEqual(payload["goal"], "Ship demo")
-        self.assertIn(f'python scripts/taskboard_start.py --root "{root}" --auto', payload["resume_command"])
+        self.assertIn(f'python scripts/taskboard_start.py --root "{root}"', payload["resume_command"])
+        self.assertNotIn("--auto", payload["resume_command"])
         self.assertIn("--launcher tmux", payload["resume_command"])
         self.assertIn("--stale-minutes 12", payload["resume_command"])
         self.assertIn("--stale-seconds 34", payload["resume_command"])

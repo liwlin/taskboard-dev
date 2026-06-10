@@ -104,11 +104,17 @@ class T0ContractTest(unittest.TestCase):
         manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
         role_t0 = (ROOT / "references" / "role-t0.md").read_text(encoding="utf-8")
 
-        command = 'python scripts/taskboard_start.py --goal "<user goal>" --auto'
+        command = 'python scripts/taskboard_start.py --goal "<user goal>"'
         self.assertIn(command, readme)
         self.assertIn(command, manual)
-        self.assertIn('scripts/taskboard_start.py --goal "<user goal>" --auto', role_t0)
-        self.assertIn("--auto is the default user-facing entry", role_t0)
+        self.assertIn('scripts/taskboard_start.py --goal "<user goal>"', role_t0)
+        self.assertIn("is the default user-facing entry", role_t0)
+        self.assertIn("--dry-run --iterations 1 --launcher none", readme)
+        self.assertIn("--dry-run --iterations 1 --launcher none", manual)
+        self.assertIn("--dry-run --iterations 1 --launcher none", role_t0)
+        self.assertNotIn('python scripts/taskboard_start.py --goal "<user goal>" --auto', readme)
+        self.assertNotIn('python scripts/taskboard_start.py --goal "<user goal>" --auto', manual)
+        self.assertNotIn('scripts/taskboard_start.py --goal "<user goal>" --auto', role_t0)
         self.assertNotIn("add `--execute-launches --forever`", role_t0)
 
     def test_auto_terminal_isolation_contract_is_documented(self):
@@ -167,11 +173,11 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("--launcher windows-terminal", readme)
         self.assertIn("python scripts/taskboard_demo.py --root .taskboard-demo --with-heartbeats", readme)
         self.assertIn("python scripts/taskboard_start.py --goal", readme)
-        self.assertIn("--auto", readme)
+        self.assertIn("--dry-run", readme)
         self.assertIn("auto_mode", readme)
         self.assertIn("starter_mode", readme)
         self.assertIn("resume_config", readme)
-        self.assertIn("--auto --iterations 1 --launcher none", readme)
+        self.assertIn("--dry-run --iterations 1 --launcher none", readme)
         self.assertIn("needs-goal", readme)
         self.assertIn("suppresses worker launch/target/assignment", readme)
         self.assertIn("asks the summarized question through T0 only", readme)

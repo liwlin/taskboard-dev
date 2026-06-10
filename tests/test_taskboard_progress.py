@@ -68,7 +68,7 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertEqual(progress["task"], task_name)
         self.assertEqual(
             progress["resume_command"],
-            f'python scripts/taskboard_start.py --root "{root}" --launcher none',
+            f'python scripts/taskboard_start.py --root "{root}" --dry-run --launcher none',
         )
         self.assertEqual(progress["assignment_state"], "unassigned")
         self.assertIn("T0 is managing T1/T2/T3", progress["user_summary"])
@@ -269,7 +269,16 @@ class TaskboardProgressTest(unittest.TestCase):
             root = Path(tmp)
             (root / "docs" / "taskboard").mkdir(parents=True)
 
-            self.run_json(START_SCRIPT, root, "--goal", "Ship demo", "--iterations", "1", "--no-state-file")
+            self.run_json(
+                START_SCRIPT,
+                root,
+                "--goal",
+                "Ship demo",
+                "--dry-run",
+                "--iterations",
+                "1",
+                "--no-state-file",
+            )
             progress = self.run_json(PROGRESS_SCRIPT, root)
             text = self.run_text(PROGRESS_SCRIPT, root)
 
@@ -277,9 +286,9 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertEqual(progress["state"], "needs-supervisor-run")
         self.assertEqual(
             progress["resume_command"],
-            f'python scripts/taskboard_start.py --root "{root}"',
+            f'python scripts/taskboard_start.py --root "{root}" --dry-run',
         )
-        self.assertIn(f'resume_command=python scripts/taskboard_start.py --root "{root}"', text)
+        self.assertIn(f'resume_command=python scripts/taskboard_start.py --root "{root}" --dry-run', text)
         self.assertIn("Start or resume T0", progress["user_action"])
         self.assertIn("not ask you to manage T1/T2/T3", progress["user_summary"])
 
@@ -438,6 +447,7 @@ class TaskboardProgressTest(unittest.TestCase):
                 root,
                 "--goal",
                 "Ship demo",
+                "--dry-run",
                 "--iterations",
                 "1",
                 "--launcher",
@@ -452,6 +462,7 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertEqual(progress["starter_mode"], "dry-check")
         self.assertIn(f'python scripts/taskboard_start.py --root "{root}"', progress["resume_command"])
         self.assertNotIn("--auto", progress["resume_command"])
+        self.assertIn("--dry-run", progress["resume_command"])
         self.assertIn("--launcher tmux", progress["resume_command"])
         self.assertIn('--agent-template "custom-agent --target \\"{target}\\""', progress["resume_command"])
         self.assertIn(progress["resume_command"], text)

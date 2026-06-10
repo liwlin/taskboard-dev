@@ -56,8 +56,8 @@ def build_resume_command(
     if not goal or state == "complete" or completion_ready or stop_gate_count:
         return ""
     parts = ["python", "scripts/taskboard_start.py", "--root", quote_cli_value(root)]
-    if auto_mode:
-        parts.append("--auto")
+    if not auto_mode:
+        parts.append("--dry-run")
     config = resume_config if isinstance(resume_config, dict) else {}
     launcher = str(config.get("launcher") or "")
     if launcher and launcher != DEFAULT_RESUME_LAUNCHER:
