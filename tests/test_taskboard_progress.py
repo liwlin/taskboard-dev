@@ -68,7 +68,7 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertEqual(progress["task"], task_name)
         self.assertEqual(
             progress["resume_command"],
-            f'python scripts/taskboard_start.py --root "{root}" --auto',
+            f'python scripts/taskboard_start.py --root "{root}" --auto --launcher none',
         )
         self.assertEqual(progress["assignment_state"], "unassigned")
         self.assertIn("T0 is managing T1/T2/T3", progress["user_summary"])
@@ -295,6 +295,33 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("--assignment-lease-seconds 56", progress["resume_command"])
         self.assertIn("--launch-lease-seconds 78", progress["resume_command"])
         self.assertIn("--interval-seconds 9", progress["resume_command"])
+        self.assertIn(progress["resume_command"], text)
+
+    def test_progress_resume_command_preserves_no_launch_no_target_files_mode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            self.run_json(
+                START_SCRIPT,
+                root,
+                "--goal",
+                "Ship demo",
+                "--auto",
+                "--iterations",
+                "1",
+                "--launcher",
+                "none",
+                "--agent-template",
+                'custom-agent --target "{target}"',
+                "--no-target-files",
+            )
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertIn("--launcher none", progress["resume_command"])
+        self.assertIn("--no-target-files", progress["resume_command"])
+        self.assertIn('--agent-template "custom-agent --target \\"{target}\\""', progress["resume_command"])
         self.assertIn(progress["resume_command"], text)
 
     def test_progress_resume_command_uses_latest_event_resume_config_without_snapshot(self):

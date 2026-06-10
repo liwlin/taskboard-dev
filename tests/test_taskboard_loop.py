@@ -954,6 +954,7 @@ class TaskboardLoopTest(unittest.TestCase):
                             "tmux",
                             "--agent-template",
                             'codex --prompt "{target}"',
+                            "--no-target-files",
                             "--stale-minutes",
                             "12",
                             "--stale-seconds",
@@ -985,10 +986,13 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertIn(f'python scripts/taskboard_start.py --root "{root}" --auto', payload["resume_command"])
         self.assertIn("--launcher tmux", payload["resume_command"])
         self.assertIn('--agent-template "codex --prompt \\"{target}\\""', payload["resume_command"])
+        self.assertIn("--no-target-files", payload["resume_command"])
         self.assertEqual(latest["resume_config"]["stale_minutes"], 12)
+        self.assertFalse(latest["resume_config"]["target_files_enabled"])
         self.assertEqual(events[-1]["state"], "interrupted")
         self.assertEqual(events[-1]["dispatch_state"], "interrupted")
         self.assertEqual(events[-1]["resume_config"]["launcher"], "tmux")
+        self.assertFalse(events[-1]["resume_config"]["target_files_enabled"])
 
     def test_assignment_moves_from_pending_to_acknowledged_by_worker_heartbeat(self):
         with tempfile.TemporaryDirectory() as tmp:

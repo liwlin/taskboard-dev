@@ -494,6 +494,7 @@ def build_resume_config(
         "interval_seconds": interval_seconds,
         "assignment_lease_seconds": assignment_lease_seconds,
         "launch_lease_seconds": launch_lease_seconds,
+        "target_files_enabled": target_dir is not None,
     }
     if target_dir is not None:
         payload["target_dir"] = str(target_dir)
@@ -540,6 +541,8 @@ def build_t0_resume_command(
     default_target_dir_path = str(root / ".taskboard" / "targets")
     if target_dir and target_dir != default_target_dir_path:
         parts.extend(["--target-dir", quote_cli_value(target_dir)])
+    if resume_config.get("target_files_enabled") is False:
+        parts.append("--no-target-files")
     return " ".join(parts)
 
 

@@ -57,7 +57,7 @@ def build_resume_command(
     parts = ["python", "scripts/taskboard_start.py", "--root", quote_cli_value(root), "--auto"]
     config = resume_config if isinstance(resume_config, dict) else {}
     launcher = str(config.get("launcher") or "")
-    if launcher and launcher not in {"none", DEFAULT_RESUME_LAUNCHER}:
+    if launcher and launcher != DEFAULT_RESUME_LAUNCHER:
         parts.extend(["--launcher", launcher])
     agent_template = str(config.get("agent_template") or "")
     if agent_template and agent_template != DEFAULT_RESUME_AGENT_TEMPLATE:
@@ -77,6 +77,8 @@ def build_resume_command(
     default_target_dir = str(root / ".taskboard" / "targets")
     if target_dir and target_dir != default_target_dir:
         parts.extend(["--target-dir", quote_cli_value(target_dir)])
+    if config.get("target_files_enabled") is False:
+        parts.append("--no-target-files")
     return " ".join(parts)
 
 
