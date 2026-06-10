@@ -50,6 +50,15 @@ ROLE_TOOLING_CONTRACTS = {
     ),
 }
 
+EXTERNAL_TOOL_CONTRACT = (
+    "External tool contract:\n"
+    "- Use GitHub tooling for repository, PR, issue, release, and CI-check work when that evidence is needed for the task.\n"
+    "- Use Chrome/Browser tooling for web UI inspection, browser-side debugging, screenshots, and rendered frontend verification.\n"
+    "- Use Computer Use only for local desktop or GUI workflows that cannot be verified through shell, browser, or repository tools.\n"
+    "- Do not ask the user to operate these tools for routine role work; use the available tool yourself unless a stop gate applies.\n"
+    "- Respect role boundaries when using external tools: T1 plans, T2 reviews/verifies, and T3 implements/verifies/commits."
+)
+
 T0_BOUNDARY = (
     "T0 manager-only: T0 是管理员/调度器，不直接执行开发任务；"
     "开发、设计、审核、实现、验证、提交分别交给 T1/T2/T3。"
@@ -175,7 +184,7 @@ def build_session(
         "role": role,
         "title": title,
         "command": f"/taskboard-dev {role}",
-        "target": f"{target}\n{heartbeat}\n{role_contract}\n{tooling_contract}\n{loop_contract}",
+        "target": f"{target}\n{heartbeat}\n{role_contract}\n{tooling_contract}\n{EXTERNAL_TOOL_CONTRACT}\n{loop_contract}",
     }
     if target_dir is not None:
         session["target_file"] = str(role_target_file(target_dir, title))
