@@ -28,6 +28,7 @@ cp "$ROOT_DIR/scripts/taskboard_health.py" "$STAGE_DIR/scripts/taskboard_health.
 cp "$ROOT_DIR/scripts/taskboard_sessions.py" "$STAGE_DIR/scripts/taskboard_sessions.py"
 cp "$ROOT_DIR/scripts/taskboard_next.py" "$STAGE_DIR/scripts/taskboard_next.py"
 cp "$ROOT_DIR/scripts/verify_t0_contract.py" "$STAGE_DIR/scripts/verify_t0_contract.py"
+cp "$ROOT_DIR/scripts/verify_release_consistency.py" "$STAGE_DIR/scripts/verify_release_consistency.py"
 
 (
   cd "$DIST_DIR"
