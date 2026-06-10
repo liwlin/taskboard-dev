@@ -176,6 +176,7 @@ def probe_sessions(
         "missing_roles": missing_roles,
         "stale_roles": stale_roles,
         "recovery_actions": recovery_actions,
+        "recovery_sessions": recovery_sessions,
         "recovery_commands": build_launch_commands(root, recovery_sessions, launcher, agent_template),
         "target_files": target_files,
         "boundary": T0_BOUNDARY,

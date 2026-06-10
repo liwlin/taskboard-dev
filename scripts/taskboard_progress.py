@@ -62,6 +62,12 @@ def build_resume_command(
     launcher = str(config.get("launcher") or "")
     if launcher and launcher != DEFAULT_RESUME_LAUNCHER:
         parts.extend(["--launcher", launcher])
+    fallback_launchers = config.get("fallback_launchers", [])
+    if isinstance(fallback_launchers, list):
+        for fallback_launcher in fallback_launchers:
+            fallback_text = str(fallback_launcher or "")
+            if fallback_text:
+                parts.extend(["--fallback-launcher", fallback_text])
     agent_template = str(config.get("agent_template") or "")
     if agent_template and agent_template != DEFAULT_RESUME_AGENT_TEMPLATE:
         parts.extend(["--agent-template", quote_cli_value(agent_template)])

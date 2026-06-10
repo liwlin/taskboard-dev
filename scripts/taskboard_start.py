@@ -61,6 +61,7 @@ def build_interruption_payload(
     launch_lease_seconds: int,
     target_dir: Optional[Path],
     auto_mode: bool,
+    fallback_launchers: Optional[list[str]] = None,
 ) -> dict[str, object]:
     resume_config = build_resume_config(
         launcher,
@@ -71,6 +72,7 @@ def build_interruption_payload(
         assignment_lease_seconds,
         launch_lease_seconds,
         target_dir,
+        fallback_launchers,
     )
     metadata = starter_metadata(auto_mode)
     return {
@@ -119,6 +121,7 @@ def build_config_error_payload(
     launch_lease_seconds: int,
     target_dir: Optional[Path],
     auto_mode: bool,
+    fallback_launchers: Optional[list[str]] = None,
 ) -> dict[str, object]:
     resume_config = build_resume_config(
         launcher,
@@ -129,6 +132,7 @@ def build_config_error_payload(
         assignment_lease_seconds,
         launch_lease_seconds,
         target_dir,
+        fallback_launchers,
     )
     metadata = starter_metadata(auto_mode)
     return {
@@ -201,6 +205,13 @@ def main(argv: Optional[list[str]] = None) -> int:
         choices=("windows-terminal", "powershell", "tmux", "none"),
         default="windows-terminal",
         help="Managed role launcher. Defaults to Windows Terminal for one-terminal T0 startup.",
+    )
+    parser.add_argument(
+        "--fallback-launcher",
+        action="append",
+        choices=("windows-terminal", "powershell", "tmux"),
+        default=[],
+        help="Fallback launcher to try after the primary launcher fails. Repeat to set priority order.",
     )
     parser.add_argument(
         "--agent-template",
@@ -302,6 +313,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             event_log_file,
             not args.no_stop_on_stop_gate,
             starter_metadata(args.auto),
+            args.fallback_launcher,
         )
         results = annotate_starter_mode(results, args.auto)
         if state_file is not None and results:
@@ -322,6 +334,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.launch_lease_seconds,
             target_dir,
             args.auto,
+            args.fallback_launcher,
         )
         persist_interruption_payload(
             state_file,
@@ -352,6 +365,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.launch_lease_seconds,
             target_dir,
             args.auto,
+            args.fallback_launcher,
         )
         persist_interruption_payload(
             state_file,

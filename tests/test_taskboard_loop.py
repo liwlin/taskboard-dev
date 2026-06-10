@@ -776,6 +776,69 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertIn("fix the T0 launcher configuration", actions)
         self.assertIn("do not manage T1/T2/T3", actions)
 
+    def test_execute_launches_tries_fallback_launcher_after_primary_failure(self):
+        calls = []
+
+        def fake_execute(commands):
+            calls.append(list(commands))
+            if len(calls) == 1:
+                return [
+                    {
+                        "command": commands[0],
+                        "returncode": 1,
+                        "output": "wt missing",
+                    }
+                ]
+            return [
+                {
+                    "command": command,
+                    "returncode": 0,
+                    "output": "",
+                }
+                for command in commands
+            ]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            with patch("taskboard_loop.execute_commands", fake_execute):
+                output = loop_module.run_loop(
+                    root,
+                    "Ship demo",
+                    30,
+                    300,
+                    "windows-terminal",
+                    'codex --prompt-file "{target_file}"',
+                    True,
+                    1,
+                    0,
+                    300,
+                    True,
+                    root / ".taskboard" / "t0" / "latest.json",
+                    root / ".taskboard" / "targets",
+                    300,
+                    root / ".taskboard" / "t0" / "events.jsonl",
+                    fallback_launchers=["powershell"],
+                )
+            events = [
+                json.loads(line)
+                for line in (root / ".taskboard" / "t0" / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(len(calls), 2)
+        self.assertIn("taskboard-T1", calls[0][0])
+        self.assertTrue(all("Start-Process powershell" in command for command in calls[1]))
+        self.assertEqual(output[0]["fallback_launch_attempts"][0]["launcher"], "powershell")
+        self.assertTrue(output[0]["fallback_launch_attempts"][0]["success"])
+        actions = " ".join(output[0]["actions"])
+        self.assertIn("fallback launcher powershell", actions)
+        self.assertNotIn("fix the T0 launcher configuration", actions)
+        self.assertEqual(events[0]["fallback_launch_count"], 1)
+        self.assertEqual(events[0]["fallback_launchers"], ["powershell"])
+        self.assertTrue(events[0]["fallback_launch_recovered"])
+
     def test_loop_event_log_records_assignment_recovery_details(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

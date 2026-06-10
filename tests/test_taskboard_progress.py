@@ -272,6 +272,8 @@ class TaskboardProgressTest(unittest.TestCase):
                 "1",
                 "--launcher",
                 "tmux",
+                "--fallback-launcher",
+                "powershell",
                 "--agent-template",
                 'custom-agent --file "{target_file}"',
                 "--stale-minutes",
@@ -368,6 +370,8 @@ class TaskboardProgressTest(unittest.TestCase):
                 "--no-state-file",
                 "--launcher",
                 "tmux",
+                "--fallback-launcher",
+                "powershell",
                 "--agent-template",
                 'custom-agent --file "{target_file}"',
                 "--stale-minutes",
@@ -389,6 +393,7 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertEqual(progress["starter_mode"], "auto")
         self.assertIn("one-command", progress["starter_boundary"])
         self.assertIn("--launcher tmux", progress["resume_command"])
+        self.assertIn("--fallback-launcher powershell", progress["resume_command"])
         self.assertIn('--agent-template "custom-agent --file \\"{target_file}\\""', progress["resume_command"])
         self.assertIn("--stale-minutes 12", progress["resume_command"])
         self.assertIn("--stale-seconds 34", progress["resume_command"])

@@ -309,6 +309,37 @@ class TaskboardStartTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertFalse(captured["stop_on_stop_gate"])
 
+    def test_starter_forwards_fallback_launchers_to_t0_loop(self):
+        captured = {}
+
+        def fake_run_loop(*args):
+            captured["fallback_launchers"] = args[17]
+            return [{"state": "active"}]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+            with patch("taskboard_start.run_loop", fake_run_loop):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    code = start_module.main(
+                        [
+                            "--root",
+                            str(root),
+                            "--goal",
+                            "Ship demo",
+                            "--auto",
+                            "--launcher",
+                            "windows-terminal",
+                            "--fallback-launcher",
+                            "powershell",
+                            "--format",
+                            "json",
+                        ]
+                    )
+
+        self.assertEqual(code, 0)
+        self.assertEqual(captured["fallback_launchers"], ["powershell"])
+
     def test_starter_reports_t0_resume_command_on_keyboard_interrupt_json(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

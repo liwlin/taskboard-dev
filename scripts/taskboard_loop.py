@@ -13,7 +13,14 @@ from typing import Optional
 from taskboard_health import report_health
 from taskboard_sessions import probe_sessions
 from taskboard_stopgates import report_stop_gates
-from taskboard_t0 import default_target_dir, dispatch, read_goal, write_role_target_files, write_runtime_goal
+from taskboard_t0 import (
+    build_launch_commands,
+    default_target_dir,
+    dispatch,
+    read_goal,
+    write_role_target_files,
+    write_runtime_goal,
+)
 
 
 T0_BOUNDARY = (
@@ -208,9 +215,15 @@ def build_actions(
     suppressed_launches: list[dict[str, object]],
     completion_audit: Optional[dict[str, object]] = None,
     executed_commands: Optional[list[dict[str, object]]] = None,
+    fallback_launch_attempts: Optional[list[dict[str, object]]] = None,
 ) -> list[str]:
     actions: list[str] = []
     launch_failure_count = 0
+    recovered_fallback_launcher = ""
+    for attempt in fallback_launch_attempts or []:
+        if isinstance(attempt, dict) and attempt.get("success"):
+            recovered_fallback_launcher = str(attempt.get("launcher") or "")
+            break
     for item in executed_commands or []:
         if not isinstance(item, dict):
             continue
@@ -235,7 +248,12 @@ def build_actions(
 
     if launch_commands:
         actions.append("launch/recover managed role sessions with generated commands")
-        if launch_failure_count:
+        if recovered_fallback_launcher:
+            actions.append(
+                f"primary launcher failed; T0 recovered managed role sessions with "
+                f"fallback launcher {recovered_fallback_launcher}."
+            )
+        elif launch_failure_count:
             actions.append(
                 "T0 launch/recovery failed; fix the T0 launcher configuration or retry another launcher; "
                 "do not manage T1/T2/T3 directly."
@@ -311,6 +329,95 @@ def execute_commands(commands: list[str]) -> list[dict[str, object]]:
     return results
 
 
+def command_failed(item: dict[str, object]) -> bool:
+    try:
+        return int(item.get("returncode", 0)) != 0
+    except (TypeError, ValueError):
+        return True
+
+
+def successful_launch_roles(executed_commands: list[dict[str, object]]) -> set[str]:
+    roles: set[str] = set()
+    for item in executed_commands:
+        if command_failed(item):
+            continue
+        role = command_role(str(item.get("command") or ""))
+        if role:
+            roles.add(role)
+    return roles
+
+
+def filter_commands_for_unlaunched_roles(commands: list[str], launched_roles: set[str]) -> list[str]:
+    filtered = []
+    for command in commands:
+        role = command_role(command)
+        if role and role in launched_roles:
+            continue
+        filtered.append(command)
+    return filtered
+
+
+def fallback_source_sessions(
+    session_probe: dict[str, object],
+    dispatch_plan: dict[str, object],
+    used_recovery_commands: bool,
+) -> list[dict[str, str]]:
+    raw_sessions = (
+        session_probe.get("recovery_sessions", [])
+        if used_recovery_commands
+        else dispatch_plan.get("managed_sessions", [])
+    )
+    if not isinstance(raw_sessions, list):
+        return []
+    return [item for item in raw_sessions if isinstance(item, dict)]
+
+
+def execute_fallback_launchers(
+    root: Path,
+    source_sessions: list[dict[str, str]],
+    agent_template: Optional[str],
+    fallback_launchers: list[str],
+    launched_roles: set[str],
+    launch_state: dict[str, object],
+    launch_lease_seconds: int,
+    current_time: float,
+) -> tuple[list[dict[str, object]], list[dict[str, object]], list[dict[str, object]]]:
+    executed_commands: list[dict[str, object]] = []
+    suppressed_launches: list[dict[str, object]] = []
+    attempts: list[dict[str, object]] = []
+
+    if not source_sessions:
+        return executed_commands, suppressed_launches, attempts
+
+    for fallback_launcher in fallback_launchers:
+        fallback_commands = build_launch_commands(root, source_sessions, fallback_launcher, agent_template)
+        fallback_commands = filter_commands_for_unlaunched_roles(fallback_commands, launched_roles)
+        executable_commands, suppressed = filter_launch_commands(
+            fallback_commands,
+            launch_state,
+            launch_lease_seconds,
+            current_time,
+        )
+        suppressed_launches.extend(suppressed)
+        if not executable_commands:
+            continue
+        fallback_results = execute_commands(executable_commands)
+        executed_commands.extend(fallback_results)
+        launched_roles.update(successful_launch_roles(fallback_results))
+        success = bool(fallback_results) and not any(command_failed(item) for item in fallback_results)
+        attempts.append(
+            {
+                "launcher": fallback_launcher,
+                "launch_commands": executable_commands,
+                "executed_commands": fallback_results,
+                "success": success,
+            }
+        )
+        if success:
+            break
+    return executed_commands, suppressed_launches, attempts
+
+
 def run_once(
     root: Path,
     goal: Optional[str],
@@ -323,6 +430,7 @@ def run_once(
     target_dir: Optional[Path],
     launch_state: Optional[dict[str, object]] = None,
     launch_lease_seconds: int = 300,
+    fallback_launchers: Optional[list[str]] = None,
 ) -> dict[str, object]:
     session_probe = probe_sessions(
         root,
@@ -364,6 +472,7 @@ def run_once(
             "launch_commands": [],
             "suppressed_launches": [],
             "executed_commands": [],
+            "fallback_launch_attempts": [],
             "decision_command": decision_command,
             "actions": build_stop_gate_actions(stop_gate_report),
         }
@@ -375,6 +484,7 @@ def run_once(
         else []
     )
     planned_launch_commands = choose_launch_commands(session_probe, dispatch_plan)
+    used_recovery_commands = bool(session_probe.get("recovery_commands"))
     requested_launch_commands = (
         choose_executable_launch_commands(session_probe, dispatch_plan)
         if execute_launches
@@ -393,6 +503,21 @@ def run_once(
         launch_commands = requested_launch_commands
         suppressed_launches = []
     executed_commands = execute_commands(launch_commands) if execute_launches and launch_commands else []
+    fallback_attempts: list[dict[str, object]] = []
+    if execute_launches and executed_commands and any(command_failed(item) for item in executed_commands):
+        source_sessions = fallback_source_sessions(session_probe, dispatch_plan, used_recovery_commands)
+        fallback_executed, fallback_suppressed, fallback_attempts = execute_fallback_launchers(
+            root,
+            source_sessions,
+            agent_template,
+            fallback_launchers or [],
+            successful_launch_roles(executed_commands),
+            launch_state_payload,
+            launch_lease_seconds,
+            current_time,
+        )
+        executed_commands.extend(fallback_executed)
+        suppressed_launches.extend(fallback_suppressed)
     if execute_launches and executed_commands:
         record_launch_successes(launch_state_payload, executed_commands, current_time)
         write_launch_state(root, launch_state_payload, launch_lease_seconds)
@@ -436,7 +561,9 @@ def run_once(
             suppressed_launches,
             completion_audit_payload,
             executed_commands,
+            fallback_attempts,
         ),
+        "fallback_launch_attempts": fallback_attempts,
     }
     if completion_audit_payload is not None:
         payload["completion_audit"] = completion_audit_payload
@@ -485,10 +612,12 @@ def build_resume_config(
     assignment_lease_seconds: int,
     launch_lease_seconds: int,
     target_dir: Optional[Path],
+    fallback_launchers: Optional[list[str]] = None,
 ) -> dict[str, object]:
     payload: dict[str, object] = {
         "launcher": launcher,
         "agent_template": agent_template or "",
+        "fallback_launchers": fallback_launchers or [],
         "stale_minutes": stale_minutes,
         "stale_seconds": stale_seconds,
         "interval_seconds": interval_seconds,
@@ -517,6 +646,12 @@ def build_t0_resume_command(
     launcher = str(resume_config.get("launcher") or "")
     if launcher and launcher != "windows-terminal":
         parts.extend(["--launcher", launcher])
+    fallback_launchers = resume_config.get("fallback_launchers", [])
+    if isinstance(fallback_launchers, list):
+        for fallback_launcher in fallback_launchers:
+            fallback_text = str(fallback_launcher or "")
+            if fallback_text:
+                parts.extend(["--fallback-launcher", fallback_text])
     agent_template = str(resume_config.get("agent_template") or "")
     default_agent_template = 'codex --prompt-file "{target_file}"'
     if agent_template and agent_template != default_agent_template:
@@ -557,6 +692,7 @@ def build_interruption_payload(
     assignment_lease_seconds: int,
     launch_lease_seconds: int,
     target_dir: Optional[Path],
+    fallback_launchers: Optional[list[str]] = None,
 ) -> dict[str, object]:
     resume_config = build_resume_config(
         launcher,
@@ -567,6 +703,7 @@ def build_interruption_payload(
         assignment_lease_seconds,
         launch_lease_seconds,
         target_dir,
+        fallback_launchers,
     )
     return {
         "kind": "taskboard-t0-interruption",
@@ -612,6 +749,7 @@ def build_config_error_payload(
     assignment_lease_seconds: int,
     launch_lease_seconds: int,
     target_dir: Optional[Path],
+    fallback_launchers: Optional[list[str]] = None,
 ) -> dict[str, object]:
     return {
         "kind": "taskboard-t0-config-error",
@@ -631,6 +769,7 @@ def build_config_error_payload(
             assignment_lease_seconds,
             launch_lease_seconds,
             target_dir,
+            fallback_launchers,
         ),
         "resume_command": "",
         "user_action": "T0 configuration failed; fix T0 launcher configuration before resuming.",
@@ -688,6 +827,8 @@ def append_event_log(
     executed_command_list = executed_commands if isinstance(executed_commands, list) else []
     suppressed_launches = payload.get("suppressed_launches", [])
     suppressed_launch_list = suppressed_launches if isinstance(suppressed_launches, list) else []
+    fallback_attempts = payload.get("fallback_launch_attempts", [])
+    fallback_attempt_list = fallback_attempts if isinstance(fallback_attempts, list) else []
     stop_gate_report = payload.get("stop_gate_report", {})
     stop_gate_payload = stop_gate_report if isinstance(stop_gate_report, dict) else {}
     completion_audit = payload.get("completion_audit", {})
@@ -755,6 +896,15 @@ def append_event_log(
         "executed_command_count": len(executed_command_list),
         "launch_failure_count": launch_failure_count,
         "launch_failures": launch_failures,
+        "fallback_launch_count": len(fallback_attempt_list),
+        "fallback_launchers": [
+            str(item.get("launcher") or "")
+            for item in fallback_attempt_list
+            if isinstance(item, dict)
+        ],
+        "fallback_launch_recovered": any(
+            bool(item.get("success")) for item in fallback_attempt_list if isinstance(item, dict)
+        ),
         "suppressed_launch_count": len(suppressed_launch_list),
         "suppressed_launches": suppressed_launch_events,
         "stop_gate_count": int(stop_gate_payload.get("stop_gate_count") or 0),
@@ -793,6 +943,7 @@ def run_loop(
     event_log_file: Optional[Path] = None,
     stop_on_stop_gate: bool = True,
     runtime_metadata: Optional[dict[str, object]] = None,
+    fallback_launchers: Optional[list[str]] = None,
 ) -> list[dict[str, object]]:
     if interval_seconds < 0:
         raise ValueError("--interval-seconds must be >= 0")
@@ -815,6 +966,7 @@ def run_loop(
         assignment_lease_seconds,
         launch_lease_seconds,
         target_dir,
+        fallback_launchers,
     )
     results: list[dict[str, object]] = []
     count = 0
@@ -831,6 +983,7 @@ def run_loop(
             target_dir,
             launch_state,
             launch_lease_seconds,
+            fallback_launchers,
         )
         if runtime_metadata:
             payload.update(runtime_metadata)
@@ -975,6 +1128,13 @@ def main(argv: Optional[list[str]] = None) -> int:
         help="Optional launcher command family for managed role recovery commands",
     )
     parser.add_argument(
+        "--fallback-launcher",
+        action="append",
+        choices=("windows-terminal", "powershell", "tmux"),
+        default=[],
+        help="Fallback launcher to try after the primary launcher fails. Repeat to set priority order.",
+    )
+    parser.add_argument(
         "--agent-template",
         help="Command template for generated role commands. Supports {role}, {title}, {command}, and {target}.",
     )
@@ -1014,6 +1174,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.launch_lease_seconds,
             event_log_file,
             not args.no_stop_on_stop_gate,
+            fallback_launchers=args.fallback_launcher,
         )
     except KeyboardInterrupt:
         effective_goal = read_goal(root, args.goal)
@@ -1029,6 +1190,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.assignment_lease_seconds,
             args.launch_lease_seconds,
             target_dir,
+            args.fallback_launcher,
         )
         if state_file is not None:
             write_state_snapshot(state_file, root, effective_goal, [payload], not args.no_stop_on_complete)
@@ -1054,6 +1216,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.assignment_lease_seconds,
             args.launch_lease_seconds,
             target_dir,
+            args.fallback_launcher,
         )
         if state_file is not None:
             write_state_snapshot(state_file, root, effective_goal, [payload], not args.no_stop_on_complete)
