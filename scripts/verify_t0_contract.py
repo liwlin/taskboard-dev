@@ -26,6 +26,9 @@ def require_not_contains(path: str, needle: str) -> None:
 
 def verify_t0_contract() -> None:
     require_contains("SKILL.md", "/taskboard-dev T0    # User-facing Orchestrator")
+    require_contains("SKILL.md", 'python scripts/taskboard_start.py --goal "<user goal>"')
+    require_contains("SKILL.md", "--dry-run --iterations 1 --launcher none")
+    require_not_contains("SKILL.md", 'python scripts/taskboard_start.py --goal "<user goal>" --auto')
     require_contains("references/role-t0.md", "## Role: T0 — User-Facing Orchestrator")
     require_contains("references/role-t0.md", "### T0 Operating Loop")
     require_contains("references/role-t0.md", "T0 is manager-only")

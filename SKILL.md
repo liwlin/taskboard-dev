@@ -66,6 +66,21 @@ Default role targets:
 执行: /taskboard-dev T3
 ```
 
+T0 one-command entry (default):
+
+```bash
+python scripts/taskboard_start.py --goal "<user goal>"
+```
+
+This is the default user-facing automatic supervisor entry. It starts or resumes
+T0, lets T0 launch/recover T1/T2/T3 role sessions, and keeps running until the
+goal is complete, a stop gate is hit, the goal is missing, configuration fails,
+or the run is interrupted. For a finite no-launch check, use:
+
+```bash
+python scripts/taskboard_start.py --goal "<user goal>" --dry-run --iterations 1 --launcher none
+```
+
 If the CLI provides a dedicated goal/target flag or command, put the `目标` text there. If not, paste it immediately before `/taskboard-dev T{0|1|2|3}` in the session.
 
 > **Model hint**: T0/T1/T2 benefit from the strongest/deepest reasoning model available. T3 can use a faster coding-oriented model once the task is well specified. For long autonomous runs, prefer models/CLI modes that support background execution, resumable sessions, tool-use checkpoints, and explicit goals/targets.
