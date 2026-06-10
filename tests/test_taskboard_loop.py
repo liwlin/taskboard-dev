@@ -1,4 +1,6 @@
 from pathlib import Path
+import contextlib
+import io
 import json
 import subprocess
 import sys
@@ -934,6 +936,59 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertEqual(events[0]["state"], "config-error")
         self.assertEqual(events[0]["dispatch_state"], "config-error")
         self.assertIn("agent-template references {target_file}", events[0]["error"])
+
+    def test_loop_persists_interruption_recovery_state(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+            stdout = io.StringIO()
+            with patch("taskboard_loop.run_loop", side_effect=KeyboardInterrupt):
+                with contextlib.redirect_stdout(stdout):
+                    code = loop_module.main(
+                        [
+                            "--root",
+                            str(root),
+                            "--goal",
+                            "Ship demo",
+                            "--launcher",
+                            "tmux",
+                            "--agent-template",
+                            'codex --prompt "{target}"',
+                            "--stale-minutes",
+                            "12",
+                            "--stale-seconds",
+                            "34",
+                            "--assignment-lease-seconds",
+                            "56",
+                            "--launch-lease-seconds",
+                            "78",
+                            "--interval-seconds",
+                            "9",
+                            "--format",
+                            "json",
+                        ]
+                    )
+            snapshot = json.loads((root / ".taskboard" / "t0" / "latest.json").read_text(encoding="utf-8"))
+            events = [
+                json.loads(line)
+                for line in (root / ".taskboard" / "t0" / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        payload = json.loads(stdout.getvalue())
+        latest = snapshot["latest"]
+        self.assertEqual(code, 130)
+        self.assertEqual(payload["kind"], "taskboard-t0-interruption")
+        self.assertEqual(payload["state"], "interrupted")
+        self.assertEqual(latest["kind"], "taskboard-t0-interruption")
+        self.assertEqual(latest["state"], "interrupted")
+        self.assertIn(f'python scripts/taskboard_start.py --root "{root}" --auto', payload["resume_command"])
+        self.assertIn("--launcher tmux", payload["resume_command"])
+        self.assertIn('--agent-template "codex --prompt \\"{target}\\""', payload["resume_command"])
+        self.assertEqual(latest["resume_config"]["stale_minutes"], 12)
+        self.assertEqual(events[-1]["state"], "interrupted")
+        self.assertEqual(events[-1]["dispatch_state"], "interrupted")
+        self.assertEqual(events[-1]["resume_config"]["launcher"], "tmux")
 
     def test_assignment_moves_from_pending_to_acknowledged_by_worker_heartbeat(self):
         with tempfile.TemporaryDirectory() as tmp:

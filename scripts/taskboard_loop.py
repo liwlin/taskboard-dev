@@ -500,6 +500,103 @@ def build_resume_config(
     return payload
 
 
+def quote_cli_value(value: object) -> str:
+    text = str(value)
+    return '"' + text.replace('"', '\\"') + '"'
+
+
+def build_t0_resume_command(
+    root: Path,
+    goal: str,
+    resume_config: dict[str, object],
+) -> str:
+    if not goal:
+        return ""
+    parts = ["python", "scripts/taskboard_start.py", "--root", quote_cli_value(root), "--auto"]
+    launcher = str(resume_config.get("launcher") or "")
+    if launcher and launcher != "windows-terminal":
+        parts.extend(["--launcher", launcher])
+    agent_template = str(resume_config.get("agent_template") or "")
+    default_agent_template = 'codex --prompt-file "{target_file}"'
+    if agent_template and agent_template != default_agent_template:
+        parts.extend(["--agent-template", quote_cli_value(agent_template)])
+    numeric_options = (
+        ("stale_minutes", "--stale-minutes", 30),
+        ("stale_seconds", "--stale-seconds", 300),
+        ("assignment_lease_seconds", "--assignment-lease-seconds", 300),
+        ("launch_lease_seconds", "--launch-lease-seconds", 300),
+        ("interval_seconds", "--interval-seconds", 300),
+    )
+    for key, option, default in numeric_options:
+        value = resume_config.get(key)
+        if value is not None:
+            try:
+                normalized = int(value)
+            except (TypeError, ValueError):
+                normalized = default
+            if normalized != default:
+                parts.extend([option, str(value)])
+    target_dir = str(resume_config.get("target_dir") or "")
+    default_target_dir_path = str(root / ".taskboard" / "targets")
+    if target_dir and target_dir != default_target_dir_path:
+        parts.extend(["--target-dir", quote_cli_value(target_dir)])
+    return " ".join(parts)
+
+
+def build_interruption_payload(
+    root: Path,
+    goal: str,
+    launcher: str,
+    agent_template: Optional[str],
+    stale_minutes: int,
+    stale_seconds: int,
+    interval_seconds: int,
+    assignment_lease_seconds: int,
+    launch_lease_seconds: int,
+    target_dir: Optional[Path],
+) -> dict[str, object]:
+    resume_config = build_resume_config(
+        launcher,
+        agent_template,
+        stale_minutes,
+        stale_seconds,
+        interval_seconds,
+        assignment_lease_seconds,
+        launch_lease_seconds,
+        target_dir,
+    )
+    return {
+        "kind": "taskboard-t0-interruption",
+        "state": "interrupted",
+        "goal": goal,
+        "boundary": (
+            "T0 interruption report: user-facing resume guidance only; "
+            "T0 does not ask the user to manage T1/T2/T3."
+        ),
+        "resume_config": resume_config,
+        "resume_command": build_t0_resume_command(root, goal, resume_config),
+        "user_action": "Resume T0 with resume_command; do not manage T1/T2/T3 directly.",
+        "dispatch": {"state": "interrupted", "next_role": "T0", "task": "none"},
+        "assignment": {
+            "state": "none",
+            "role": "T0",
+            "task": "none",
+            "assignment_id": "",
+            "reason": "t0-interrupted",
+        },
+        "queue_health": {"state": "unknown", "active_count": 0},
+        "session_probe": {"state": "unknown", "missing_roles": [], "stale_roles": []},
+        "stop_gate_report": {"stop_gate_count": 0, "stop_gates": []},
+        "actions": ["resume T0 from the persisted interruption command"],
+        "target_files": [],
+        "planned_launch_commands": [],
+        "requested_launch_commands": [],
+        "launch_commands": [],
+        "suppressed_launches": [],
+        "executed_commands": [],
+    }
+
+
 def build_config_error_payload(
     root: Path,
     goal: str,
@@ -803,6 +900,19 @@ def format_text(results: list[dict[str, object]]) -> str:
     return "\n".join(lines)
 
 
+def format_interruption_text(payload: dict[str, object]) -> str:
+    lines = [
+        f"state={payload['state']}",
+        f"goal={payload['goal']}",
+        f"boundary={payload['boundary']}",
+        f"user_action={payload['user_action']}",
+    ]
+    resume_command = payload.get("resume_command")
+    if resume_command:
+        lines.append(f"resume_command={resume_command}")
+    return "\n".join(lines)
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = ArgumentParser(description=__doc__)
     parser.add_argument("--root", default=".", help="Project root containing TASKBOARD files")
@@ -902,6 +1012,30 @@ def main(argv: Optional[list[str]] = None) -> int:
             event_log_file,
             not args.no_stop_on_stop_gate,
         )
+    except KeyboardInterrupt:
+        effective_goal = read_goal(root, args.goal)
+        write_runtime_goal(root, effective_goal)
+        payload = build_interruption_payload(
+            root,
+            effective_goal,
+            args.launcher,
+            args.agent_template,
+            args.stale_minutes,
+            args.stale_seconds,
+            args.interval_seconds,
+            args.assignment_lease_seconds,
+            args.launch_lease_seconds,
+            target_dir,
+        )
+        if state_file is not None:
+            write_state_snapshot(state_file, root, effective_goal, [payload], not args.no_stop_on_complete)
+        if event_log_file is not None:
+            append_event_log(event_log_file, root, effective_goal, 1, payload)
+        if args.format == "json":
+            print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+        else:
+            print(format_interruption_text(payload))
+        return 130
     except ValueError as exc:
         effective_goal = read_goal(root, args.goal)
         write_runtime_goal(root, effective_goal)
