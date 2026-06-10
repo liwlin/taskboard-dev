@@ -103,18 +103,23 @@ class T0ContractTest(unittest.TestCase):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
         role_t0 = (ROOT / "references" / "role-t0.md").read_text(encoding="utf-8")
+        template = (ROOT / "references" / "taskboard-template.md").read_text(encoding="utf-8")
 
         command = 'python scripts/taskboard_start.py --goal "<user goal>"'
         self.assertIn(command, readme)
         self.assertIn(command, manual)
         self.assertIn('scripts/taskboard_start.py --goal "<user goal>"', role_t0)
+        self.assertIn(command, template)
         self.assertIn("is the default user-facing entry", role_t0)
         self.assertIn("--dry-run --iterations 1 --launcher none", readme)
         self.assertIn("--dry-run --iterations 1 --launcher none", manual)
         self.assertIn("--dry-run --iterations 1 --launcher none", role_t0)
+        self.assertIn("--dry-run --iterations 1 --launcher none", template)
         self.assertNotIn('python scripts/taskboard_start.py --goal "<user goal>" --auto', readme)
         self.assertNotIn('python scripts/taskboard_start.py --goal "<user goal>" --auto', manual)
         self.assertNotIn('scripts/taskboard_start.py --goal "<user goal>" --auto', role_t0)
+        self.assertNotIn('python scripts/taskboard_start.py --goal "<user goal>" --auto', template)
+        self.assertNotIn("taskboard_start.py --auto is the one-command T0 entry", template)
         self.assertNotIn("add `--execute-launches --forever`", role_t0)
 
     def test_auto_terminal_isolation_contract_is_documented(self):

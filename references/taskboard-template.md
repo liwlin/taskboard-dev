@@ -51,7 +51,8 @@ T0 is the preferred user-facing entry point. Users give goals to T0; T0 manages 
 Use these entries from the project root. They are T0 control-plane tools; they must not make the user manage T1/T2/T3 directly.
 
 ```bash
-python scripts/taskboard_start.py --goal "<user goal>" --auto
+python scripts/taskboard_start.py --goal "<user goal>"
+python scripts/taskboard_start.py --goal "<user goal>" --dry-run --iterations 1 --launcher none
 python scripts/taskboard_progress.py --root .
 python scripts/taskboard_watchdog.py --root . --execute
 python scripts/taskboard_completion.py --root .
@@ -69,9 +70,9 @@ T0 runtime files:
 - `.taskboard/t0/launches.json`: launch lease state that prevents duplicate managed terminals.
 - `.taskboard/targets/taskboard-T1.md`, `.taskboard/targets/taskboard-T2.md`, `.taskboard/targets/taskboard-T3.md`: isolated role inbox files written by T0.
 
-Current v4.3 recovery rules:
+Current v4.4 recovery rules:
 
-- `taskboard_start.py --auto` is the one-command T0 entry and runs until completion, interruption, or a stop gate unless bounded with `--iterations`.
+- `taskboard_start.py --goal "<user goal>"` is the one-command T0 entry and runs until completion, interruption, a missing goal, a configuration error, or a stop gate. Use `--dry-run --iterations 1 --launcher none` only for bounded checks that must not open worker terminals.
 - `taskboard_progress.py` reports `resume_command`, `t0_supervisor_state`, queue metrics, assignment state, latest event recovery data, completion audit state, fallback launcher state, and stalled recovery state.
 - `taskboard_watchdog.py --execute` resumes only T0 from the recorded `resume_command` when the T0 supervisor snapshot is stale or missing; it returns `taskboard-t0-watchdog` and must not launch or manage T1/T2/T3 directly.
 - Stop gates are aggregated through T0: progress exposes `decision_command`, and `taskboard_decide.py` records the user's answer before T1 continues.
