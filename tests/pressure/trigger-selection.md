@@ -52,3 +52,4 @@ Output: numbered answers, skill name or "none", one-sentence reason each.
 | 2026-06-10 | sonnet | v4.3 description with workflow summary | PASS 4/4 (baseline) |
 | 2026-06-10 | sonnet | trimmed description | PASS 4/4 |
 | 2026-06-10 | sonnet | final description with role-work clause | PASS 4/4 |
+| 2026-06-10 | sonnet | v4.4 split description ("role reference file") | PASS 4/4 |

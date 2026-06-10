@@ -48,3 +48,4 @@ sentence explaining your choice.
 
 | Date | Model | Skill state | Result |
 |------|-------|-------------|--------|
+| 2026-06-10 | sonnet | v4.4 split (SKILL.md + role-t3.md) | PASS — stopped, documented hardware mismatch, renamed to `T1-待决策`, refused workaround citing role-t3.md |

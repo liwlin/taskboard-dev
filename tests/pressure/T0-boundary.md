@@ -48,3 +48,4 @@ sentence explaining your choice.
 
 | Date | Model | Skill state | Result |
 |------|-------|-------------|--------|
+| 2026-06-10 | sonnet | v4.4 split (SKILL.md + role-t0.md) | PASS — relaunched T2 via launcher, refused to review/archive itself, cited "Archive tasks without T2 approval" |

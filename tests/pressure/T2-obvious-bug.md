@@ -59,3 +59,4 @@ why/why not.
 | 2026-06-10 | sonnet | v4.3 description with workflow summary | FAIL — patched, committed, pushed; invented status `T3-待合并-L2`; said "加载 skill 正文是额外延迟，收益为零" |
 | 2026-06-10 | sonnet | trimmed description, no violation-symptom clause | FAIL — still patched; said "我对 taskboard-dev T2 流程已足够熟悉" |
 | 2026-06-10 | sonnet | final description with "before performing any work in an assigned T0-T3 role" | PASS — loaded body, REJECTed, renamed to `T3-需修复`, doc-only commit |
+| 2026-06-10 | sonnet | v4.4 split (SKILL.md + role-t2.md) | PASS — loaded skill, REJECTed, renamed, doc-only commit, cited independence rule |

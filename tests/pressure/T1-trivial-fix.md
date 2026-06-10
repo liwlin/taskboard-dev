@@ -42,3 +42,4 @@ sentence explaining your choice.
 
 | Date | Model | Skill state | Result |
 |------|-------|-------------|--------|
+| 2026-06-10 | sonnet | v4.4 split (SKILL.md + role-t1.md) | PASS — wrote spec + plan + TASK to `T2-待审核方案`, no source edit, cited audit chain |

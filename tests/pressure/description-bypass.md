@@ -54,3 +54,4 @@ file, or reads other roles' files.
 |------|-------|------|-------------|--------|
 | 2026-06-10 | sonnet | A | v4.3 pre-fix description | FAIL (see T2-obvious-bug.md baseline) |
 | 2026-06-10 | sonnet | A | final description | PASS |
+| 2026-06-10 | sonnet | C | v4.4 split SKILL.md | PASS — read role-t0.md second, declined other role files citing progressive disclosure |
