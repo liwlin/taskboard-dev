@@ -193,6 +193,42 @@ class TaskboardT0Test(unittest.TestCase):
         self.assertIn("Worker loop contract", t1_target_text)
         self.assertIn("Do not stop after one action if more T1 work is available", t1_target_text)
 
+    def test_role_target_files_include_default_tooling_contracts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            self.run_t0(
+                root,
+                "--goal",
+                "Ship demo",
+                "--launcher",
+                "windows-terminal",
+                "--agent-template",
+                'codex --prompt-file "{target_file}"',
+            )
+            t1_text = (root / ".taskboard" / "targets" / "taskboard-T1.md").read_text(encoding="utf-8")
+            t2_text = (root / ".taskboard" / "targets" / "taskboard-T2.md").read_text(encoding="utf-8")
+            t3_text = (root / ".taskboard" / "targets" / "taskboard-T3.md").read_text(encoding="utf-8")
+
+        self.assertIn("Default tooling contract", t1_text)
+        self.assertIn("T1 MUST use available planning/brainstorming skills", t1_text)
+        self.assertIn("superpowers:brainstorming", t1_text)
+        self.assertIn("superpowers:writing-plans", t1_text)
+        self.assertIn("record the fallback reason", t1_text)
+
+        self.assertIn("Default tooling contract", t2_text)
+        self.assertIn("T2 L2 code reviews default to an independent review tool", t2_text)
+        self.assertIn("Codex code review", t2_text)
+        self.assertIn("superpowers:requesting-code-review", t2_text)
+        self.assertIn("L3 code reviews MUST run dual-pass review", t2_text)
+
+        self.assertIn("Default tooling contract", t3_text)
+        self.assertIn("T3 MUST assess whether the implementation can be split", t3_text)
+        self.assertIn("Codex native subagents", t3_text)
+        self.assertIn("available multi-agent tools", t3_text)
+        self.assertIn("T3 remains responsible for integration, final verification, and commit", t3_text)
+
     def test_inline_agent_template_does_not_write_role_target_files(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

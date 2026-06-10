@@ -26,6 +26,30 @@ ROLE_TARGETS = {
     "T3": "T3: 完成未阻塞 T3 任务，在任务 Files/Acceptance 范围内实现、验证并提交。",
 }
 
+ROLE_TOOLING_CONTRACTS = {
+    "T1": (
+        "Default tooling contract:\n"
+        "- T1 MUST use available planning/brainstorming skills before creating or revising non-trivial active TASK files.\n"
+        "- Preferred defaults: superpowers:brainstorming for requirement shaping and superpowers:writing-plans for implementation plans.\n"
+        "- Use equivalent native planning tools when they are the active client's best fit.\n"
+        "- If no planning tool is available or applicable, proceed manually and record the fallback reason in the spec, plan, or task."
+    ),
+    "T2": (
+        "Default tooling contract:\n"
+        "- T2 L2 code reviews default to an independent review tool when available.\n"
+        "- Preferred defaults: Codex code review, a review subagent, superpowers:requesting-code-review, or an equivalent domain review skill.\n"
+        "- L3 code reviews MUST run dual-pass review: T2's own review plus one independent or specialized review pass.\n"
+        "- If no independent review tool is available, run the manual checklist and record the fallback reason."
+    ),
+    "T3": (
+        "Default tooling contract:\n"
+        "- T3 MUST assess whether the implementation can be split before editing source.\n"
+        "- Use Codex native subagents or available multi-agent tools when slices have independent files or interfaces and clear acceptance checks.\n"
+        "- Stay solo when work is tightly coupled, touches the same files, requires one continuous design decision, or involves destructive/shared-state operations.\n"
+        "- T3 remains responsible for integration, final verification, and commit even when subagents perform implementation slices."
+    ),
+}
+
 T0_BOUNDARY = (
     "T0 manager-only: T0 是管理员/调度器，不直接执行开发任务；"
     "开发、设计、审核、实现、验证、提交分别交给 T1/T2/T3。"
@@ -145,12 +169,13 @@ def build_session(
         "- Always refresh your heartbeat at the start of each cycle and after each TASKBOARD handoff.\n"
         f"- Do not stop after one action if more {role} work is available; keep advancing the role queue under T0 management."
     )
+    tooling_contract = ROLE_TOOLING_CONTRACTS[role]
     title = f"taskboard-{role}"
     session = {
         "role": role,
         "title": title,
         "command": f"/taskboard-dev {role}",
-        "target": f"{target}\n{heartbeat}\n{role_contract}\n{loop_contract}",
+        "target": f"{target}\n{heartbeat}\n{role_contract}\n{tooling_contract}\n{loop_contract}",
     }
     if target_dir is not None:
         session["target_file"] = str(role_target_file(target_dir, title))
