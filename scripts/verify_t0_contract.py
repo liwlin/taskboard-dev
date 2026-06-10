@@ -370,7 +370,7 @@ def verify_t0_contract() -> None:
     require_contains("README.md", "resume_command")
     require_contains("README.md", "agent-template")
     require_contains("README.md", "latest event")
-    require_contains("README.md", 'python scripts/taskboard_start.py --goal "完成 <你的开发目标>" --auto')
+    require_contains("README.md", 'python scripts/taskboard_start.py --goal "<user goal>" --auto')
     require_contains("README.md", "--auto --iterations 1 --launcher none")
     require_contains("README.md", "suppresses worker launch/target/assignment")
     require_contains("README.md", "asks the summarized question through T0 only")

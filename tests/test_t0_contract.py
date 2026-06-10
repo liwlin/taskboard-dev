@@ -99,6 +99,18 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("自动创建或恢复 `taskboard-T1`", manual)
         self.assertIn("不需要手动开 4 个终端", manual)
 
+    def test_t0_auto_is_the_default_one_command_entry(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
+        role_t0 = (ROOT / "references" / "role-t0.md").read_text(encoding="utf-8")
+
+        command = 'python scripts/taskboard_start.py --goal "<user goal>" --auto'
+        self.assertIn(command, readme)
+        self.assertIn(command, manual)
+        self.assertIn('scripts/taskboard_start.py --goal "<user goal>" --auto', role_t0)
+        self.assertIn("--auto is the default user-facing entry", role_t0)
+        self.assertNotIn("add `--execute-launches --forever`", role_t0)
+
     def test_auto_terminal_isolation_contract_is_documented(self):
         role_t0 = (ROOT / "references" / "role-t0.md").read_text(encoding="utf-8")
         manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")

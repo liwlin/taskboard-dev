@@ -64,7 +64,7 @@ python scripts/taskboard_t0.py --goal "<user goal>" --root . --launcher tmux --a
 
 Launcher rules:
 
-- `scripts/taskboard_start.py` is the one-command T0 entry point. It defaults to `--launcher windows-terminal` and `codex --prompt-file "{target_file}"`; add `--execute-launches --forever` when T0 should actually create/recover managed worker terminals and keep supervising.
+- `scripts/taskboard_start.py --goal "<user goal>" --auto` is the one-command T0 entry point. --auto is the default user-facing entry for actual T0 supervision: it executes managed-role launch/recovery commands and keeps supervising until completion, a stop gate, a missing goal, a configuration error, or interruption. It defaults to `--launcher windows-terminal` and `codex --prompt-file "{target_file}"`.
 - `--launcher windows-terminal` emits `wt` commands for managed `taskboard-T1/T2/T3` tabs.
 - `--launcher powershell` emits `Start-Process powershell` commands for separate managed windows.
 - `--launcher tmux` emits `tmux new-session/new-window` commands for Unix-like terminals.
