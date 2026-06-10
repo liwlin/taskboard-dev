@@ -51,6 +51,7 @@ class T0ContractTest(unittest.TestCase):
 
     def test_multi_agent_patterns_are_explicit(self):
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        role_t0 = (ROOT / "references" / "role-t0.md").read_text(encoding="utf-8")
         manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
 
         for required in (
@@ -63,8 +64,8 @@ class T0ContractTest(unittest.TestCase):
         ):
             self.assertIn(required, skill)
 
-        self.assertIn("### T0 Liveness / Heartbeat Rules", skill)
-        self.assertIn("stalled", skill)
+        self.assertIn("### T0 Liveness / Heartbeat Rules", role_t0)
+        self.assertIn("stalled", role_t0)
         self.assertIn("## Multi-agent 借鉴原则", manual)
         self.assertIn("T0 是 manager，不是 worker", manual)
 
@@ -80,55 +81,55 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("不需要手动开 4 个终端", manual)
 
     def test_auto_terminal_isolation_contract_is_documented(self):
-        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        role_t0 = (ROOT / "references" / "role-t0.md").read_text(encoding="utf-8")
         manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
-        self.assertIn("auto-terminal mode", skill)
-        self.assertIn("separate terminal session and isolated agent context", skill)
-        self.assertIn("must not reuse one role's conversation context", skill)
+        self.assertIn("auto-terminal mode", role_t0)
+        self.assertIn("separate terminal session and isolated agent context", role_t0)
+        self.assertIn("must not reuse one role's conversation context", role_t0)
         self.assertIn("auto-terminal 模式", manual)
         self.assertIn("角色之间不共享聊天上下文", manual)
         self.assertIn("python scripts/taskboard_t0.py --goal", readme)
 
     def test_multi_agent_synchronization_contract_is_documented(self):
-        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        role_t0 = (ROOT / "references" / "role-t0.md").read_text(encoding="utf-8")
         manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
 
-        self.assertIn("### Multi-Agent Synchronization", skill)
-        self.assertIn("Use blackboard synchronization, not chat-context synchronization", skill)
+        self.assertIn("### Multi-Agent Synchronization", role_t0)
+        self.assertIn("Use blackboard synchronization, not chat-context synchronization", role_t0)
         self.assertIn("### 多 agent 信息同步机制", manual)
         self.assertIn("不是聊天上下文同步", manual)
         self.assertIn("角色之间的“记忆”必须先落到共享文件里", manual)
 
     def test_t0_scheduling_logic_is_documented(self):
-        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        role_t0 = (ROOT / "references" / "role-t0.md").read_text(encoding="utf-8")
         manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
 
-        self.assertIn("### T0 Scheduling Logic", skill)
-        self.assertIn("T0 schedules by event priority, not by arbitrary rotation", skill)
+        self.assertIn("### T0 Scheduling Logic", role_t0)
+        self.assertIn("T0 schedules by event priority, not by arbitrary rotation", role_t0)
         self.assertIn("T0 的调度逻辑是", manual)
         self.assertIn("交付闭环优先", manual)
         self.assertIn("修复优先于新执行", manual)
 
     def test_t0_manager_only_boundary_is_documented(self):
-        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        role_t0 = (ROOT / "references" / "role-t0.md").read_text(encoding="utf-8")
         manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
 
-        self.assertIn("T0 is manager-only", skill)
-        self.assertIn("must not directly execute development tasks", skill)
+        self.assertIn("T0 is manager-only", role_t0)
+        self.assertIn("must not directly execute development tasks", role_t0)
         self.assertIn("T0 是管理员，不是开发执行者", manual)
         self.assertIn("T0 不直接执行开发任务", manual)
 
     def test_terminal_launcher_contract_is_documented(self):
-        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        role_t0 = (ROOT / "references" / "role-t0.md").read_text(encoding="utf-8")
         manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         template = (ROOT / "references" / "taskboard-template.md").read_text(encoding="utf-8")
 
-        self.assertIn("### T0 Terminal Launcher", skill)
-        self.assertIn("--launcher windows-terminal", skill)
-        self.assertIn("--agent-template", skill)
+        self.assertIn("### T0 Terminal Launcher", role_t0)
+        self.assertIn("--launcher windows-terminal", role_t0)
+        self.assertIn("--agent-template", role_t0)
         self.assertIn("### T0 启动器脚本", manual)
         self.assertIn("Windows Terminal", manual)
         self.assertIn("tmux", manual)
@@ -242,11 +243,11 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("--assignment-id T2:TASK-003.v1.T2-review.md", readme)
 
     def test_session_manifest_contract_is_documented(self):
-        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        role_t0 = (ROOT / "references" / "role-t0.md").read_text(encoding="utf-8")
         manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
 
-        self.assertIn("session_manifest", skill)
-        self.assertIn("not a new shared state database", skill)
+        self.assertIn("session_manifest", role_t0)
+        self.assertIn("not a new shared state database", role_t0)
         self.assertIn("session_manifest", manual)
         self.assertIn("不是新的共享状态数据库", manual)
 

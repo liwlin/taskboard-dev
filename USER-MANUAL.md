@@ -1,4 +1,4 @@
-# taskboard-dev v4.3 用户手册
+# taskboard-dev v4.4 用户手册
 
 T0 管理的 TASKBOARD 驱动开发工作流 — 用户只对 T0 下达目标，T0 负责管理 T1 架构师、T2 审核者、T3 执行者，基于文件名即状态的零轮询开销设计。v4.3 面向 Claude Code / Codex 的现代长任务能力：loop、目标/target、后台执行、resume 和工具检查点。默认原则是“能自动做就自动做”，只有真正的停止门才需要人确认。
 
