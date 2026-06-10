@@ -269,6 +269,53 @@ def assignment_recovery_sessions(
     ]
 
 
+def stalled_recoveries(
+    queue_health: dict[str, object],
+    dispatch_plan: dict[str, object],
+) -> list[dict[str, object]]:
+    role = str(dispatch_plan.get("next_role") or "")
+    task = str(dispatch_plan.get("task") or "none")
+    if role not in {"T1", "T2", "T3"} or task == "none":
+        return []
+
+    raw_stalled = queue_health.get("stalled_tasks", [])
+    if not isinstance(raw_stalled, list):
+        return []
+
+    recoveries = []
+    for item in raw_stalled:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("role") or "") != role or str(item.get("task") or "") != task:
+            continue
+        recoveries.append(
+            {
+                "role": role,
+                "task": task,
+                "age_minutes": int(item.get("age_minutes") or 0),
+                "reason": "stalled-task",
+            }
+        )
+    return recoveries
+
+
+def stalled_recovery_sessions(
+    dispatch_plan: dict[str, object],
+    recoveries: list[dict[str, object]],
+) -> list[dict[str, str]]:
+    if not recoveries:
+        return []
+    recovery_roles = {str(item.get("role") or "") for item in recoveries if isinstance(item, dict)}
+    raw_sessions = dispatch_plan.get("managed_sessions", [])
+    if not isinstance(raw_sessions, list):
+        return []
+    return [
+        item
+        for item in raw_sessions
+        if isinstance(item, dict) and str(item.get("role") or "") in recovery_roles
+    ]
+
+
 def dedupe_commands(commands: list[str]) -> list[str]:
     deduped: list[str] = []
     for command in commands:
@@ -287,6 +334,7 @@ def build_actions(
     completion_audit: Optional[dict[str, object]] = None,
     executed_commands: Optional[list[dict[str, object]]] = None,
     fallback_launch_attempts: Optional[list[dict[str, object]]] = None,
+    stalled_recovery_items: Optional[list[dict[str, object]]] = None,
 ) -> list[str]:
     actions: list[str] = []
     launch_failure_count = 0
@@ -354,6 +402,11 @@ def build_actions(
         role = assignment.get("role")
         task = assignment.get("task")
         actions.append(f"reissue target to taskboard-{role}; assignment lease expired for {task}")
+
+    for item in stalled_recovery_items or []:
+        role = item.get("role")
+        task = item.get("task")
+        actions.append(f"recover taskboard-{role} for stalled TASK {task}")
 
     deduped: list[str] = []
     for action in actions:
@@ -566,9 +619,17 @@ def run_once(
     assignment = build_assignment(session_probe, dispatch_plan, assignment_lease_seconds)
     update_assignment_watch(assignment, assignment_watch_payload, current_time)
     assignment_recovery_session_list = assignment_recovery_sessions(dispatch_plan, assignment)
+    stalled_recovery_list = stalled_recoveries(queue_health, dispatch_plan)
+    stalled_recovery_session_list = stalled_recovery_sessions(dispatch_plan, stalled_recovery_list)
     assignment_recovery_command_list = build_launch_commands(
         root,
         assignment_recovery_session_list,
+        launcher,
+        agent_template,
+    )
+    stalled_recovery_command_list = build_launch_commands(
+        root,
+        stalled_recovery_session_list,
         launcher,
         agent_template,
     )
@@ -578,6 +639,7 @@ def run_once(
         dedupe_commands(
             choose_executable_launch_commands(session_probe, dispatch_plan)
             + assignment_recovery_command_list
+            + stalled_recovery_command_list
         )
         if execute_launches
         else planned_launch_commands
@@ -596,7 +658,7 @@ def run_once(
     executed_commands = execute_commands(launch_commands) if execute_launches and launch_commands else []
     fallback_attempts: list[dict[str, object]] = []
     if execute_launches and executed_commands and any(command_failed(item) for item in executed_commands):
-        source_sessions = assignment_recovery_session_list or fallback_source_sessions(
+        source_sessions = assignment_recovery_session_list or stalled_recovery_session_list or fallback_source_sessions(
             session_probe, dispatch_plan, used_recovery_commands
         )
         fallback_executed, fallback_suppressed, fallback_attempts = execute_fallback_launchers(
@@ -644,6 +706,8 @@ def run_once(
         "planned_launch_commands": planned_launch_commands,
         "requested_launch_commands": requested_launch_commands,
         "assignment_recovery_commands": assignment_recovery_command_list,
+        "stalled_recovery_commands": stalled_recovery_command_list,
+        "stalled_recoveries": stalled_recovery_list,
         "launch_commands": launch_commands,
         "suppressed_launches": suppressed_launches,
         "executed_commands": executed_commands,
@@ -657,6 +721,7 @@ def run_once(
             completion_audit_payload,
             executed_commands,
             fallback_attempts,
+            stalled_recovery_list,
         ),
         "fallback_launch_attempts": fallback_attempts,
         "assignment_watch": json.loads(json.dumps(assignment_watch_payload, ensure_ascii=False)),
@@ -938,6 +1003,8 @@ def append_event_log(
     executed_command_list = executed_commands if isinstance(executed_commands, list) else []
     suppressed_launches = payload.get("suppressed_launches", [])
     suppressed_launch_list = suppressed_launches if isinstance(suppressed_launches, list) else []
+    stalled_recoveries_payload = payload.get("stalled_recoveries", [])
+    stalled_recovery_list = stalled_recoveries_payload if isinstance(stalled_recoveries_payload, list) else []
     fallback_attempts = payload.get("fallback_launch_attempts", [])
     fallback_attempt_list = fallback_attempts if isinstance(fallback_attempts, list) else []
     stop_gate_report = payload.get("stop_gate_report", {})
@@ -1019,6 +1086,17 @@ def append_event_log(
         ),
         "suppressed_launch_count": len(suppressed_launch_list),
         "suppressed_launches": suppressed_launch_events,
+        "stalled_recovery_count": len(stalled_recovery_list),
+        "stalled_recoveries": [
+            {
+                "role": str(item.get("role") or ""),
+                "task": str(item.get("task") or "none"),
+                "age_minutes": int(item.get("age_minutes") or 0),
+                "reason": str(item.get("reason") or ""),
+            }
+            for item in stalled_recovery_list
+            if isinstance(item, dict)
+        ],
         "stop_gate_count": int(stop_gate_payload.get("stop_gate_count") or 0),
         "completion_ready": bool(completion_payload.get("completion_ready")),
         "completion_missing_evidence": completion_missing_list,

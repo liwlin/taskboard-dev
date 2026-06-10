@@ -175,6 +175,63 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("assignment acknowledgement timed out", progress["user_action"])
         self.assertIn("assignment_pending_age_seconds=610", text)
 
+    def test_progress_surfaces_stalled_task_as_t0_recovery(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_dir = root / ".taskboard" / "t0"
+            state_dir.mkdir(parents=True)
+            task_name = f"TASK-006.v1.{T3_EXECUTE}.md"
+            snapshot = {
+                "kind": "taskboard-t0-supervisor-state",
+                "goal": "Ship demo",
+                "updated_at": "2999-01-01T00:00:00Z",
+                "latest": {
+                    "state": "attention",
+                    "resume_config": {"interval_seconds": 60},
+                    "dispatch": {
+                        "state": "dispatch",
+                        "next_role": "T3",
+                        "task": task_name,
+                    },
+                    "assignment": {
+                        "state": "acknowledged",
+                        "role": "T3",
+                        "task": task_name,
+                        "expected_assignment_id": f"T3:{task_name}",
+                    },
+                    "queue_health": {
+                        "active_count": 1,
+                        "stalled_tasks": [
+                            {
+                                "task": task_name,
+                                "role": "T3",
+                                "age_minutes": 45,
+                            },
+                        ],
+                    },
+                    "session_probe": {"missing_roles": [], "stale_roles": []},
+                    "actions": [f"recover taskboard-T3 for stalled TASK {task_name}"],
+                    "stalled_recoveries": [
+                        {
+                            "role": "T3",
+                            "task": task_name,
+                            "age_minutes": 45,
+                        },
+                    ],
+                },
+            }
+            (state_dir / "latest.json").write_text(json.dumps(snapshot), encoding="utf-8")
+
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertEqual(progress["queue_metrics"]["stalled_count"], 1)
+        self.assertEqual(progress["stalled_recovery_count"], 1)
+        self.assertIn("No user action required", progress["user_action"])
+        self.assertIn("recover taskboard-T3", progress["user_action"])
+        self.assertIn("stalled TASK", progress["user_action"])
+        self.assertIn("stalled_recovery_count=1", text)
+
     def test_progress_reports_acknowledged_assignment_as_t0_monitored_work(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

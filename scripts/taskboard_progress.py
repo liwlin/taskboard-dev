@@ -227,6 +227,7 @@ def build_user_action(
     error: str = "",
     fallback_launch_recovered: bool = False,
     fallback_launchers: Optional[list[str]] = None,
+    stalled_recovery_count: int = 0,
 ) -> str:
     if state == "config-error":
         return (
@@ -268,6 +269,8 @@ def build_user_action(
             f"No user action required; T0 will recover taskboard-{assignment_role}; "
             "assignment acknowledgement timed out."
         )
+    if stalled_recovery_count and assignment_role:
+        return f"No user action required; T0 will recover taskboard-{assignment_role} for stalled TASK."
     if assignment_state == "acknowledged" and assignment_role:
         return (
             f"No user action required; T0 is monitoring taskboard-{assignment_role}'s "
@@ -475,6 +478,17 @@ def report_progress(root: Path) -> dict[str, object]:
             if latest_event_suppressed_list
             else safe_int(latest_event_payload.get("suppressed_launch_count"), 0)
         )
+        latest_event_stalled_recoveries_raw = latest_event_payload.get("stalled_recoveries", [])
+        latest_event_stalled_recoveries = (
+            [item for item in latest_event_stalled_recoveries_raw if isinstance(item, dict)]
+            if isinstance(latest_event_stalled_recoveries_raw, list)
+            else []
+        )
+        latest_event_stalled_recovery_count = (
+            len(latest_event_stalled_recoveries)
+            if latest_event_stalled_recoveries
+            else safe_int(latest_event_payload.get("stalled_recovery_count"), 0)
+        )
         if (
             fallback_state == "needs-supervisor-run"
             and latest_event_state == "attention"
@@ -534,6 +548,8 @@ def report_progress(root: Path) -> dict[str, object]:
             "fallback_launch_recovered": latest_event_fallback_launch_recovered,
             "suppressed_launches": latest_event_suppressed_list,
             "suppressed_launch_count": latest_event_suppressed_count,
+            "stalled_recoveries": latest_event_stalled_recoveries,
+            "stalled_recovery_count": latest_event_stalled_recovery_count,
             "stop_gates": stop_gate_list,
             "stop_gate_count": stop_gate_count,
             "decision_command": decision_command,
@@ -577,6 +593,7 @@ def report_progress(root: Path) -> dict[str, object]:
                 latest_event_error,
                 latest_event_fallback_launch_recovered,
                 latest_event_fallback_launchers,
+                latest_event_stalled_recovery_count,
             ),
             "boundary": T0_PROGRESS_BOUNDARY,
         }
@@ -606,6 +623,13 @@ def report_progress(root: Path) -> dict[str, object]:
                     "remaining_seconds": item.get("remaining_seconds"),
                 }
             )
+    stalled_recoveries_raw = latest_payload.get("stalled_recoveries", [])
+    stalled_recoveries = (
+        [item for item in stalled_recoveries_raw if isinstance(item, dict)]
+        if isinstance(stalled_recoveries_raw, list)
+        else []
+    )
+    stalled_recovery_count = len(stalled_recoveries)
     executed_commands = latest_payload.get("executed_commands", [])
     launch_failures: list[dict[str, object]] = []
     if isinstance(executed_commands, list):
@@ -698,6 +722,8 @@ def report_progress(root: Path) -> dict[str, object]:
         "fallback_launch_recovered": fallback_launch_recovered,
         "suppressed_launches": suppressed_launch_list,
         "suppressed_launch_count": len(suppressed_launch_list),
+        "stalled_recoveries": stalled_recoveries,
+        "stalled_recovery_count": stalled_recovery_count,
         "stop_gates": stop_gate_list,
         "stop_gate_count": stop_gate_count,
         "decision_command": decision_command,
@@ -741,6 +767,7 @@ def report_progress(root: Path) -> dict[str, object]:
             error,
             fallback_launch_recovered,
             fallback_launchers,
+            stalled_recovery_count,
         ),
         "actions": action_list,
         "boundary": T0_PROGRESS_BOUNDARY,
@@ -803,6 +830,7 @@ def format_text(payload: dict[str, object]) -> str:
         f"fallback_launch_recovered={payload.get('fallback_launch_recovered', False)}",
         "fallback_launchers="
         + ",".join(str(item) for item in payload.get("fallback_launchers", []) if item),
+        f"stalled_recovery_count={payload.get('stalled_recovery_count', 0)}",
         f"latest_event_completion_ready={latest_event_payload.get('completion_ready', '')}",
         f"completion_ready={payload.get('completion_ready')}",
         f"completion_audit_state={completion_payload.get('state', '')}",
