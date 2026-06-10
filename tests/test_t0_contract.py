@@ -197,6 +197,7 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("completion-audit-missing-evidence", readme)
         self.assertIn("completion_missing_evidence", readme)
         self.assertIn("T0 will wake T1", readme)
+
         self.assertIn("--no-stop-on-complete", readme)
         self.assertIn(".taskboard/t0/latest.json", readme)
         self.assertIn(".taskboard/t0/launches.json", readme)
@@ -260,6 +261,14 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("python scripts/taskboard_health.py --root . --stale-minutes 30", readme)
         self.assertIn("python scripts/taskboard_sessions.py --root . probe --stale-seconds 300", readme)
         self.assertIn("--assignment-id T2:TASK-003.v1.T2-review.md", readme)
+
+    def test_t0_completion_markdown_report_is_documented(self):
+        manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
+        role_t0 = (ROOT / "references" / "role-t0.md").read_text(encoding="utf-8")
+
+        self.assertIn("python scripts/taskboard_completion.py --root . --format markdown", manual)
+        self.assertIn("T0 Completion Report", manual)
+        self.assertIn("python scripts/taskboard_completion.py --root . --format markdown", role_t0)
 
     def test_session_manifest_contract_is_documented(self):
         role_t0 = (ROOT / "references" / "role-t0.md").read_text(encoding="utf-8")

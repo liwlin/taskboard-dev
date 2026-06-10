@@ -110,6 +110,13 @@ python scripts/taskboard_completion.py --root .
 ```
 
 这个审计只读 active TASK 队列、`docs/taskboard/archive/`、`docs/STATE.md` 的 completion sentinel 和 `docs/dev-log.md`。只有 active 队列为空、存在完成 sentinel、存在归档任务证据、dev-log 有完成记录时，T0 才可以向用户汇总完成结果；否则 T0 继续唤醒 T1/T2/T3 补齐证据或推进剩余工作。
+当 T0 需要面向用户输出最终完成报告时，使用 Markdown 格式：
+
+```bash
+python scripts/taskboard_completion.py --root . --format markdown
+```
+
+Markdown 输出标题为 `T0 Completion Report`，包含 Goal、Outcome、Completion Evidence、Archived Tasks、Missing Evidence（如有）、User Action 和 Boundary。这个报告仍然是只读总结；T0 不会借此归档任务、运行验证、提交代码或直接执行 T1/T2/T3 工作。
 当完成证据缺失时，`taskboard_progress.py` 的 `user_action` 会显示 `No user action required; T0 will wake T1 to record or revise missing completion evidence.`，表示用户不需要接管任务板，T0 会继续唤醒角色补齐证据。
 
 如果摘要显示 `T0 launch/recovery failed`，这不是让用户去手动管理 T1/T2/T3，而是表示 T0 控制面的终端启动/恢复命令失败。处理方式是修正 T0 的 `--launcher` / `--agent-template`，或让 T0 换一种 launcher 重新恢复受控角色。配置了 `--fallback-launcher` 时，T0 会先自动重试备用 launcher，并在事件日志记录 `fallback_launch_count`、`fallback_launchers` 和 `fallback_launch_recovered`；当 `fallback_launch_recovered=True` 时，progress 会报告 fallback 已恢复且 `No user action required`，只有全部失败后才要求修 T0 配置。如果 T0 startup 在 supervisor loop 运行前就拒绝了无效 launcher/template 选项，`taskboard_start.py` 和直接运行的 `taskboard_loop.py` 会持久写入 `config-error` snapshot/event 和 `error` 文本；即使终端输出丢失，`taskboard_progress.py` 也能继续显示 T0 configuration failure 和修复动作。

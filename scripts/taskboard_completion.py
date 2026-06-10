@@ -38,6 +38,30 @@ def dev_log_has_completion_entries(root: Path) -> bool:
     return bool(meaningful)
 
 
+def read_goal_summary(root: Path) -> str:
+    runtime_goal = root / ".taskboard" / "t0" / "goal.json"
+    if runtime_goal.exists():
+        try:
+            payload = json.loads(runtime_goal.read_text(encoding="utf-8-sig"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            payload = {}
+        if isinstance(payload, dict):
+            goal = payload.get("goal")
+            if isinstance(goal, str) and goal.strip():
+                return goal.strip()
+
+    project = root / "docs" / "PROJECT.md"
+    if project.exists():
+        try:
+            for line in project.read_text(encoding="utf-8-sig").splitlines():
+                stripped = line.strip()
+                if stripped and not stripped.startswith("#"):
+                    return stripped
+        except (OSError, UnicodeDecodeError):
+            pass
+    return "not recorded"
+
+
 def active_task_summary(tasks: list[Task]) -> list[dict[str, str]]:
     return [
         {
@@ -93,6 +117,7 @@ def report_completion(root: Path) -> dict[str, object]:
     completion_ready = not missing
     return {
         "kind": "taskboard-t0-completion-audit",
+        "goal": read_goal_summary(root),
         "state": "complete-ready" if completion_ready else "incomplete",
         "completion_ready": completion_ready,
         "active_count": len(tasks),
@@ -126,15 +151,68 @@ def format_text(payload: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
+def format_markdown(payload: dict[str, object]) -> str:
+    lines = [
+        "# T0 Completion Report",
+        "",
+        f"**Goal**: {payload['goal']}",
+        f"**Outcome**: {payload['state']}",
+        "",
+        "## Completion Evidence",
+        "",
+        f"- Active task files: {payload['active_count']}",
+        f"- Archived task files: {payload['archived_count']}",
+        f"- Goal completion sentinel: {payload['goal_complete_sentinel']}",
+        f"- Dev-log completion entries: {payload['dev_log_has_completion_entries']}",
+        "",
+        "## Archived Tasks",
+        "",
+    ]
+    archived_tasks = payload["archived_tasks"]
+    if archived_tasks:
+        for task_name in archived_tasks:
+            lines.append(f"- `{task_name}`")
+    else:
+        lines.append("- none")
+
+    missing = payload["missing_evidence"]
+    if missing:
+        lines.extend(["", "## Missing Evidence", ""])
+        for item in missing:
+            lines.append(f"- {item}")
+
+    active_tasks = payload["active_tasks"]
+    if active_tasks:
+        lines.extend(["", "## Active Tasks", ""])
+        for task in active_tasks:
+            lines.append(f"- `{task['task']}` ({task['role']} / {task['status']})")
+
+    lines.extend(
+        [
+            "",
+            "## User Action",
+            "",
+            str(payload["user_action"]),
+            "",
+            "## Boundary",
+            "",
+            str(payload["boundary"]),
+        ]
+    )
+    return "\n".join(lines)
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = ArgumentParser(description=__doc__)
     parser.add_argument("--root", default=".", help="Project root containing docs/taskboard")
-    parser.add_argument("--format", choices=("text", "json"), default="text")
+    parser.add_argument("--format", choices=("text", "json", "markdown"), default="text")
     args = parser.parse_args(argv)
 
     payload = report_completion(Path(args.root).resolve())
     if args.format == "json":
         print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+    elif args.format == "markdown":
+        print(format_markdown(payload))
     else:
         print(format_text(payload))
     return 0
