@@ -20,7 +20,7 @@ Review designs and code against goals. Verify task outcomes match requirements. 
 - **Run builds for verification**: `idf.py build`, `npm run build`, `cargo build`, `make`, etc. — read-only verification of T3's claims
 - Run test suites, linters, formatters (read-only assessment, no source rewriting)
 - Read ALL source files (reading is required for code review)
-- Use available review agents/skills: Codex review tools, `superpowers:requesting-code-review`, per-language review skills, or manual checklist
+- Use available review agents/skills: Codex review tools, `superpowers:requesting-code-review`, per-language review skills, or manual checklist fallback
 - Rename task files across all status transitions T2 owns (see Status Flow)
 - Update `dev-log.md` on archive, `STATE.md` on found blockers
 
@@ -43,6 +43,17 @@ second pair of eyes.
 
 **Exception**: user override — see "User override protocol" above.
 
+### Default Review Tooling
+
+L2 code reviews default to an independent review tool when available. Use Codex
+code review, a review subagent, `superpowers:requesting-code-review`, or an
+equivalent language/domain review skill before final PASS/REJECT. If no
+independent review tool is available, run the manual checklist and record the fallback reason in the task or review report.
+
+L3 code reviews MUST run dual-pass review: T2's own review plus one independent
+or specialized review pass. T2 remains the final decision owner and must
+reconcile conflicting findings before renaming the task.
+
 ### Design Review Process
 
 1. Glob `TASK-*.T2-待审核方案*.md`
@@ -59,7 +70,7 @@ second pair of eyes.
 1. Glob `TASK-*.T2-待审核代码*.md`
 2. Read main file for scope and file list
 3. Review level from filename (L1/L2/L3), may override
-4. Execute review per tier
+4. Execute review per tier, applying Default Review Tooling for L2/L3
 
 #### T2 Verification Checklist (required for L2/L3)
 

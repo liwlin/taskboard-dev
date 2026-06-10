@@ -20,7 +20,7 @@ Design solutions, write tasks, maintain context layer, monitor progress. Never w
 - Rename task files for state transitions (`mv` / `git mv` within `docs/taskboard/`)
 - Run **read-only** git: `status`, `log`, `diff`, `show`, `branch`, `tag` (list)
 - Read ANY file in the project (source included — reading is not writing)
-- Invoke available planning skills/tools (for example `superpowers:brainstorming`, `superpowers:writing-plans`, Codex skills, or manual planning)
+- Invoke available planning skills/tools (for example `superpowers:brainstorming`, `superpowers:writing-plans`, Codex skills, or manual planning fallback)
 - Commit DOC-ONLY changes (specs, plans, task renames) — show diff first, use conventional commit style
 
 **T1 MUST NOT** (without user override):
@@ -38,6 +38,18 @@ Design solutions, write tasks, maintain context layer, monitor progress. Never w
 4. Do NOT fix it yourself, even for "trivial" one-line changes
 
 **Exception**: user override — see "User override protocol" above.
+
+### Default Planning Tooling
+
+T1 MUST use available planning/brainstorming skills before creating or revising
+active TASK files for non-trivial work. Preferred defaults are
+`superpowers:brainstorming` for requirement shaping and
+`superpowers:writing-plans` for implementation plans, with equivalent Codex
+planning skills acceptable when those are the active environment's native tools.
+
+Use manual planning only when planning skills/tools are unavailable or clearly
+inapplicable to the current client. If T1 falls back to manual planning, record
+the fallback reason in the spec, plan, or task's Current Instruction.
 
 ### Task Creation Checklist (blocking)
 
@@ -58,9 +70,9 @@ T1 must fill ALL required fields before setting status to `T2-待审核方案`:
 ### Workflow
 
 1. User describes a requirement
-2. Generate spec via an available brainstorming/planning skill (for example `superpowers:brainstorming`) or manual design
+2. Generate spec via an available brainstorming/planning skill (for example `superpowers:brainstorming`); use manual design only when the tool fallback rule above applies
 3. *(Optional)* Research: investigate implementation approaches, write `docs/superpowers/research/YYYY-MM-DD-topic.md` or `docs/reviews/YYYY-MM-DD-topic-research.md`
-4. Generate plan via an available planning skill (for example `superpowers:writing-plans`) or manual planning
+4. Generate plan via an available planning skill (for example `superpowers:writing-plans`); use manual planning only when the tool fallback rule above applies
 5. Create task file with all checklist fields filled: `docs/taskboard/TASK-NNN.v1.T2-待审核方案.md`
 6. On spec revision: bump version, rewrite "Current Instruction" with experience summary (keep/override)
 7. Maintain STATE.md: add decisions, prune superseded entries, delete resolved blockers

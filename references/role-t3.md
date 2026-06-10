@@ -25,6 +25,7 @@ Implement code, run builds, verify, commit. Never design or review.
 - Normal `git push` to feature branches
 - Mark Pending checklist items complete in task file
 - Rename task files: `T3-待执行` → `T3-待验证` → `T2-待审核代码-L{N}`, and `T3-需修复` → `T3-待验证`
+- Use Codex native subagents or available multi-agent tools for independent implementation slices when the parallelization check allows it
 
 **T3 MUST NOT** (without user override):
 - Redesign the spec or plan mid-implementation — if scope needs to change, STOP and rename to `T1-待决策` with a decision-needed note
@@ -46,6 +47,20 @@ Implement code, run builds, verify, commit. Never design or review.
 
 **Exception**: user override — see "User override protocol" above.
 
+### Default Parallelization Check
+
+T3 MUST assess whether the implementation can be split into independent
+subagent or multi-agent work before editing source. Use Codex native subagents
+or available multi-agent tools when slices have independent files or interfaces,
+clear acceptance checks, and no shared-state/destructive operation conflicts.
+
+Do not parallelize when work is tightly coupled, touches the same files in
+conflicting ways, requires a single continuous design decision, or involves
+destructive/shared-state operations. In those cases, stay solo and record the reason in the task's Current Instruction or final implementation notes.
+
+T3 remains responsible for integration, final verification, and commit even
+when subagents perform implementation slices.
+
 ### Process
 
 1. Glob `TASK-*.T3-*.md`
@@ -53,25 +68,26 @@ Implement code, run builds, verify, commit. Never design or review.
 3. Read main file (≤60 lines)
 4. Read spec/plan via links (first execution only)
 5. Read PROJECT.md, MAP.md (first execution only)
+6. Run the Default Parallelization Check before source edits
 
 #### For T3-待执行:
 
-6. Implement each Pending item, mark `[x]` immediately after completion
-7. When all Pending items done → rename to `T3-待验证`
+7. Implement each Pending item, mark `[x]` immediately after completion
+8. When all Pending items done → rename to `T3-待验证`
 
 #### For T3-待验证:
 
-8. Execute each Verify item
-9. If all pass → **commit** (see Commit Convention), then rename to `T2-待审核代码-L{N}`
-10. If verify fails → stay in `T3-待验证`, fix the issue, retry verify
+9. Execute each Verify item
+10. If all pass → **commit** (see Commit Convention), then rename to `T2-待审核代码-L{N}`
+11. If verify fails → stay in `T3-待验证`, fix the issue, retry verify
     - If still failing after 2 retry rounds → rename back to `T3-待执行` with updated Current Instruction explaining what needs rethinking
-11. Append completed work to history file on every status change
+12. Append completed work to history file on every status change
 
 #### For T3-需修复:
 
-12. Read T2's rejection details in Current Instruction
-13. Fix issues, mark items complete
-14. Rename to `T3-待验证` (re-verify before returning to T2)
+13. Read T2's rejection details in Current Instruction
+14. Fix issues, mark items complete
+15. Rename to `T3-待验证` (re-verify before returning to T2)
 
 ### Commit Convention
 

@@ -49,6 +49,25 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn('cp "$ROOT_DIR/scripts/taskboard_next.py"', package_script)
         self.assertIn('cp "$ROOT_DIR/scripts/verify_t0_contract.py"', package_script)
 
+    def test_role_default_tooling_contracts_are_documented(self):
+        role_t1 = (ROOT / "references" / "role-t1.md").read_text(encoding="utf-8")
+        role_t2 = (ROOT / "references" / "role-t2.md").read_text(encoding="utf-8")
+        role_t3 = (ROOT / "references" / "role-t3.md").read_text(encoding="utf-8")
+
+        self.assertIn("T1 MUST use available planning/brainstorming skills", role_t1)
+        self.assertIn("manual planning only when", role_t1)
+
+        self.assertIn("L2 code reviews default to an independent review tool", role_t2)
+        self.assertIn("L3 code reviews MUST run dual-pass review", role_t2)
+        self.assertIn("record the fallback reason", role_t2)
+
+        self.assertIn("T3 MUST assess whether the implementation can be split", role_t3)
+        self.assertIn(
+            "T3 remains responsible for integration, final verification, and commit",
+            role_t3,
+        )
+        self.assertIn("stay solo and record the reason", role_t3)
+
     def test_multi_agent_patterns_are_explicit(self):
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
         role_t0 = (ROOT / "references" / "role-t0.md").read_text(encoding="utf-8")
