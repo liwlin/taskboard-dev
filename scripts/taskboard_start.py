@@ -82,7 +82,7 @@ def build_interruption_payload(
             "T0 does not ask the user to manage T1/T2/T3."
         ),
         "resume_config": resume_config,
-        "resume_command": build_resume_command(root, goal, "interrupted", 0, False, resume_config),
+        "resume_command": build_resume_command(root, goal, "interrupted", 0, False, resume_config, auto_mode),
         "user_action": "Resume T0 with resume_command; do not manage T1/T2/T3 directly.",
         "dispatch": {"state": "interrupted", "next_role": "T0", "task": "none"},
         "assignment": {

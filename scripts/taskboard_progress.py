@@ -51,10 +51,13 @@ def build_resume_command(
     stop_gate_count: int,
     completion_ready: bool,
     resume_config: Optional[dict[str, object]] = None,
+    auto_mode: bool = True,
 ) -> str:
     if not goal or state == "complete" or completion_ready or stop_gate_count:
         return ""
-    parts = ["python", "scripts/taskboard_start.py", "--root", quote_cli_value(root), "--auto"]
+    parts = ["python", "scripts/taskboard_start.py", "--root", quote_cli_value(root)]
+    if auto_mode:
+        parts.append("--auto")
     config = resume_config if isinstance(resume_config, dict) else {}
     launcher = str(config.get("launcher") or "")
     if launcher and launcher != DEFAULT_RESUME_LAUNCHER:
@@ -467,6 +470,7 @@ def report_progress(root: Path) -> dict[str, object]:
             stop_gate_count,
             bool(completion_audit.get("completion_ready")),
             latest_event_resume_config_payload,
+            latest_event_auto_mode,
         )
         return {
             "kind": "taskboard-t0-progress",
@@ -607,6 +611,7 @@ def report_progress(root: Path) -> dict[str, object]:
         stop_gate_count,
         bool(completion_audit.get("completion_ready")),
         resume_config_payload,
+        auto_mode,
     )
 
     return {
