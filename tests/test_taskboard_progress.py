@@ -878,6 +878,59 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("latest_event_launch_failure_returncode=1", text)
         self.assertIn("latest_event_launch_failure_output=wt was not found", text)
 
+    def test_progress_treats_successful_fallback_launch_as_recovered(self):
+        def fake_execute(commands):
+            if "wt " in commands[0]:
+                return [
+                    {
+                        "command": commands[0],
+                        "returncode": 1,
+                        "output": "wt missing",
+                    }
+                ]
+            return [
+                {
+                    "command": command,
+                    "returncode": 0,
+                    "output": "",
+                }
+                for command in commands
+            ]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            with patch("taskboard_loop.execute_commands", fake_execute):
+                loop_module.run_loop(
+                    root,
+                    "Ship demo",
+                    30,
+                    300,
+                    "windows-terminal",
+                    'codex --prompt-file "{target_file}"',
+                    True,
+                    1,
+                    0,
+                    300,
+                    True,
+                    root / ".taskboard" / "t0" / "latest.json",
+                    root / ".taskboard" / "targets",
+                    300,
+                    root / ".taskboard" / "t0" / "events.jsonl",
+                    fallback_launchers=["powershell"],
+                )
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertEqual(progress["launch_failure_count"], 1)
+        self.assertTrue(progress["fallback_launch_recovered"])
+        self.assertEqual(progress["fallback_launchers"], ["powershell"])
+        self.assertNotIn("T0 launch/recovery failed", progress["user_action"])
+        self.assertIn("No user action required", progress["user_action"])
+        self.assertIn("fallback launcher powershell", progress["user_summary"])
+        self.assertIn("fallback_launch_recovered=True", text)
+
     def test_progress_recovers_config_error_from_latest_event_without_snapshot(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

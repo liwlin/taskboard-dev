@@ -154,6 +154,8 @@ def build_user_summary(
     stop_gate_question: str = "",
     queue_metrics: Optional[dict[str, object]] = None,
     error: str = "",
+    fallback_launch_recovered: bool = False,
+    fallback_launchers: Optional[list[str]] = None,
 ) -> str:
     if state == "config-error":
         return f"T0 configuration error for goal '{goal}': {error}"
@@ -163,6 +165,12 @@ def build_user_summary(
             f"First question: {stop_gate_question}"
         )
     if launch_failure_count:
+        if fallback_launch_recovered:
+            launchers = ", ".join(fallback_launchers or [])
+            return (
+                f"T0 recovered managed role launch for goal '{goal}' with "
+                f"fallback launcher {launchers}. No T1/T2/T3 user management is required."
+            )
         return (
             f"T0 could not launch or recover {launch_failure_count} managed role command(s) "
             f"for goal '{goal}'. T0 should retry or switch launcher mode; this is not T1/T2/T3 user management."
@@ -217,6 +225,8 @@ def build_user_action(
     assignment_role: str = "",
     t0_supervisor_state: str = "",
     error: str = "",
+    fallback_launch_recovered: bool = False,
+    fallback_launchers: Optional[list[str]] = None,
 ) -> str:
     if state == "config-error":
         return (
@@ -226,6 +236,12 @@ def build_user_action(
     if stop_gate_count:
         return "T0 stop gate requires user decision; answer T0's summarized question, not T1/T2/T3."
     if launch_failure_count:
+        if fallback_launch_recovered:
+            launchers = ", ".join(fallback_launchers or [])
+            return (
+                f"No user action required; T0 recovered managed role launch with "
+                f"fallback launcher {launchers}."
+            )
         return "T0 launch/recovery failed; fix the T0 launcher configuration or rerun T0 with another launcher."
     if state == "interrupted":
         return "Resume T0 with resume_command; do not manage T1/T2/T3 directly."
@@ -425,6 +441,13 @@ def report_progress(root: Path) -> dict[str, object]:
             if latest_event_failure_list
             else safe_int(latest_event_payload.get("launch_failure_count"), 0)
         )
+        latest_event_fallback_launchers_raw = latest_event_payload.get("fallback_launchers", [])
+        latest_event_fallback_launchers = (
+            [str(item) for item in latest_event_fallback_launchers_raw]
+            if isinstance(latest_event_fallback_launchers_raw, list)
+            else []
+        )
+        latest_event_fallback_launch_recovered = bool(latest_event_payload.get("fallback_launch_recovered"))
         latest_event_suppressed = latest_event_payload.get("suppressed_launches", [])
         latest_event_suppressed_list: list[dict[str, object]] = []
         if isinstance(latest_event_suppressed, list):
@@ -497,6 +520,8 @@ def report_progress(root: Path) -> dict[str, object]:
             "stale_roles": [],
             "launch_failures": latest_event_failure_list,
             "launch_failure_count": latest_event_launch_failure_count,
+            "fallback_launchers": latest_event_fallback_launchers,
+            "fallback_launch_recovered": latest_event_fallback_launch_recovered,
             "suppressed_launches": latest_event_suppressed_list,
             "suppressed_launch_count": latest_event_suppressed_count,
             "stop_gates": stop_gate_list,
@@ -526,6 +551,8 @@ def report_progress(root: Path) -> dict[str, object]:
                 first_stop_gate_question,
                 queue_metrics,
                 latest_event_error,
+                latest_event_fallback_launch_recovered,
+                latest_event_fallback_launchers,
             ),
             "user_action": build_user_action(
                 fallback_state,
@@ -538,6 +565,8 @@ def report_progress(root: Path) -> dict[str, object]:
                 latest_event_assignment_role,
                 "",
                 latest_event_error,
+                latest_event_fallback_launch_recovered,
+                latest_event_fallback_launchers,
             ),
             "boundary": T0_PROGRESS_BOUNDARY,
         }
@@ -586,6 +615,16 @@ def report_progress(root: Path) -> dict[str, object]:
                     "output": str(item.get("output") or ""),
                 }
             )
+    fallback_attempts = latest_payload.get("fallback_launch_attempts", [])
+    fallback_attempt_list = fallback_attempts if isinstance(fallback_attempts, list) else []
+    fallback_launch_recovered = any(
+        bool(item.get("success")) for item in fallback_attempt_list if isinstance(item, dict)
+    )
+    fallback_launchers = [
+        str(item.get("launcher") or "")
+        for item in fallback_attempt_list
+        if isinstance(item, dict) and item.get("launcher")
+    ]
 
     goal = str(snapshot.get("goal") or latest_payload.get("goal") or read_goal(root, ""))
     state = str(latest_payload.get("state") or dispatch_payload.get("state") or "unknown")
@@ -643,6 +682,8 @@ def report_progress(root: Path) -> dict[str, object]:
         else [],
         "launch_failures": launch_failures,
         "launch_failure_count": len(launch_failures),
+        "fallback_launchers": fallback_launchers,
+        "fallback_launch_recovered": fallback_launch_recovered,
         "suppressed_launches": suppressed_launch_list,
         "suppressed_launch_count": len(suppressed_launch_list),
         "stop_gates": stop_gate_list,
@@ -672,6 +713,8 @@ def report_progress(root: Path) -> dict[str, object]:
             first_stop_gate_question,
             queue_metrics,
             error,
+            fallback_launch_recovered,
+            fallback_launchers,
         ),
         "user_action": build_user_action(
             state,
@@ -684,6 +727,8 @@ def report_progress(root: Path) -> dict[str, object]:
             assignment_role,
             t0_supervisor_state,
             error,
+            fallback_launch_recovered,
+            fallback_launchers,
         ),
         "actions": action_list,
         "boundary": T0_PROGRESS_BOUNDARY,
@@ -742,6 +787,9 @@ def format_text(payload: dict[str, object]) -> str:
         f"latest_event_launch_failure_command={latest_event_first_failure.get('command', '')}",
         f"latest_event_launch_failure_returncode={latest_event_first_failure.get('returncode', '')}",
         f"latest_event_launch_failure_output={latest_event_first_failure.get('output', '')}",
+        f"fallback_launch_recovered={payload.get('fallback_launch_recovered', False)}",
+        "fallback_launchers="
+        + ",".join(str(item) for item in payload.get("fallback_launchers", []) if item),
         f"latest_event_completion_ready={latest_event_payload.get('completion_ready', '')}",
         f"completion_ready={payload.get('completion_ready')}",
         f"completion_audit_state={completion_payload.get('state', '')}",
