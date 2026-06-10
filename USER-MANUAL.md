@@ -171,6 +171,7 @@ python scripts/taskboard_loop.py --root . --goal "完成 <你的开发目标>" -
 ```
 
 默认只输出恢复/启动命令，不执行。只有 T0 明确需要实际创建或恢复受控角色终端时才加 `--execute-launches`。执行模式下，T0 只执行 missing/stale 角色的恢复命令；如果某个角色 heartbeat healthy，即使 dispatch plan 中仍有完整 starter plan，T0 也不会重新打开该角色终端。`--assignment-lease-seconds` 控制 T0 在任务已认领后等待多久；超过该租约仍没有新的 assignment heartbeat 时，T0 标记 `lease-expired` 并重新下发角色目标。`--launch-lease-seconds 300` 控制 T0 成功启动/恢复某个 `taskboard-T1/T2/T3` 后等待 worker heartbeat 的时间；lease 生效期间 T0 不会重复打开同一个角色终端。该选项只执行 manager launch/reissue commands；T0 仍不能做 T1/T2/T3 的开发任务。
+如果某个受控角色仍在 heartbeat，但一直停留在旧任务/旧 assignment，没有在 `--assignment-lease-seconds` 内认领 T0 当前 assignment，T0 会记录 `pending-ack-expired` 和 `assignment_pending_age_seconds`。在 `--execute-launches` 模式下，T0 只恢复这个被选中的角色终端；progress 仍显示 `No user action required`，用户不需要接管 T1/T2/T3。
 如果执行 launcher 命令失败，loop action 会报告 `T0 launch/recovery failed`，要求修正 T0 launcher 配置或换 launcher 重试，而不是让用户直接管理 T1/T2/T3。同一轮里 T0 会在第一个 launcher failure 后停止继续启动后续 worker commands，避免一个错误的 launcher/template 配置同时扩散到 T1/T2/T3。配置 `--fallback-launcher <launcher>` 后，T0 会用备用 launcher 重新生成同一批受控角色命令，并优先重试尚未成功启动的角色。
 
 每轮 loop 默认会把隔离的角色目标写入 `.taskboard/targets/taskboard-T1.md`、`.taskboard/targets/taskboard-T2.md`、`.taskboard/targets/taskboard-T3.md`。这些文件是 T0 发给每个受控角色的运行态 inbox，让 worker 只读取自己的目标文件，不共享隐藏 chat context；它不是任务状态，也不是共享记忆。需要自定义目录时使用 `--target-dir <path>`；只想 dry check 且不写角色目标时使用 `--no-target-files`。不要把 `--no-target-files` 和引用 `{target_file}` 的 `--agent-template` 一起用于实际 launcher；除非 `--launcher none` 抑制 worker 启动，否则 T0 会先拒绝配置，避免生成空 prompt-file 命令。

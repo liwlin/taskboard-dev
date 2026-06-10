@@ -130,6 +130,51 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn(f"assignment_task={task_name}", text)
         self.assertIn("assignment_reason=taskboard-T2 is missing", text)
 
+    def test_progress_surfaces_pending_assignment_ack_timeout_as_t0_recovery(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_dir = root / ".taskboard" / "t0"
+            state_dir.mkdir(parents=True)
+            task_name = f"TASK-005.v1.{T2_CODE_REVIEW}-L2.md"
+            snapshot = {
+                "kind": "taskboard-t0-supervisor-state",
+                "goal": "Ship demo",
+                "updated_at": "2999-01-01T00:00:00Z",
+                "latest": {
+                    "state": "attention",
+                    "resume_config": {"interval_seconds": 60},
+                    "dispatch": {
+                        "state": "dispatch",
+                        "next_role": "T2",
+                        "task": task_name,
+                    },
+                    "assignment": {
+                        "state": "pending-ack-expired",
+                        "role": "T2",
+                        "task": task_name,
+                        "reason": "worker-heartbeat-assignment-ack-timeout",
+                        "expected_assignment_id": f"T2:{task_name}",
+                        "pending_age_seconds": 610,
+                    },
+                    "queue_health": {"active_count": 1},
+                    "session_probe": {"missing_roles": [], "stale_roles": []},
+                    "actions": [
+                        f"recover taskboard-T2; assignment acknowledgement timed out for {task_name}",
+                    ],
+                },
+            }
+            (state_dir / "latest.json").write_text(json.dumps(snapshot), encoding="utf-8")
+
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertEqual(progress["assignment_state"], "pending-ack-expired")
+        self.assertEqual(progress["assignment_pending_age_seconds"], 610)
+        self.assertIn("No user action required", progress["user_action"])
+        self.assertIn("recover taskboard-T2", progress["user_action"])
+        self.assertIn("assignment acknowledgement timed out", progress["user_action"])
+        self.assertIn("assignment_pending_age_seconds=610", text)
+
     def test_progress_reports_acknowledged_assignment_as_t0_monitored_work(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

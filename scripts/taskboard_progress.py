@@ -263,6 +263,11 @@ def build_user_action(
         and (has_active_completion_gap or not completion_missing_evidence)
     ):
         return f"No user action required; T0 will reissue target to taskboard-{assignment_role} until assignment is acknowledged."
+    if assignment_state == "pending-ack-expired" and assignment_role:
+        return (
+            f"No user action required; T0 will recover taskboard-{assignment_role}; "
+            "assignment acknowledgement timed out."
+        )
     if assignment_state == "acknowledged" and assignment_role:
         return (
             f"No user action required; T0 is monitoring taskboard-{assignment_role}'s "
@@ -407,6 +412,10 @@ def report_progress(root: Path) -> dict[str, object]:
         latest_event_assignment_task = str(latest_event_payload.get("assignment_task") or "none")
         latest_event_assignment_reason = str(latest_event_payload.get("assignment_reason") or "")
         latest_event_assignment_expected_id = str(latest_event_payload.get("assignment_expected_id") or "")
+        latest_event_assignment_pending_age_seconds = safe_int(
+            latest_event_payload.get("assignment_pending_age_seconds"),
+            0,
+        )
         latest_event_error = str(latest_event_payload.get("error") or "")
         live_queue_health = report_health(root, 30, goal or None)
         live_queue_payload = live_queue_health if isinstance(live_queue_health, dict) else {}
@@ -477,7 +486,7 @@ def report_progress(root: Path) -> dict[str, object]:
             fallback_state = "attention"
         if (
             fallback_state == "needs-supervisor-run"
-            and latest_event_assignment_state in {"pending-ack", "unassigned", "lease-expired"}
+            and latest_event_assignment_state in {"pending-ack", "unassigned", "lease-expired", "pending-ack-expired"}
             and latest_event_assignment_role
         ):
             fallback_state = "attention"
@@ -512,6 +521,7 @@ def report_progress(root: Path) -> dict[str, object]:
             "assignment_task": latest_event_assignment_task,
             "assignment_reason": latest_event_assignment_reason,
             "assignment_expected_id": latest_event_assignment_expected_id,
+            "assignment_pending_age_seconds": latest_event_assignment_pending_age_seconds,
             "auto_mode": latest_event_auto_mode,
             "starter_mode": latest_event_starter_mode,
             "starter_boundary": latest_event_starter_boundary,
@@ -635,6 +645,7 @@ def report_progress(root: Path) -> dict[str, object]:
     assignment_task = str(assignment_payload.get("task") or "none")
     assignment_reason = str(assignment_payload.get("reason") or "")
     assignment_expected_id = str(assignment_payload.get("expected_assignment_id") or "")
+    assignment_pending_age_seconds = safe_int(assignment_payload.get("pending_age_seconds"), 0)
     error = str(latest_payload.get("error") or "")
     auto_mode = bool(latest_payload.get("auto_mode"))
     starter_mode = str(latest_payload.get("starter_mode") or "")
@@ -670,6 +681,7 @@ def report_progress(root: Path) -> dict[str, object]:
         "assignment_task": assignment_task,
         "assignment_reason": assignment_reason,
         "assignment_expected_id": assignment_expected_id,
+        "assignment_pending_age_seconds": assignment_pending_age_seconds,
         "auto_mode": auto_mode,
         "starter_mode": starter_mode,
         "starter_boundary": starter_boundary,
@@ -765,6 +777,7 @@ def format_text(payload: dict[str, object]) -> str:
         f"assignment_task={payload.get('assignment_task', '')}",
         f"assignment_reason={payload.get('assignment_reason', '')}",
         f"assignment_expected_id={payload.get('assignment_expected_id', '')}",
+        f"assignment_pending_age_seconds={payload.get('assignment_pending_age_seconds', 0)}",
         f"queue_metrics_active_count={metrics_payload.get('active_count', 0)}",
         f"queue_metrics_stalled_count={metrics_payload.get('stalled_count', 0)}",
         "queue_metrics_role_counts="

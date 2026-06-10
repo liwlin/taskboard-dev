@@ -1140,6 +1140,85 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertGreaterEqual(output[0]["assignment"]["age_seconds"], 599)
         self.assertIn("lease expired", " ".join(output[0]["actions"]))
 
+    def test_pending_assignment_ack_timeout_recovers_only_selected_role(self):
+        executed_batches = []
+        time_calls = 0
+
+        def fake_execute(commands):
+            executed_batches.append(list(commands))
+            return [
+                {
+                    "command": command,
+                    "returncode": 0,
+                    "output": "",
+                }
+                for command in commands
+            ]
+
+        def fake_time():
+            nonlocal time_calls
+            time_calls += 1
+            return 1000.0 if time_calls <= 3 else 1010.0
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            taskboard = root / "docs" / "taskboard"
+            taskboard.mkdir(parents=True)
+            task_name = f"TASK-003.v1.{T2_CODE_REVIEW}-L2.md"
+            (taskboard / task_name).write_text("# task\n\n**Wave**: 1\n", encoding="utf-8")
+
+            session_dir = root / ".taskboard" / "sessions"
+            session_dir.mkdir(parents=True)
+            for role in ("T1", "T2", "T3"):
+                payload = {
+                    "role": role,
+                    "title": f"taskboard-{role}",
+                    "status": "alive",
+                    "pid": 123,
+                    "last_seen": 4102444800,
+                }
+                if role == "T2":
+                    payload.update({"task": "TASK-OLD.v1.T2-review-L2.md", "assignment_id": "T2:old"})
+                (session_dir / f"taskboard-{role}.json").write_text(json.dumps(payload), encoding="utf-8")
+
+            with patch("taskboard_loop.time.time", fake_time), patch(
+                "taskboard_loop.execute_commands",
+                fake_execute,
+            ):
+                output = loop_module.run_loop(
+                    root,
+                    "Ship demo",
+                    30,
+                    999999999,
+                    "powershell",
+                    'codex --prompt-file "{target_file}"',
+                    True,
+                    2,
+                    0,
+                    5,
+                    True,
+                    root / ".taskboard" / "t0" / "latest.json",
+                    root / ".taskboard" / "targets",
+                    300,
+                    root / ".taskboard" / "t0" / "events.jsonl",
+                )
+            events = [
+                json.loads(line)
+                for line in (root / ".taskboard" / "t0" / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(output[0]["assignment"]["state"], "pending-ack")
+        self.assertEqual(output[1]["assignment"]["state"], "pending-ack-expired")
+        self.assertGreaterEqual(output[1]["assignment"]["pending_age_seconds"], 10)
+        self.assertEqual(len(executed_batches), 1)
+        self.assertEqual(len(executed_batches[0]), 1)
+        self.assertIn("taskboard-T2", executed_batches[0][0])
+        self.assertNotIn("taskboard-T1", executed_batches[0][0])
+        self.assertIn("assignment acknowledgement timed out", " ".join(output[1]["actions"]))
+        self.assertEqual(events[1]["assignment_state"], "pending-ack-expired")
+        self.assertEqual(events[1]["assignment_pending_age_seconds"], 10)
+
 
 if __name__ == "__main__":
     unittest.main()

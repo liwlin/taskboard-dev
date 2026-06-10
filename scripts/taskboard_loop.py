@@ -206,6 +206,77 @@ def build_assignment(
     }
 
 
+def update_assignment_watch(
+    assignment: dict[str, object],
+    assignment_watch: dict[str, object],
+    current_time: float,
+) -> None:
+    role = str(assignment.get("role") or "")
+    expected_assignment_id = str(assignment.get("expected_assignment_id") or "")
+    state = str(assignment.get("state") or "")
+    if role not in {"T1", "T2", "T3"}:
+        return
+
+    if state == "pending-ack" and expected_assignment_id:
+        previous = assignment_watch.get(role, {})
+        previous_payload = previous if isinstance(previous, dict) else {}
+        if previous_payload.get("expected_assignment_id") == expected_assignment_id:
+            try:
+                pending_since = float(previous_payload.get("pending_since", current_time))
+            except (TypeError, ValueError):
+                pending_since = current_time
+        else:
+            pending_since = current_time
+
+        pending_age_seconds = int(max(0, current_time - pending_since))
+        assignment["pending_since"] = pending_since
+        assignment["pending_age_seconds"] = pending_age_seconds
+        assignment_watch[role] = {
+            "expected_assignment_id": expected_assignment_id,
+            "task": str(assignment.get("task") or "none"),
+            "pending_since": pending_since,
+            "pending_age_seconds": pending_age_seconds,
+        }
+        try:
+            lease_seconds = int(assignment.get("lease_seconds") or 0)
+        except (TypeError, ValueError):
+            lease_seconds = 0
+        if lease_seconds > 0 and pending_age_seconds >= lease_seconds:
+            assignment["state"] = "pending-ack-expired"
+            assignment["reason"] = "worker-heartbeat-assignment-ack-timeout"
+        return
+
+    current = assignment_watch.get(role, {})
+    current_payload = current if isinstance(current, dict) else {}
+    if state == "acknowledged" or current_payload.get("expected_assignment_id") == expected_assignment_id:
+        assignment_watch.pop(role, None)
+
+
+def assignment_recovery_sessions(
+    dispatch_plan: dict[str, object],
+    assignment: dict[str, object],
+) -> list[dict[str, str]]:
+    if assignment.get("state") != "pending-ack-expired":
+        return []
+    role = str(assignment.get("role") or "")
+    raw_sessions = dispatch_plan.get("managed_sessions", [])
+    if not isinstance(raw_sessions, list):
+        return []
+    return [
+        item
+        for item in raw_sessions
+        if isinstance(item, dict) and str(item.get("role") or "") == role
+    ]
+
+
+def dedupe_commands(commands: list[str]) -> list[str]:
+    deduped: list[str] = []
+    for command in commands:
+        if command not in deduped:
+            deduped.append(command)
+    return deduped
+
+
 def build_actions(
     session_probe: dict[str, object],
     queue_health: dict[str, object],
@@ -273,6 +344,12 @@ def build_actions(
         role = assignment.get("role")
         task = assignment.get("task")
         actions.append(f"reissue target to taskboard-{role} until heartbeat acknowledges {task}")
+    elif assignment.get("state") == "pending-ack-expired":
+        role = assignment.get("role")
+        task = assignment.get("task")
+        actions.append(
+            f"recover taskboard-{role}; assignment acknowledgement timed out for {task}"
+        )
     elif assignment.get("state") == "lease-expired":
         role = assignment.get("role")
         task = assignment.get("task")
@@ -431,6 +508,7 @@ def run_once(
     launch_state: Optional[dict[str, object]] = None,
     launch_lease_seconds: int = 300,
     fallback_launchers: Optional[list[str]] = None,
+    assignment_watch: Optional[dict[str, object]] = None,
 ) -> dict[str, object]:
     session_probe = probe_sessions(
         root,
@@ -483,14 +561,27 @@ def run_once(
         if target_dir is not None and isinstance(managed_sessions, list)
         else []
     )
+    current_time = time.time()
+    assignment_watch_payload = assignment_watch if assignment_watch is not None else {}
+    assignment = build_assignment(session_probe, dispatch_plan, assignment_lease_seconds)
+    update_assignment_watch(assignment, assignment_watch_payload, current_time)
+    assignment_recovery_session_list = assignment_recovery_sessions(dispatch_plan, assignment)
+    assignment_recovery_command_list = build_launch_commands(
+        root,
+        assignment_recovery_session_list,
+        launcher,
+        agent_template,
+    )
     planned_launch_commands = choose_launch_commands(session_probe, dispatch_plan)
     used_recovery_commands = bool(session_probe.get("recovery_commands"))
     requested_launch_commands = (
-        choose_executable_launch_commands(session_probe, dispatch_plan)
+        dedupe_commands(
+            choose_executable_launch_commands(session_probe, dispatch_plan)
+            + assignment_recovery_command_list
+        )
         if execute_launches
         else planned_launch_commands
     )
-    current_time = time.time()
     launch_state_payload = launch_state if launch_state is not None else read_launch_state(root)
     if execute_launches:
         launch_commands, suppressed_launches = filter_launch_commands(
@@ -505,7 +596,9 @@ def run_once(
     executed_commands = execute_commands(launch_commands) if execute_launches and launch_commands else []
     fallback_attempts: list[dict[str, object]] = []
     if execute_launches and executed_commands and any(command_failed(item) for item in executed_commands):
-        source_sessions = fallback_source_sessions(session_probe, dispatch_plan, used_recovery_commands)
+        source_sessions = assignment_recovery_session_list or fallback_source_sessions(
+            session_probe, dispatch_plan, used_recovery_commands
+        )
         fallback_executed, fallback_suppressed, fallback_attempts = execute_fallback_launchers(
             root,
             source_sessions,
@@ -521,7 +614,6 @@ def run_once(
     if execute_launches and executed_commands:
         record_launch_successes(launch_state_payload, executed_commands, current_time)
         write_launch_state(root, launch_state_payload, launch_lease_seconds)
-    assignment = build_assignment(session_probe, dispatch_plan, assignment_lease_seconds)
     completion_audit = dispatch_plan.get("completion_audit")
     completion_audit_payload = completion_audit if isinstance(completion_audit, dict) else None
 
@@ -531,6 +623,8 @@ def run_once(
     elif dispatch_plan.get("state") == "complete":
         state = "idle"
     elif executed_commands and any(item["returncode"] != 0 for item in executed_commands):
+        state = "attention"
+    elif assignment.get("state") == "pending-ack-expired":
         state = "attention"
     elif session_probe.get("state") == "healthy" and queue_health.get("state") in {"empty"}:
         state = "idle"
@@ -549,6 +643,7 @@ def run_once(
         "target_files": target_files,
         "planned_launch_commands": planned_launch_commands,
         "requested_launch_commands": requested_launch_commands,
+        "assignment_recovery_commands": assignment_recovery_command_list,
         "launch_commands": launch_commands,
         "suppressed_launches": suppressed_launches,
         "executed_commands": executed_commands,
@@ -564,6 +659,7 @@ def run_once(
             fallback_attempts,
         ),
         "fallback_launch_attempts": fallback_attempts,
+        "assignment_watch": json.loads(json.dumps(assignment_watch_payload, ensure_ascii=False)),
     }
     if completion_audit_payload is not None:
         payload["completion_audit"] = completion_audit_payload
@@ -576,6 +672,21 @@ def default_state_file(root: Path) -> Path:
 
 def default_event_log_file(root: Path) -> Path:
     return root / ".taskboard" / "t0" / "events.jsonl"
+
+
+def read_assignment_watch(state_file: Optional[Path]) -> dict[str, object]:
+    if state_file is None or not state_file.exists():
+        return {}
+    try:
+        payload = json.loads(state_file.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    latest = payload.get("latest", {})
+    latest_payload = latest if isinstance(latest, dict) else {}
+    assignment_watch = latest_payload.get("assignment_watch", {})
+    return assignment_watch if isinstance(assignment_watch, dict) else {}
 
 
 def write_state_snapshot(
@@ -889,6 +1000,7 @@ def append_event_log(
         "assignment_task": str(assignment_payload.get("task") or "none"),
         "assignment_reason": str(assignment_payload.get("reason") or ""),
         "assignment_expected_id": str(assignment_payload.get("expected_assignment_id") or ""),
+        "assignment_pending_age_seconds": int(assignment_payload.get("pending_age_seconds") or 0),
         "queue_state": str(queue_payload.get("state") or ""),
         "session_state": str(session_payload.get("state") or ""),
         "action_count": len(action_list),
@@ -970,6 +1082,7 @@ def run_loop(
     )
     results: list[dict[str, object]] = []
     count = 0
+    assignment_watch = read_assignment_watch(state_file)
     while iterations is None or count < iterations:
         payload = run_once(
             root,
@@ -984,6 +1097,7 @@ def run_loop(
             launch_state,
             launch_lease_seconds,
             fallback_launchers,
+            assignment_watch,
         )
         if runtime_metadata:
             payload.update(runtime_metadata)
