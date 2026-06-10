@@ -29,6 +29,7 @@ cp "$ROOT_DIR/scripts/taskboard_sessions.py" "$STAGE_DIR/scripts/taskboard_sessi
 cp "$ROOT_DIR/scripts/taskboard_next.py" "$STAGE_DIR/scripts/taskboard_next.py"
 cp "$ROOT_DIR/scripts/verify_t0_contract.py" "$STAGE_DIR/scripts/verify_t0_contract.py"
 cp "$ROOT_DIR/scripts/verify_release_consistency.py" "$STAGE_DIR/scripts/verify_release_consistency.py"
+cp "$ROOT_DIR/scripts/sync-local-skill.ps1" "$STAGE_DIR/scripts/sync-local-skill.ps1"
 
 (
   cd "$DIST_DIR"
