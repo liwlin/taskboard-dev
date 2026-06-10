@@ -62,6 +62,9 @@ class TaskboardT0Test(unittest.TestCase):
         self.assertIn("managed_by: T0", output["target"])
         self.assertIn("do not execute T0/T1/T3 responsibilities", output["target"])
         self.assertIn("do not rely on another role's chat context", output["target"])
+        self.assertIn("Worker loop contract", output["target"])
+        self.assertIn("Continue cycling this role until no unblocked work remains", output["target"])
+        self.assertIn("refresh your heartbeat at the start of each cycle", output["target"])
         self.assertIn("T0 manager-only", output["boundary"])
         self.assertIn("不直接执行开发任务", output["boundary"])
         self.assertEqual(
@@ -187,6 +190,8 @@ class TaskboardT0Test(unittest.TestCase):
         self.assertEqual(output["target_files"][0]["role"], "T1")
         self.assertIn("managed_by: T0", t1_target_text)
         self.assertIn("assigned_role: T1", t1_target_text)
+        self.assertIn("Worker loop contract", t1_target_text)
+        self.assertIn("Do not stop after one action if more T1 work is available", t1_target_text)
 
     def test_inline_agent_template_does_not_write_role_target_files(self):
         with tempfile.TemporaryDirectory() as tmp:

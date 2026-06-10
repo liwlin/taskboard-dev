@@ -138,12 +138,19 @@ def build_session(
         "- Write the heartbeat before work and after each TASKBOARD handoff using the command above.\n"
         "- Return work through TASKBOARD filename state transitions; do not ask the user to manage routine T1/T2/T3 flow."
     )
+    loop_contract = (
+        "Worker loop contract:\n"
+        f"- Continue cycling this role until no unblocked work remains for {role}, the TASKBOARD handoff is complete, or a stop gate is required.\n"
+        "- At each cycle, re-read TASKBOARD filenames and stable docs instead of relying on prior chat context.\n"
+        "- Always refresh your heartbeat at the start of each cycle and after each TASKBOARD handoff.\n"
+        f"- Do not stop after one action if more {role} work is available; keep advancing the role queue under T0 management."
+    )
     title = f"taskboard-{role}"
     session = {
         "role": role,
         "title": title,
         "command": f"/taskboard-dev {role}",
-        "target": f"{target}\n{heartbeat}\n{role_contract}",
+        "target": f"{target}\n{heartbeat}\n{role_contract}\n{loop_contract}",
     }
     if target_dir is not None:
         session["target_file"] = str(role_target_file(target_dir, title))
