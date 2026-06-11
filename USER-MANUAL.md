@@ -240,6 +240,12 @@ python scripts/taskboard_loop.py --root . --goal "完成 <你的开发目标>" -
 
 `taskboard_t0.py` 还会返回机器可读的 `goal_intake` packet：`kind=taskboard-t0-goal-intake`、`next_owner=T1`、allowed intake fields，以及 forbidden fields（`requirements`、`architecture`、`task_splits`、`acceptance_criteria`）。这就是 T0 的播种上限：T0 只能携带用户目标和 source material，需求拆解、上下文文件、TASK 创建和验收标准必须由 T1 拥有。
 每个生成的目标还会包含 `Default tooling contract` 和 `Required skills evidence`：T1 默认优先使用 `superpowers:brainstorming` / `superpowers:writing-plans` 等规划工具；T2 的 L2/L3 审核默认优先使用 Codex code review、review subagent 或 `superpowers:requesting-code-review` 等独立审核工具；T3 在改源码前必须评估能否用 Codex native subagents 或可用 multi-agent 工具安全切分并行开发。每个 worker 在交接前都必须把使用的 tool/skill、结果，以及 fallback reason 记录到 TASK、history、review note 或 dev-log 中。T2 还包含 `Evidence enforcement gate`：缺失 Required skills evidence 是审核失败，除非用户明确 override，否则退回产出该任务的角色补证据。
+
+如果 ClaudeCode、Codex 或其他顶层 agent 同时协作同一个仓库，同一个 Git checkout
+同一时间只能有一个写入负责人。两个顶层 agent 需要并行写文件时，必须使用单独的
+`git worktree`，或者错峰执行写入、stage、commit、reset、clean、release 生成等操作。
+T0 管理的 T1/T2/T3 角色终端可以共享 TASKBOARD checkout，是因为状态机保证一个任务文件
+同一时间只有一个角色 owner；这不等同于两个顶层编排器可以同时改同一个索引。
 每个生成的目标还会包含 `External tool contract`：需要仓库、PR、issue、release 或 CI 证据时使用 GitHub tooling；需要网页 UI 检查、浏览器调试、截图或前端渲染验证时使用 Chrome/Browser tooling；只有 shell、浏览器、仓库工具无法覆盖的本地桌面/GUI 流程才使用 Computer Use。工具调用仍然必须遵守当前角色边界，不把日常 T1/T2/T3 操作转交给用户。
 
 每轮 loop 默认会把最新 T0 supervisor 运行态快照写入 `.taskboard/t0/latest.json`。这个 `taskboard-t0-supervisor-state` 文件只记录 T0 的管理视图，方便中断后恢复判断；它不是任务状态、不是 worker 记忆，也不能替代 TASKBOARD 文件名、history、dev-log、HANDOFF 或完成 sentinel。需要自定义路径时使用 `--state-file <path>`；只想 dry check 且不留下运行态快照时使用 `--no-state-file`。

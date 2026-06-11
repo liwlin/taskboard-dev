@@ -58,6 +58,12 @@ Do not parallelize when work is tightly coupled, touches the same files in
 conflicting ways, requires a single continuous design decision, or involves
 destructive/shared-state operations. In those cases, stay solo and record the reason in the task's Current Instruction or final implementation notes.
 
+Do not place parallel write agents in the same Git checkout. Even when slices
+touch different files, staging, committing, generated artifacts, and cleanup all
+share one Git index. If parallel implementation needs independent writer
+sessions, ask T0 to allocate separate `git worktree` checkouts or serialize the
+write phases in this checkout.
+
 T3 remains responsible for integration, final verification, and commit even
 when subagents perform implementation slices.
 

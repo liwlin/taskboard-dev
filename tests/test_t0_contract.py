@@ -352,6 +352,40 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("python scripts/taskboard_sessions.py --root . probe --stale-seconds 300", readme)
         self.assertIn("--assignment-id T2:TASK-003.v1.T2-review.md", readme)
 
+    def test_shared_checkout_coordination_contract_is_documented(self):
+        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        role_t0 = (ROOT / "references" / "role-t0.md").read_text(encoding="utf-8")
+        role_t3 = (ROOT / "references" / "role-t3.md").read_text(encoding="utf-8")
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
+        pressure_readme = (ROOT / "tests" / "pressure" / "README.md").read_text(encoding="utf-8")
+        pressure_case = (ROOT / "tests" / "pressure" / "shared-checkout-collision.md").read_text(encoding="utf-8")
+
+        self.assertIn("same Git checkout at the same time", skill)
+        self.assertIn("separate `git worktree` checkouts", skill)
+        self.assertIn("ClaudeCode and Codex are editing different files", skill)
+        self.assertIn("Shared checkout ownership", role_t0)
+        self.assertIn("Peer top-level orchestrators", role_t0)
+        self.assertIn("Do not place parallel write agents in the same Git checkout", role_t3)
+        self.assertIn("同一个 Git checkout", manual)
+        self.assertIn("git worktree", manual)
+        self.assertIn("only one may own the same Git checkout", readme)
+        self.assertIn("shared-checkout-collision.md", pressure_readme)
+        self.assertIn("checkout ownership conflict", pressure_case)
+        self.assertIn("RED EVIDENCE", pressure_case)
+
+    def test_v5_field_evidence_files_are_present(self):
+        proposal = (ROOT / "PROPOSAL-v5-architecture.md").read_text(encoding="utf-8")
+        troubleshooting = ROOT / "windows-managed-session-launch-troubleshooting.md"
+
+        self.assertIn("windows-managed-session-launch-troubleshooting.md", proposal)
+        self.assertTrue(troubleshooting.exists())
+        text = troubleshooting.read_text(encoding="utf-8")
+        self.assertIn("TASKBOARD 多终端启动排查", text)
+        self.assertIn("API Error: 403 Request not allowed", text)
+        self.assertIn("PowerShell 5.1", text)
+        self.assertIn("open-tabs.ps1", text)
+
     def test_t0_completion_markdown_report_is_documented(self):
         manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
         role_t0 = (ROOT / "references" / "role-t0.md").read_text(encoding="utf-8")

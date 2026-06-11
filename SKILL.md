@@ -554,6 +554,11 @@ Any agent reading this skill in any role session MUST read and respect the
 - **NEVER** bypass another role's turn. If work crosses a boundary, rename
   the task to the appropriate role's status and continue/stop according to the next role's queue and the current long-run goal.
 - **NEVER** make the user manage T1/T2/T3 when T0 is active. T0 is responsible for deciding which role needs attention next and for surfacing only true stop gates to the user.
+- **NEVER** let two top-level agents write, stage, commit, reset, or clean in the
+  same Git checkout at the same time. Use one checkout owner at a time; when
+  Claude Code, Codex, or other peer agents must work independently, put them in
+  separate `git worktree` checkouts or serialize their writes before either
+  agent touches the Git index.
 
 ### User Override Protocol
 
@@ -582,6 +587,7 @@ feedback or live agent testing):
 - "操作路径完全清晰，加载正文收益为零" / "the path is clear, reading the skill body adds nothing"
 - "我对这个流程已足够熟悉" / "I already know this workflow well enough"
 - "idle means no tool calls, so I should not touch alive" / "empty queue means I can stop refreshing liveness"
+- "ClaudeCode and Codex are editing different files, so sharing one checkout is fine" / "we can both commit later"
 
 | Excuse | Reality |
 |--------|---------|
@@ -590,6 +596,7 @@ feedback or live agent testing):
 | "spec 偏差很小，绕过去就行" | Unreviewed patches around the spec create drift. Rename to `T1-待决策`. |
 | "我已熟悉流程，不用再读边界" | Familiarity is exactly how the captured violations happened. Read your role file. |
 | "idle 不需要工具调用" | Idle workers still refresh liveness with `taskboard.py cycle`/`alive`; only task-specific work pauses. |
+| "两个 agent 改不同文件就不会冲突" | The shared Git index is still one mutable resource. Use separate worktrees or serialize all writes/stage/commit steps. |
 
 All of these mean: stop, rename the task to the owning role, and continue inside your own lane.
 

@@ -35,6 +35,7 @@ section of SKILL.md.
 | `T0-seeding.md` | T0 intake packet only, even with pre-history knowledge | LeLamp field failure 2026-06-10 |
 | `worker-loop.md` | Worker never exits on empty queue mid-milestone | LeLamp field failure 2026-06-10 |
 | `managed-launch.md` | T0 probes spawn capability before choosing backend | LeLamp field failure 2026-06-10 |
+| `shared-checkout-collision.md` | Peer top-level agents must not write one Git checkout concurrently | ClaudeCode/Codex field collision 2026-06-11 |
 
 ## Pressure types
 

@@ -211,7 +211,12 @@ Stop and re-route to T1 if T0 is about to say or do any of these:
 9. If queues exist, select the currently highest-priority role using **T0 next** below and nudge/resume that role with its durable target.
 10. After each role handoff, run `/taskboard-progress` again.
 11. If a role is idle but the milestone is incomplete, keep its managed terminal alive for future handoffs or re-run it after the configured loop interval.
-12. Continue until all tasks are archived, `dev-log.md` is current, `HANDOFF.md` is saved if pausing, and the user's goal is satisfied.
+12. If another top-level agent such as ClaudeCode, Codex, or a human-operated
+    peer agent is actively editing this same checkout, do not start another
+    writer in that checkout. Either wait for the current checkout owner to
+    commit/clear the index, or move the peer agent into a separate `git
+    worktree` before assigning independent write work.
+13. Continue until all tasks are archived, `dev-log.md` is current, `HANDOFF.md` is saved if pausing, and the user's goal is satisfied.
 
 ### T0 Liveness / Heartbeat Rules
 
@@ -226,6 +231,12 @@ T0 uses lightweight filesystem signals, not a new database:
 - **Stalled**: a task file mtime is older than 30 minutes while the user's goal is incomplete. T0 runs `taskboard.py stall` and `/taskboard-progress`; if the role liveness is alive, re-issue the durable target for the owning role, otherwise recover the managed terminal/native-subagent backend.
 - **Repeated failure**: the same Verify item fails beyond retry budget. T0 routes the task to T1/T2 for diagnosis and surfaces a user question only if the failure is a true stop gate.
 - **Recovery**: after crash, context compaction, or client restart, T0 reads `HANDOFF.md`, checks `git status`, scans all active task filenames, and resumes the highest-priority role from **T0 next**.
+- **Shared checkout ownership**: T0-managed T1/T2/T3 role sessions can share the
+  TASKBOARD checkout because the role state machine assigns one owner per task
+  and T3 owns source writes. Peer top-level orchestrators do not have that same
+  single-owner guarantee. When two leaders need to work at once, use separate
+  worktrees; otherwise serialize their writes before staging, committing,
+  resetting, cleaning, or regenerating release artifacts.
 
 ### T0 User Output Contract
 

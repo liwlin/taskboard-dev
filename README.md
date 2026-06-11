@@ -246,6 +246,14 @@ Each generated target includes a `T0 input boundary`: the user goal, scheduling 
 
 `taskboard_t0.py` also returns a machine-readable `goal_intake` packet with `kind=taskboard-t0-goal-intake`, `next_owner=T1`, allowed intake fields, and forbidden fields including `requirements`, `architecture`, `task_splits`, and `acceptance_criteria`. This packet is T0's seeding limit: T0 may carry the user's goal and source material, but T1 must own decomposition, context files, TASK creation, and acceptance criteria.
 Each generated target also includes a `Default tooling contract` and `Required skills evidence`: T1 defaults to available planning/brainstorming skills such as `superpowers:brainstorming` and `superpowers:writing-plans`, T2 L2/L3 reviews default to independent review tooling such as Codex code review or `superpowers:requesting-code-review`, and T3 must assess Codex native subagents or available multi-agent tools before source edits when the work can be safely split. Each worker must record the tool or skill used, the result, and any fallback reason in the TASK file, history, review note, or dev-log before handoff. T2 also has an `Evidence enforcement gate`: missing Required skills evidence is a review failure and returns the task to the producing role unless a user override explicitly waives the evidence requirement.
+
+When two top-level agents such as ClaudeCode and Codex collaborate on this
+repository, only one may own the same Git checkout for write/stage/commit work
+at a time. If both need to write independently, put one of them in a separate
+`git worktree` or serialize the write phases before either agent stages,
+commits, resets, cleans, or regenerates release artifacts. T0-managed
+T1/T2/T3 role sessions are different: they share the TASKBOARD checkout only
+through the role state machine, where one task file has one owner at a time.
 Each generated target also includes an `External tool contract`: use GitHub tooling for repository, PR, issue, release, and CI-check work; use Chrome/Browser tooling for web UI inspection and rendered frontend verification; use Computer Use only for local desktop or GUI workflows that cannot be verified through shell, browser, or repository tools. These tools are used inside the assigned role boundary, not by asking the user to manage routine T1/T2/T3 work.
 
 Each loop iteration writes the latest T0 supervisor runtime snapshot to `.taskboard/t0/latest.json` by default. This `taskboard-t0-supervisor-state` file records T0's management view and `resume_config` for recovery after interruption; it is not task state, not worker memory, and not a replacement for TASKBOARD filenames, history, dev-log, HANDOFF, or the completion sentinel. Use `--state-file <path>` to choose another snapshot path, or `--no-state-file` for dry checks that should leave no runtime snapshot.
