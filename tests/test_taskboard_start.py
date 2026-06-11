@@ -170,8 +170,10 @@ class TaskboardStartTest(unittest.TestCase):
         self.assertIn("not found on PATH", result.stdout)
         self.assertEqual(snapshot["latest"]["state"], "config-error")
         self.assertIn("agent command '__taskboard_missing_agent__'", snapshot["latest"]["error"])
+        self.assertEqual(snapshot["latest"]["launch_probe"]["recommended_backend"], "fix-config")
         self.assertEqual(events[-1]["state"], "config-error")
         self.assertIn("agent command '__taskboard_missing_agent__'", events[-1]["error"])
+        self.assertEqual(events[-1]["launch_probe_recommended_backend"], "fix-config")
 
     def test_starter_auth_refused_preflight_generates_user_owned_worker_launcher(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -217,10 +219,14 @@ class TaskboardStartTest(unittest.TestCase):
             ]
 
         self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(payload["launch_probe"]["kind"], "taskboard-launch-probe")
+        self.assertEqual(payload["launch_probe"]["recommended_backend"], "subagent")
         self.assertEqual(payload["agent_preflight"]["state"], "spawn-refused")
         self.assertTrue(open_tabs_exists)
         self.assertIn("Run the generated user-owned Windows Terminal script", " ".join(payload["actions"]))
         self.assertEqual(events[-1]["state"], "attention")
+        self.assertEqual(events[-1]["launch_probe_recommended_backend"], "subagent")
+        self.assertEqual(events[-1]["launch_probe_state"], "spawn-refused")
         self.assertEqual(events[-1]["launch_failure_count"], 0)
 
     def test_starter_resumes_saved_goal_without_retyping_it(self):

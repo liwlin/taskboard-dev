@@ -75,6 +75,50 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("No user action required", progress["user_action"])
         self.assertIn("manager-only", progress["boundary"])
 
+    def test_progress_surfaces_t0_launch_probe_recommendation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(START_SCRIPT),
+                    "--root",
+                    str(root),
+                    "--goal",
+                    "Ship demo",
+                    "--format",
+                    "json",
+                    "--iterations",
+                    "1",
+                    "--launcher",
+                    "powershell",
+                    "--agent-template",
+                    f'"{sys.executable}" -c "print(123)" --prompt-file "{{target_file}}"',
+                    "--agent-preflight-command",
+                    (
+                        f'"{sys.executable}" -c '
+                        '"import sys; print(\'Failed to authenticate. API Error: 403 Request not allowed\'); sys.exit(7)"'
+                    ),
+                ],
+                cwd=ROOT,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout)
+
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertEqual(progress["launch_probe_state"], "spawn-refused")
+        self.assertEqual(progress["launch_probe_recommended_backend"], "subagent")
+        self.assertEqual(progress["launch_probe_reason"], "agent-preflight-spawn-refused")
+        self.assertIn("launch_probe_recommended_backend=subagent", text)
+        self.assertIn("latest_event_launch_probe_recommended_backend=subagent", text)
+
     def test_progress_flags_stale_t0_supervisor_snapshot_for_resume(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

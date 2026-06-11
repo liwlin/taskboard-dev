@@ -612,6 +612,60 @@ def validate_agent_preflight(
     }
 
 
+def build_launch_probe(launcher: str, agent_preflight: Optional[dict[str, object]]) -> dict[str, object]:
+    preflight = agent_preflight if isinstance(agent_preflight, dict) else {}
+    preflight_state = str(preflight.get("state") or "")
+    if preflight_state == "spawn-refused":
+        state = "spawn-refused"
+        recommended_backend = "subagent"
+        reason = "agent-preflight-spawn-refused"
+        user_action = (
+            "Use native subagent fallback for T1/T2/T3. If native subagents are "
+            "unavailable, generate a single T0-owned user terminal launcher."
+        )
+    elif preflight_state == "skipped":
+        state = "launch-disabled"
+        recommended_backend = "none"
+        reason = "launches-disabled"
+        user_action = "Launcher execution is disabled; keep this as a dry-run probe."
+    elif preflight_state == "disabled":
+        state = "unverified"
+        recommended_backend = "terminal"
+        reason = "agent-preflight-disabled"
+        user_action = (
+            "Use the T0-managed terminal launcher only if the operator intentionally "
+            "disabled preflight."
+        )
+    elif preflight_state == "config-error":
+        state = "config-error"
+        recommended_backend = "fix-config"
+        reason = "agent-preflight-config-error"
+        user_action = "Fix the T0 launcher or agent-template configuration before starting workers."
+    elif preflight_state == "passed":
+        state = "ready"
+        recommended_backend = "terminal"
+        reason = "agent-preflight-passed"
+        user_action = "Use the T0-managed terminal launcher for T1/T2/T3 worker loops."
+    else:
+        state = "unverified"
+        recommended_backend = "terminal"
+        reason = "agent-preflight-unavailable"
+        user_action = "Use the T0-managed terminal launcher only after preflight evidence is available."
+    return {
+        "kind": "taskboard-launch-probe",
+        "state": state,
+        "launcher": launcher,
+        "agent_preflight": preflight,
+        "recommended_backend": recommended_backend,
+        "reason": reason,
+        "user_action": user_action,
+        "boundary": (
+            "T0 launch probe is read-only; T0 chooses the worker backend; do "
+            "not ask the user to manage T1/T2/T3 directly."
+        ),
+    }
+
+
 def successful_launch_roles(executed_commands: list[dict[str, object]]) -> set[str]:
     roles: set[str] = set()
     for item in executed_commands:
@@ -710,6 +764,7 @@ def run_once(
     assignment_watch: Optional[dict[str, object]] = None,
     agent_preflight: Optional[dict[str, object]] = None,
 ) -> dict[str, object]:
+    launch_probe = build_launch_probe(launcher, agent_preflight)
     session_probe = probe_sessions(
         root,
         stale_seconds,
@@ -751,6 +806,7 @@ def run_once(
             "suppressed_launches": [],
             "executed_commands": [],
             "fallback_launch_attempts": [],
+            "launch_probe": launch_probe,
             "decision_command": decision_command,
             "actions": build_stop_gate_actions(stop_gate_report),
         }
@@ -913,6 +969,7 @@ def run_once(
         "subagent_fallback_packet": {},
         "assignment_watch": json.loads(json.dumps(assignment_watch_payload, ensure_ascii=False)),
         "agent_preflight": agent_preflight or {},
+        "launch_probe": launch_probe,
     }
     if subagent_fallback:
         payload["subagent_fallback_packet"] = write_subagent_fallback_packet(root, goal, subagent_fallback)
@@ -1300,6 +1357,8 @@ def append_event_log(
     subagent_prompt_list = subagent_prompts if isinstance(subagent_prompts, list) else []
     subagent_packet = payload.get("subagent_fallback_packet", {})
     subagent_packet_payload = subagent_packet if isinstance(subagent_packet, dict) else {}
+    launch_probe = payload.get("launch_probe", {})
+    launch_probe_payload = launch_probe if isinstance(launch_probe, dict) else {}
     event = {
         "kind": "taskboard-t0-supervisor-event",
         "version": 1,
@@ -1325,6 +1384,9 @@ def append_event_log(
         "executed_command_count": len(executed_command_list),
         "launch_failure_count": launch_failure_count,
         "launch_failures": launch_failures,
+        "launch_probe_state": str(launch_probe_payload.get("state") or ""),
+        "launch_probe_recommended_backend": str(launch_probe_payload.get("recommended_backend") or ""),
+        "launch_probe_reason": str(launch_probe_payload.get("reason") or ""),
         "fallback_launch_count": len(fallback_attempt_list),
         "fallback_launchers": [
             str(item.get("launcher") or "")

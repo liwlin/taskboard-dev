@@ -9,6 +9,7 @@ from typing import Optional
 
 from taskboard_loop import (
     append_event_log,
+    build_launch_probe,
     build_resume_config,
     default_event_log_file,
     default_state_file,
@@ -143,6 +144,16 @@ def build_config_error_payload(
         agent_preflight_command,
     )
     metadata = starter_metadata(auto_mode)
+    launch_probe = build_launch_probe(
+        launcher,
+        {
+            "enabled": agent_preflight_enabled,
+            "state": "config-error",
+            "reason": "agent-preflight-config-error",
+            "command": agent_preflight_command or agent_template or "",
+            "error": error,
+        },
+    )
     return {
         "kind": "taskboard-t0-config-error",
         "state": "config-error",
@@ -173,6 +184,7 @@ def build_config_error_payload(
         "launch_commands": [],
         "suppressed_launches": [],
         "executed_commands": [],
+        "launch_probe": launch_probe,
         **metadata,
     }
 

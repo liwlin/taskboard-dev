@@ -571,6 +571,11 @@ def report_progress(root: Path) -> dict[str, object]:
             0,
         )
         latest_event_error = str(latest_event_payload.get("error") or "")
+        latest_event_launch_probe_state = str(latest_event_payload.get("launch_probe_state") or "")
+        latest_event_launch_probe_recommended_backend = str(
+            latest_event_payload.get("launch_probe_recommended_backend") or ""
+        )
+        latest_event_launch_probe_reason = str(latest_event_payload.get("launch_probe_reason") or "")
         live_queue_health = report_health(root, 30, goal or None)
         live_queue_payload = live_queue_health if isinstance(live_queue_health, dict) else {}
         queue_metrics = build_queue_metrics(
@@ -715,6 +720,9 @@ def report_progress(root: Path) -> dict[str, object]:
             "stale_roles": [],
             "launch_failures": latest_event_failure_list,
             "launch_failure_count": latest_event_launch_failure_count,
+            "launch_probe_state": latest_event_launch_probe_state,
+            "launch_probe_recommended_backend": latest_event_launch_probe_recommended_backend,
+            "launch_probe_reason": latest_event_launch_probe_reason,
             "fallback_launchers": latest_event_fallback_launchers,
             "fallback_launch_recovered": latest_event_fallback_launch_recovered,
             "suppressed_launches": latest_event_suppressed_list,
@@ -800,6 +808,21 @@ def report_progress(root: Path) -> dict[str, object]:
     session_payload = session_probe if isinstance(session_probe, dict) else {}
     actions = latest_payload.get("actions", [])
     action_list = [str(action) for action in actions] if isinstance(actions, list) else []
+    launch_probe = latest_payload.get("launch_probe", {})
+    launch_probe_payload = launch_probe if isinstance(launch_probe, dict) else {}
+    latest_event_payload = event_summary.get("latest_event", {})
+    latest_event_payload = latest_event_payload if isinstance(latest_event_payload, dict) else {}
+    launch_probe_state = str(
+        launch_probe_payload.get("state") or latest_event_payload.get("launch_probe_state") or ""
+    )
+    launch_probe_recommended_backend = str(
+        launch_probe_payload.get("recommended_backend")
+        or latest_event_payload.get("launch_probe_recommended_backend")
+        or ""
+    )
+    launch_probe_reason = str(
+        launch_probe_payload.get("reason") or latest_event_payload.get("launch_probe_reason") or ""
+    )
     suppressed_launches = latest_payload.get("suppressed_launches", [])
     suppressed_launch_list: list[dict[str, object]] = []
     if isinstance(suppressed_launches, list):
@@ -925,6 +948,9 @@ def report_progress(root: Path) -> dict[str, object]:
         else [],
         "launch_failures": launch_failures,
         "launch_failure_count": len(launch_failures),
+        "launch_probe_state": launch_probe_state,
+        "launch_probe_recommended_backend": launch_probe_recommended_backend,
+        "launch_probe_reason": launch_probe_reason,
         "fallback_launchers": fallback_launchers,
         "fallback_launch_recovered": fallback_launch_recovered,
         "subagent_fallback_available": subagent_fallback_available,
@@ -1053,6 +1079,11 @@ def format_text(payload: dict[str, object]) -> str:
         f"latest_event_launch_failure_command={latest_event_first_failure.get('command', '')}",
         f"latest_event_launch_failure_returncode={latest_event_first_failure.get('returncode', '')}",
         f"latest_event_launch_failure_output={latest_event_first_failure.get('output', '')}",
+        f"launch_probe_state={payload.get('launch_probe_state', '')}",
+        f"launch_probe_recommended_backend={payload.get('launch_probe_recommended_backend', '')}",
+        f"launch_probe_reason={payload.get('launch_probe_reason', '')}",
+        f"latest_event_launch_probe_state={latest_event_payload.get('launch_probe_state', '')}",
+        f"latest_event_launch_probe_recommended_backend={latest_event_payload.get('launch_probe_recommended_backend', '')}",
         f"fallback_launch_recovered={payload.get('fallback_launch_recovered', False)}",
         "fallback_launchers="
         + ",".join(str(item) for item in payload.get("fallback_launchers", []) if item),

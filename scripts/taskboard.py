@@ -16,7 +16,7 @@ from typing import Optional
 from taskboard_completion import report_completion
 from taskboard_decide import record_decision
 from taskboard_health import report_health
-from taskboard_loop import validate_agent_preflight
+from taskboard_loop import build_launch_probe, validate_agent_preflight
 from taskboard_next import ROLE_PRIORITY, STATUS_RE, has_goal_complete_sentinel, select_task
 from taskboard_stopgates import report_stop_gates
 from taskboard_subagents import (
@@ -178,47 +178,7 @@ def launch_probe_payload(
             ),
         }
 
-    preflight_state = str(agent_preflight.get("state") or "")
-    if preflight_state == "spawn-refused":
-        state = "spawn-refused"
-        recommended_backend = "subagent"
-        reason = "agent-preflight-spawn-refused"
-        user_action = (
-            "Use native subagent fallback for T1/T2/T3. If native subagents are "
-            "unavailable, generate a single T0-owned user terminal launcher."
-        )
-    elif preflight_state == "skipped":
-        state = "launch-disabled"
-        recommended_backend = "none"
-        reason = "launches-disabled"
-        user_action = "Launcher execution is disabled; keep this as a dry-run probe."
-    elif preflight_state == "disabled":
-        state = "unverified"
-        recommended_backend = "terminal"
-        reason = "agent-preflight-disabled"
-        user_action = (
-            "Use the T0-managed terminal launcher only if the operator intentionally "
-            "disabled preflight."
-        )
-    else:
-        state = "ready"
-        recommended_backend = "terminal"
-        reason = "agent-preflight-passed"
-        user_action = "Use the T0-managed terminal launcher for T1/T2/T3 worker loops."
-
-    return {
-        "kind": "taskboard-launch-probe",
-        "state": state,
-        "launcher": launcher,
-        "agent_preflight": agent_preflight,
-        "recommended_backend": recommended_backend,
-        "reason": reason,
-        "user_action": user_action,
-        "boundary": (
-            "T0 launch probe is read-only; T0 chooses the worker backend; do "
-            "not ask the user to manage T1/T2/T3 directly."
-        ),
-    }
+    return build_launch_probe(launcher, agent_preflight)
 
 
 def parse_task_name(task_name: str) -> tuple[str, str, str]:
