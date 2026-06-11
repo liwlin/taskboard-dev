@@ -1,4 +1,4 @@
-# taskboard-dev v4.5.0 用户手册
+# taskboard-dev v4.5.1 用户手册
 
 T0 管理的 TASKBOARD 驱动开发工作流 — 用户只对 T0 下达目标，T0 负责管理 T1 架构师、T2 审核者、T3 执行者，基于文件名即状态的零轮询开销设计。v4.5 面向 Claude Code / Codex 的现代长任务能力：loop、目标/target、后台执行、resume、工具检查点，以及紧凑 `taskboard.py` 控制面入口。默认原则是“能自动做就自动做”，只有真正的停止门才需要人确认。
 
@@ -267,9 +267,10 @@ T0 只有在 active TASK 队列为空、`docs/STATE.md` 写有 `**Goal Complete*
 ```bash
 python scripts/taskboard_demo.py --root .taskboard-demo --with-heartbeats
 python scripts/taskboard_loop.py --root .taskboard-demo --goal "Ship demo" --iterations 1
+python scripts/taskboard_e2e_smoke.py
 ```
 
-该 demo 生成一个独立 TASKBOARD 示例和可选 T1/T2/T3 heartbeat，用来证明 T0 能读取队列并选择下一角色。它默认拒绝覆盖已有 `docs/`，不会修改产品代码。
+该 demo 生成一个独立 TASKBOARD 示例和可选 T1/T2/T3 heartbeat，用来证明 T0 能读取队列并选择下一角色。它默认拒绝覆盖已有 `docs/`，不会修改产品代码。`taskboard_e2e_smoke.py` 使用临时 TASKBOARD，跑一轮 T0 调度、模拟被选中的 worker `cycle` + heartbeat 认领任务，再跑一轮 T0 确认 assignment acknowledged；它用于验证“用户只给 T0 目标，T0 能把第一个 worker 管起来”的控制面闭环，不会启动真实 Claude 或修改当前产品代码。
 
 #### 兼容：手动启动 T1/T2/T3
 
