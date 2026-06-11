@@ -49,6 +49,16 @@ Each managed role MUST run in a separate terminal session and isolated agent con
 
 If the client cannot create terminals, T0 may degrade to native subagents if they provide isolated contexts. If neither managed terminals nor isolated subagents are available, T0 may use inline sequential mode only as a compatibility fallback, and must explicitly enforce the role boundary section before every role switch.
 
+Subagent backend is explicit, not implicit. Use
+`python scripts/taskboard_t0.py --goal "<user goal>" --mode subagent --format json`
+to generate a `taskboard-subagent-backend` payload with `subagent_prompts`.
+Those prompts are the T0-managed role inboxes for isolated native subagents:
+each one tells the subagent to read `SKILL.md`, read its own
+`references/role-t*.md`, use the embedded target, avoid T0 private reasoning,
+and return progress only through TASKBOARD files, history, dev-log, HANDOFF, and
+heartbeats. Subagent mode must not emit shell `launch_commands`; terminal and
+subagent backends share scheduling logic but not process-launch mechanics.
+
 ### T0 Terminal Launcher
 
 Use `scripts/taskboard_t0.py` to generate managed role sessions and optional launch commands. T0 may execute these commands when the active client allows terminal/process creation; the user should not manually manage T1/T2/T3.

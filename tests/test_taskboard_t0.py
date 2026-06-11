@@ -438,6 +438,37 @@ class TaskboardT0Test(unittest.TestCase):
         self.assertIn("-n taskboard-T2", commands[1])
         self.assertIn("-n taskboard-T3", commands[2])
 
+    def test_subagent_mode_emits_isolated_subagent_prompts_without_launcher_commands(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            output = self.run_t0(
+                root,
+                "--goal",
+                "Ship demo",
+                "--mode",
+                "subagent",
+                "--launcher",
+                "windows-terminal",
+                "--agent-template",
+                'codex --prompt-file "{target_file}"',
+            )
+
+        self.assertEqual(output["mode"], "subagent")
+        self.assertEqual(output["backend"]["kind"], "taskboard-subagent-backend")
+        self.assertEqual(output["backend"]["isolation"], "native-subagent-context")
+        self.assertEqual(output["command"], "dispatch isolated subagents: /taskboard-dev T1, /taskboard-dev T2, /taskboard-dev T3")
+        self.assertEqual(output["launch_commands"], [])
+        self.assertEqual(output["target_files"], [])
+        prompts = output["subagent_prompts"]
+        self.assertEqual([item["role"] for item in prompts], ["T1", "T2", "T3"])
+        self.assertEqual(prompts[0]["dispatch_order"], 1)
+        self.assertIn("Read SKILL.md and references/role-t1.md", prompts[0]["prompt"])
+        self.assertIn("Use this embedded target as the T0-managed role inbox", prompts[0]["prompt"])
+        self.assertIn("Do not inherit T0 private reasoning", prompts[0]["prompt"])
+        self.assertIn("Startup skill gate", prompts[0]["prompt"])
+
 
 if __name__ == "__main__":
     unittest.main()

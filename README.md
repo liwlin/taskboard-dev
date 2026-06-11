@@ -96,6 +96,8 @@ python scripts/taskboard_start.py --goal "<user goal>"
 
 如果 preflight 或 launcher 执行失败输出包含托管子进程认证/权限拒绝线索（例如 `API Error: 403`、`Request not allowed`、`Failed to authenticate`），T0 会写出用户自有终端启动脚本：`.taskboard/open-tabs.ps1` 和 `.taskboard/launch-role.ps1`。此时用户只执行一次 `powershell -ExecutionPolicy Bypass -File ".taskboard/open-tabs.ps1"` 来打开受控的 `taskboard-T1/T2/T3` 终端；这仍是 T0 指挥的启动动作，不是让用户分别管理 T1/T2/T3。
 
+如果当前客户端支持原生隔离子代理而不适合创建终端，T0 可用 `python scripts/taskboard_t0.py --goal "<user goal>" --mode subagent --format json` 生成 `taskboard-subagent-backend` 输出。该模式返回 `subagent_prompts`，每个 prompt 都要求子代理读取 `SKILL.md` 和对应 `references/role-t*.md`，并使用嵌入的 T0 target 作为角色 inbox；它不会生成 shell `launch_commands`，也不会把 T0 的私有推理或其他 worker chat context 传给子代理。
+
 v4.5 起新增紧凑控制面入口 `python scripts/taskboard.py`，旧脚本继续兼容。T0/worker 优先使用这个单入口做确定性看板操作：
 
 ```bash

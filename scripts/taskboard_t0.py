@@ -451,6 +451,63 @@ def build_session_manifest(
     }
 
 
+def build_backend(mode: str) -> dict[str, str]:
+    if mode == "subagent":
+        return {
+            "kind": "taskboard-subagent-backend",
+            "mode": "subagent",
+            "isolation": "native-subagent-context",
+            "boundary": "T0 dispatches isolated worker prompts; T0 does not execute T1/T2/T3 work.",
+        }
+    if mode == "inline":
+        return {
+            "kind": "taskboard-inline-backend",
+            "mode": "inline",
+            "isolation": "role-boundary-reset",
+            "boundary": "Compatibility fallback only; enforce role boundaries before each role switch.",
+        }
+    return {
+        "kind": "taskboard-terminal-backend",
+        "mode": "terminal",
+        "isolation": "managed-terminal-context",
+        "boundary": "T0 launches or recovers separate managed worker terminals.",
+    }
+
+
+def build_subagent_prompts(
+    sessions: list[dict[str, str]],
+    recovery_order: list[str],
+) -> list[dict[str, object]]:
+    by_role = {session["role"]: session for session in sessions}
+    ordered_roles = [role for role in recovery_order if role in by_role]
+    ordered_roles.extend(session["role"] for session in sessions if session["role"] not in ordered_roles)
+    prompts: list[dict[str, object]] = []
+    for index, role in enumerate(ordered_roles, start=1):
+        session = by_role[role]
+        role_reference = f"references/role-{role.lower()}.md"
+        prompt = "\n".join(
+            [
+                f"You are {session['title']}, an isolated native subagent managed by T0.",
+                f"Read SKILL.md and {role_reference} before acting.",
+                "Use this embedded target as the T0-managed role inbox.",
+                "Do not inherit T0 private reasoning, another worker chat context, or hidden decisions.",
+                "Return progress only through TASKBOARD filenames, history, dev-log, HANDOFF, and required heartbeat commands.",
+                "",
+                "--- embedded target ---",
+                session["target"],
+            ]
+        )
+        prompts.append(
+            {
+                "role": role,
+                "title": session["title"],
+                "dispatch_order": index,
+                "prompt": prompt,
+            }
+        )
+    return prompts
+
+
 def dispatch(
     root: Path,
     goal_arg: Optional[str],
@@ -465,6 +522,7 @@ def dispatch(
         return {
             "state": "needs-goal",
             "mode": mode,
+            "backend": build_backend(mode),
             "next_role": "T0",
             "role_label": ROLE_LABELS["T0"],
             "status": "needs-goal",
@@ -474,6 +532,7 @@ def dispatch(
             "target": build_target("T0", "needs-goal", "none", goal, "missing-user-goal"),
             "boundary": T0_BOUNDARY,
             "managed_sessions": [],
+            "subagent_prompts": [],
             "launch_commands": [],
             "session_manifest": build_session_manifest(
                 "needs-goal", "T0", "needs-goal", "none", "missing-user-goal", []
@@ -505,15 +564,26 @@ def dispatch(
         sessions = []
     else:
         state = "dispatch"
-        command = f"start managed terminals: /taskboard-dev T1, /taskboard-dev T2, /taskboard-dev T3"
         sessions = build_sessions(goal, role, status, task_name, reason, target_dir)
         target = next(session["target"] for session in sessions if session["role"] == role)
-    launch_commands = build_launch_commands(root, sessions, launcher, agent_template)
     session_manifest = build_session_manifest(state, role, status, task_name, reason, sessions)
+    recovery_order = list(session_manifest.get("recovery_order", []))
+    if mode == "subagent" and state == "dispatch":
+        command = "dispatch isolated subagents: /taskboard-dev T1, /taskboard-dev T2, /taskboard-dev T3"
+        launch_commands = []
+        subagent_prompts = build_subagent_prompts(sessions, recovery_order)
+    elif state == "dispatch":
+        command = f"start managed terminals: /taskboard-dev T1, /taskboard-dev T2, /taskboard-dev T3"
+        launch_commands = build_launch_commands(root, sessions, launcher, agent_template)
+        subagent_prompts = []
+    else:
+        launch_commands = []
+        subagent_prompts = []
 
     return {
         "state": state,
         "mode": mode,
+        "backend": build_backend(mode),
         "launcher": launcher,
         "next_role": role,
         "role_label": ROLE_LABELS[role],
@@ -524,6 +594,7 @@ def dispatch(
         "target": target,
         "boundary": T0_BOUNDARY,
         "managed_sessions": sessions,
+        "subagent_prompts": subagent_prompts,
         "launch_commands": launch_commands,
         "session_manifest": session_manifest,
         "completion_audit": completion_audit,
@@ -555,6 +626,12 @@ def format_text(payload: dict[str, str]) -> str:
         lines.append("launch_commands:")
         for command in launch_commands:
             lines.append(f"- {command}")
+    subagent_prompts = payload.get("subagent_prompts", [])
+    if subagent_prompts:
+        lines.append("subagent_prompts:")
+        for item in subagent_prompts:
+            if isinstance(item, dict):
+                lines.append(f"- role={item.get('role')} dispatch_order={item.get('dispatch_order')}")
     target_files = payload.get("target_files", [])
     if target_files:
         lines.append("target_files:")
@@ -609,7 +686,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     managed_sessions = payload.get("managed_sessions", [])
     payload["target_files"] = (
         write_role_target_files(managed_sessions)
-        if launcher_needs_target_files(args.launcher, args.agent_template) and isinstance(managed_sessions, list)
+        if args.mode == "terminal"
+        and launcher_needs_target_files(args.launcher, args.agent_template)
+        and isinstance(managed_sessions, list)
         else []
     )
     if args.format == "json":
