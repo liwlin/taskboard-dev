@@ -1,4 +1,4 @@
-# TASKBOARD v4.5.7 Templates
+# TASKBOARD v4.5.8 Templates
 
 ## Directory Structure (auto-generated on first run)
 
@@ -111,6 +111,7 @@ Current v4.4 recovery rules:
 - T0 manager-boundary claims must pass `python scripts/taskboard_t0_boundary_smoke.py`; the smoke fails if T0 dry-start creates worker-owned context, TASK/archive, source, git, or executed-launch artifacts.
 - Native subagent fallback is also handled inside T0: T0 uses `taskboard.py subagent next`, dispatches the returned prompt through the current client's native subagent tool, records the agent id with `taskboard.py subagent ack`, records final results with `taskboard.py subagent done` / `taskboard.py subagent fail`, and uses `taskboard.py subagent retry` to archive a failed attempt before requeueing that role. `taskboard_progress.py` exposes `subagent_control_state`, `subagent_control_next_role`, `subagent_next_command`, `subagent_ack_command`, `subagent_done_command`, `subagent_fail_command`, and `subagent_retry_commands` so T0 can resume the correct native subagent control action after restart. Restarts continue pending/active/failed roles instead of asking the user to manage T1/T2/T3.
 - Real native-subagent backend claims must pass `python scripts/taskboard_subagent_acceptance.py --root . --require-real-agent-ids`; the smoke script alone proves bookkeeping, not live native-subagent execution.
+- Real T0-managed milestone completion claims must pass `python scripts/taskboard_live_milestone_acceptance.py --root .`; this field-run gate rejects smoke/test/manual placeholder evidence and checkout-owner conflicts.
 
 ---
 
