@@ -163,10 +163,14 @@ def build_session(
     target_task = task_name if role == next_role else "none"
     target_reason = reason if role == next_role else "t0-managed-background-role"
     target = build_target(role, target_status, target_task, goal, target_reason)
+    alive_command = f"python scripts/taskboard.py --root . alive {role}"
     heartbeat_command = f"python scripts/taskboard_sessions.py --root . heartbeat --role {role}"
     if role == next_role and task_name != "none":
         heartbeat_command += f" --task {task_name} --assignment-id {role}:{task_name}"
-    heartbeat = f"Session heartbeat: run `{heartbeat_command}` at loop start and after each TASKBOARD handoff."
+    heartbeat = (
+        f"Liveness marker: run `{alive_command}` at the start of each worker cycle.\n"
+        f"Assignment heartbeat: run `{heartbeat_command}` when handling a concrete TASK and after each TASKBOARD handoff."
+    )
     other_roles = "/".join(item for item in ("T0", "T1", "T2", "T3") if item != role)
     role_contract = (
         "Role runtime contract:\n"
@@ -174,14 +178,14 @@ def build_session(
         "managed_by: T0\n"
         f"- Execute only {role} responsibilities; do not execute {other_roles} responsibilities.\n"
         "- do not rely on another role's chat context; use this target file, TASKBOARD filenames, stable docs, history, and HANDOFF only.\n"
-        "- Write the heartbeat before work and after each TASKBOARD handoff using the command above.\n"
+        "- Write the liveness marker before work and refresh assignment heartbeat after TASKBOARD handoff using the commands above.\n"
         "- Return work through TASKBOARD filename state transitions; do not ask the user to manage routine T1/T2/T3 flow."
     )
     loop_contract = (
         "Worker loop contract:\n"
         f"- Continue cycling this role until no unblocked work remains for {role}, the TASKBOARD handoff is complete, or a stop gate is required.\n"
         "- At each cycle, re-read TASKBOARD filenames and stable docs instead of relying on prior chat context.\n"
-        "- Always refresh your heartbeat at the start of each cycle and after each TASKBOARD handoff.\n"
+        "- Always refresh your heartbeat at the start of each cycle: liveness marker first, then assignment heartbeat after each TASKBOARD handoff.\n"
         f"- Do not stop after one action if more {role} work is available; keep advancing the role queue under T0 management."
     )
     tooling_contract = ROLE_TOOLING_CONTRACTS[role]

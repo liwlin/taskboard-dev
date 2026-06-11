@@ -1,5 +1,6 @@
 from pathlib import Path
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -9,12 +10,25 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "taskboard_sessions.py"
+TASKBOARD_CLI = ROOT / "scripts" / "taskboard.py"
 
 
 class TaskboardSessionsTest(unittest.TestCase):
     def run_sessions(self, root: Path, *args: str) -> dict:
         result = subprocess.run(
             [sys.executable, str(SCRIPT), "--root", str(root), "--format", "json", *args],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout)
+        return json.loads(result.stdout)
+
+    def run_taskboard(self, root: Path, *args: str) -> dict:
+        result = subprocess.run(
+            [sys.executable, str(TASKBOARD_CLI), "--root", str(root), "--format", "json", *args],
             cwd=ROOT,
             text=True,
             stdout=subprocess.PIPE,
@@ -71,6 +85,39 @@ class TaskboardSessionsTest(unittest.TestCase):
         self.assertEqual(probe["stale_roles"], [])
         self.assertIn("recover taskboard-T2", " ".join(probe["recovery_actions"]))
         self.assertIn("manager-only", " ".join(probe["recovery_actions"]))
+
+    def test_probe_treats_fresh_alive_marker_as_role_alive_without_session_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            alive = self.run_taskboard(root, "alive", "T2")
+            probe = self.run_sessions(root, "probe", "--expected", "T2", "--stale-seconds", "300")
+
+        self.assertEqual(alive["role"], "T2")
+        self.assertEqual(probe["state"], "healthy")
+        self.assertEqual(probe["missing_roles"], [])
+        self.assertEqual(probe["stale_roles"], [])
+        self.assertEqual(probe["sessions"]["T2"]["state"], "alive")
+        self.assertEqual(probe["sessions"]["T2"]["status"], "alive-marker")
+        self.assertEqual(probe["sessions"]["T2"]["source"], ".taskboard/alive")
+
+    def test_probe_treats_stale_alive_marker_as_stale_role(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            alive_dir = root / ".taskboard" / "alive"
+            alive_dir.mkdir(parents=True)
+            marker = alive_dir / "T3"
+            marker.touch()
+            old_time = time.time() - 600
+            os.utime(marker, (old_time, old_time))
+
+            probe = self.run_sessions(root, "probe", "--expected", "T3", "--stale-seconds", "300")
+
+        self.assertEqual(probe["state"], "attention")
+        self.assertEqual(probe["missing_roles"], [])
+        self.assertEqual(probe["stale_roles"], ["T3"])
+        self.assertEqual(probe["sessions"]["T3"]["state"], "stale")
+        self.assertEqual(probe["sessions"]["T3"]["status"], "alive-marker")
 
     def test_probe_reports_stale_role_and_launcher_recovery_command(self):
         with tempfile.TemporaryDirectory() as tmp:

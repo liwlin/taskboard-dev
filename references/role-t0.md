@@ -134,15 +134,17 @@ Use `scripts/taskboard_decide.py --root . --decision "<user answer>"` after the 
 Use `scripts/taskboard_completion.py --root .` before T0 summarizes completion. Use `python scripts/taskboard_completion.py --root . --format markdown` when T0 needs a user-facing final completion report. This is a read-only evidence audit over active TASK files, archived TASK files, `STATE.md` completion sentinel, and `dev-log.md`. T0 may report the evidence and missing evidence, but must not archive tasks, run worker verification, commit, release, or execute T1/T2/T3 work from this audit.
 When completion evidence is missing, `scripts/taskboard_progress.py` should report `No user action required; T0 will wake T1 to record or revise missing completion evidence.` as the user action. This keeps completion evidence repair inside T0-managed role orchestration instead of asking the user to inspect or manage T1/T2/T3.
 
-Use `scripts/taskboard_sessions.py` for managed role liveness. Each T1/T2/T3 role should write a heartbeat at loop start and after each TASKBOARD handoff:
+Use `scripts/taskboard.py alive` plus `scripts/taskboard_sessions.py` for managed role liveness and assignment acknowledgement. Each T1/T2/T3 role should write a lightweight liveness marker at every worker-cycle start, then write an assignment heartbeat when it handles a concrete TASK and after each TASKBOARD handoff:
 
 ```bash
+python scripts/taskboard.py --root . alive T1
 python scripts/taskboard_sessions.py --root . heartbeat --role T1
+python scripts/taskboard.py --root . alive T2
 python scripts/taskboard_sessions.py --root . heartbeat --role T2 --task TASK-003.v1.T2-review.md --assignment-id T2:TASK-003.v1.T2-review.md
 python scripts/taskboard_sessions.py --root . probe --stale-seconds 300 --goal "<user goal>"
 ```
 
-Heartbeat files live under `.taskboard/sessions/` and are runtime liveness signals only. When T0 dispatches a concrete TASK file, the managed role should include `--task` and `--assignment-id` in its heartbeat so T0 can distinguish pending assignment acknowledgement from active work. These assignment fields are not task state, not shared role memory, and not a replacement for TASKBOARD filenames, `history/`, `dev-log.md`, or `HANDOFF.md`.
+Liveness markers live under `.taskboard/alive/` and use file mtime only. Assignment heartbeat files live under `.taskboard/sessions/` and carry optional TASK acknowledgement fields. When T0 dispatches a concrete TASK file, the managed role should include `--task` and `--assignment-id` in its heartbeat so T0 can distinguish pending assignment acknowledgement from active work. These assignment fields are not task state, not shared role memory, and not a replacement for TASKBOARD filenames, `history/`, `dev-log.md`, or `HANDOFF.md`.
 When `probe` generates missing/stale role recovery commands, its `--agent-template` supports `{target_file}` and defaults that path to `.taskboard/targets/taskboard-T*.md`, matching the supervisor loop's per-role target files.
 
 ### Multi-Agent Synchronization

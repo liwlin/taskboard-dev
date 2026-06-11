@@ -89,6 +89,8 @@ python scripts/taskboard.py --root . decide TASK-001.v1.T1-待决策.md --answer
 
 `move` 会校验状态名、rename、写入 `docs/taskboard/history/TASK-NNN.history.md` 并刷新 mtime；非法状态（例如编造的 `T3-待合并-L2`）会被拒绝且不改文件。
 
+`alive` 会 touch `.taskboard/alive/T{N}`，作为 worker 每轮循环的轻量 liveness marker。T0 的 session probe 会读取这个 mtime，即使 `.taskboard/sessions/taskboard-T{N}.json` 尚未写入，也能判断该角色循环仍然存活；具体 TASK 的认领仍由下面的 assignment heartbeat 负责。
+
 首次传入 `--goal` 后，T0 会把用户目标保存到 `.taskboard/t0/goal.json`。T0 重启或恢复时可以不再重复输入目标；这个 `taskboard-t0-goal` 文件只是 T0 控制面恢复状态，不是 TASKBOARD 任务状态。
 
 `taskboard_start.py` 和底层 supervisor loop 使用相同的运行态审计文件：默认写 `.taskboard/t0/latest.json`、`.taskboard/t0/events.jsonl` 和 `.taskboard/targets/taskboard-T*.md`。因此默认一键入口也能留下 T0 持续调度证据；默认入口会把 `auto_mode`、`starter_mode` 和 `resume_config` 持久写入 latest snapshot 和 event log，并由 `taskboard_progress.py` 读出，方便恢复后确认当前 T0 是一键自动入口还是 dry check，并保留上次 T0 的 launcher、fallback launcher、agent template、agent preflight、lease、interval 和 target-file mode 配置；恢复命令会保留 auto vs dry-check、`--fallback-launcher`、`--launcher none`、`--agent-preflight-command`、`--no-agent-preflight` 和 `--no-target-files`。只做无痕 dry check 时可加 `--dry-run --no-event-log`。短跑验证时使用 `--dry-run --iterations 1 --launcher none`，验证调度路径但不打开 worker 终端。
@@ -195,14 +197,16 @@ python scripts/taskboard_sessions.py --root . probe --stale-seconds 300
 
 当 `probe` 输出 missing/stale role 的恢复启动命令时，`--agent-template` 同样支持 `{target_file}`，默认指向 `.taskboard/targets/taskboard-T*.md`。`probe` 会同时写出这些恢复目标文件，并在 JSON/text 输出里返回 `target_files` 清单。这样 T0 恢复受控终端时，仍然使用同一套隔离角色目标文件，而不是空 prompt-file 或共享 chat context。
 
-每个受控角色在 loop 开始和 TASKBOARD handoff 后写一次 heartbeat：
+每个受控角色在每轮 worker cycle 开始先写轻量 liveness marker，处理具体 TASK 或 TASKBOARD handoff 后再写 assignment heartbeat：
 
 ```bash
+python scripts/taskboard.py --root . alive T1
 python scripts/taskboard_sessions.py --root . heartbeat --role T1
+python scripts/taskboard.py --root . alive T2
 python scripts/taskboard_sessions.py --root . heartbeat --role T2 --task TASK-003.v1.T2-review.md --assignment-id T2:TASK-003.v1.T2-review.md
 ```
 
-Heartbeat 文件位于 `.taskboard/sessions/`，只表示运行时 liveness。处理具体 TASK 文件时，受控角色应在 heartbeat 中带上 `--task` 和 `--assignment-id`，让 T0 区分“已调度但未认领”和“已认领正在处理”。它不是任务状态、不是共享记忆，也不能替代 TASKBOARD 文件名、history、dev-log 或 HANDOFF。
+Liveness marker 位于 `.taskboard/alive/`，只用文件 mtime 表示角色循环还活着。Assignment heartbeat 文件位于 `.taskboard/sessions/`，可携带具体 TASK 的 `--task` 和 `--assignment-id`，让 T0 区分“已调度但未认领”和“已认领正在处理”。它不是任务状态、不是共享记忆，也不能替代 TASKBOARD 文件名、history、dev-log 或 HANDOFF。
 
 T0 supervisor loop 入口：
 

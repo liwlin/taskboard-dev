@@ -71,6 +71,11 @@ python scripts/taskboard_sessions.py --root . probe --stale-seconds 300
 `taskboard.py` is the preferred v4.5 compact CLI. The older scripts remain
 available for compatibility and for the T0 supervisor loop internals.
 
+Worker liveness uses `.taskboard/alive/T{N}` mtime through
+`python scripts/taskboard.py --root . alive T{N}`. Assignment acknowledgement
+remains in `.taskboard/sessions/taskboard-T{N}.json` through
+`taskboard_sessions.py heartbeat --task ... --assignment-id ...`.
+
 T0 runtime files:
 
 - `.taskboard/t0/goal.json`: persisted user goal for T0 resume.

@@ -15,6 +15,7 @@ from taskboard_t0 import build_launch_commands, build_session, default_target_di
 ROLES = ("T1", "T2", "T3")
 RUNTIME_DIR = ".taskboard"
 SESSION_DIR = "sessions"
+ALIVE_DIR = "alive"
 T0_BOUNDARY = (
     "T0 manager-only: probe role session heartbeats and recover missing or stale T1/T2/T3; "
     "do not execute development, design, review, implementation, verification, or commit tasks in T0."
@@ -27,6 +28,14 @@ def session_dir(root: Path) -> Path:
 
 def session_path(root: Path, role: str) -> Path:
     return session_dir(root) / f"taskboard-{role}.json"
+
+
+def alive_dir(root: Path) -> Path:
+    return root / RUNTIME_DIR / ALIVE_DIR
+
+
+def alive_path(root: Path, role: str) -> Path:
+    return alive_dir(root) / role
 
 
 def now_epoch() -> float:
@@ -81,9 +90,33 @@ def read_session(root: Path, role: str) -> Optional[dict[str, object]]:
     return payload if isinstance(payload, dict) else None
 
 
+def classify_alive_marker(root: Path, role: str, stale_seconds: int, current_time: float) -> Optional[dict[str, object]]:
+    path = alive_path(root, role)
+    if not path.exists():
+        return None
+    try:
+        last_seen = path.stat().st_mtime
+    except OSError:
+        last_seen = 0
+    age_seconds = max(0, int(current_time - last_seen))
+    state = "stale" if age_seconds >= stale_seconds else "alive"
+    return {
+        "role": role,
+        "title": f"taskboard-{role}",
+        "state": state,
+        "age_seconds": age_seconds,
+        "last_seen": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(last_seen)) if last_seen else None,
+        "status": "alive-marker",
+        "source": ".taskboard/alive",
+    }
+
+
 def classify_session(root: Path, role: str, stale_seconds: int, current_time: float) -> dict[str, object]:
     payload = read_session(root, role)
     if payload is None:
+        alive_marker = classify_alive_marker(root, role, stale_seconds, current_time)
+        if alive_marker is not None:
+            return alive_marker
         return {
             "role": role,
             "title": f"taskboard-{role}",
@@ -91,6 +124,7 @@ def classify_session(root: Path, role: str, stale_seconds: int, current_time: fl
             "age_seconds": None,
             "last_seen": None,
             "status": "missing",
+            "source": ".taskboard/sessions",
         }
 
     raw_last_seen = payload.get("last_seen", 0)
@@ -100,6 +134,10 @@ def classify_session(root: Path, role: str, stale_seconds: int, current_time: fl
         last_seen = 0
     age_seconds = max(0, int(current_time - last_seen))
     state = "stale" if age_seconds >= stale_seconds else "alive"
+    if state == "stale":
+        alive_marker = classify_alive_marker(root, role, stale_seconds, current_time)
+        if alive_marker is not None and alive_marker["state"] == "alive":
+            return alive_marker
     return {
         "role": role,
         "title": str(payload.get("title") or f"taskboard-{role}"),
@@ -110,6 +148,7 @@ def classify_session(root: Path, role: str, stale_seconds: int, current_time: fl
         "pid": payload.get("pid"),
         "task": payload.get("task"),
         "assignment_id": payload.get("assignment_id"),
+        "source": ".taskboard/sessions",
     }
 
 

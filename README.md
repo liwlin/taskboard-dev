@@ -109,6 +109,8 @@ python scripts/taskboard.py --root . decide TASK-001.v1.T1-待决策.md --answer
 
 `move` 会校验状态名、rename、写入 `docs/taskboard/history/TASK-NNN.history.md` 并刷新 mtime；非法状态（例如编造的 `T3-待合并-L2`）会被拒绝且不改文件。
 
+`alive` 会 touch `.taskboard/alive/T{N}`，作为 worker 每轮循环的轻量 liveness marker。T0 的 session probe 会读取这个 mtime，即使 `.taskboard/sessions/taskboard-T{N}.json` 尚未写入，也能判断该角色循环仍然存活；具体 TASK 的认领仍由下面的 assignment heartbeat 负责。
+
 首次传入 `--goal` 后，T0 会把用户目标保存到 `.taskboard/t0/goal.json`。T0 重启或恢复时可以不再重复输入目标；这个 `taskboard-t0-goal` 文件只是 T0 控制面恢复状态，不是 TASKBOARD 任务状态。
 
 `taskboard_start.py` 使用和 supervisor loop 相同的运行态文件：默认写 `.taskboard/t0/latest.json`、`.taskboard/t0/events.jsonl` 和 `.taskboard/targets/taskboard-T*.md`。默认入口会把 `auto_mode`、`starter_mode` 和 `resume_config` 持久写入 latest snapshot 和 event log，并由 `taskboard_progress.py` 读出，方便恢复后确认当前 T0 是一键自动入口还是 dry check，并保留上次 T0 的 launcher、fallback launcher、agent template、agent preflight、lease、interval 和 target-file mode 配置；恢复命令会保留 auto vs dry-check、`--fallback-launcher`、`--launcher none`、`--agent-preflight-command`、`--no-agent-preflight` 和 `--no-target-files`。需要 dry check 且不留下事件日志时使用 `--dry-run --no-event-log`。短跑验证时可以给 `--dry-run --iterations 1 --launcher none`，验证调度路径但不打开 worker 终端。
@@ -201,14 +203,16 @@ python scripts/taskboard_sessions.py --root . probe --stale-seconds 300
 
 When `probe` emits missing/stale role recovery commands, its `--agent-template` also supports `{target_file}` and defaults that path to `.taskboard/targets/taskboard-T*.md`. This keeps recovery launches aligned with the same per-role target files that the T0 supervisor loop writes.
 
-Each managed role should write a heartbeat at loop start and after each TASKBOARD handoff:
+Each managed role should write a lightweight liveness marker at every worker-cycle start, then write an assignment heartbeat when it is handling a concrete TASK and after each TASKBOARD handoff:
 
 ```bash
+python scripts/taskboard.py --root . alive T1
 python scripts/taskboard_sessions.py --root . heartbeat --role T1
+python scripts/taskboard.py --root . alive T2
 python scripts/taskboard_sessions.py --root . heartbeat --role T2 --task TASK-003.v1.T2-review.md --assignment-id T2:TASK-003.v1.T2-review.md
 ```
 
-Heartbeat files live under `.taskboard/sessions/` and are runtime liveness signals only. When a role is handling a concrete TASK file, it should include `--task` and `--assignment-id` so T0 can tell whether the dispatched work was acknowledged. These assignment fields are not task state, not shared role memory, and not a replacement for TASKBOARD filenames, history, or HANDOFF.
+Liveness markers live under `.taskboard/alive/` and use file mtime only. Assignment heartbeat files live under `.taskboard/sessions/` and carry optional TASK acknowledgement fields. When a role is handling a concrete TASK file, it should include `--task` and `--assignment-id` so T0 can tell whether the dispatched work was acknowledged. These assignment fields are not task state, not shared role memory, and not a replacement for TASKBOARD filenames, history, or HANDOFF.
 
 T0 supervisor loop entry:
 
