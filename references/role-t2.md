@@ -61,6 +61,16 @@ review result, the reconciliation decision for L3 dual-pass reviews, and any
 fallback reason in the TASK file, review report, history entry, or dev-log. A
 manual-only review with no fallback reason is incomplete.
 
+### Evidence Enforcement Gate
+
+Missing Required skills evidence is a review failure, not a documentation nit.
+When reviewing a design handoff, missing T1 planning/brainstorming evidence
+returns the task to T1 for revision unless a user override explicitly waives the
+evidence requirement. When reviewing a code handoff, missing T3 split/solo
+decision, verification, or required tool fallback evidence returns the task to
+T3 for repair. T2 should write the missing evidence finding into the review
+report or Current Instruction before renaming.
+
 ### External Tool Boundaries
 
 - Use GitHub tooling for repository, PR, issue, release, and CI-check work when that evidence is needed for review or verification.

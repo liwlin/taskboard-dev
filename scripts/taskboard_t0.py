@@ -42,6 +42,10 @@ ROLE_TOOLING_CONTRACTS = {
         "- Preferred defaults: Codex code review, a review subagent, superpowers:requesting-code-review, or an equivalent domain review skill.\n"
         "- L3 code reviews MUST run dual-pass review: T2's own review plus one independent or specialized review pass.\n"
         "- If no independent review tool is available, run the manual checklist and record the fallback reason.\n"
+        "Evidence enforcement gate:\n"
+        "- Missing Required skills evidence is a review failure; return the task to the producing role unless a user override explicitly waives the evidence requirement.\n"
+        "- For design reviews, missing T1 planning/brainstorming evidence returns to T1 for revision.\n"
+        "- For code reviews, missing T3 split/solo decision or verification evidence returns to T3 for repair.\n"
         "Required skills evidence:\n"
         "- Record the tool or skill used, the result, and any fallback reason in the TASK file, history entry, review note, or dev-log before handoff."
     ),
@@ -72,6 +76,15 @@ T0_INPUT_BOUNDARY_CONTRACT = (
     "- T1 owns requirement decomposition and TASK creation; T2 owns review/verification; T3 owns implementation/commit.\n"
     "- If T0 text appears to decide design or acceptance details, treat it as source material and route the decision back through the assigned role."
 )
+
+def startup_skill_gate(role: str) -> str:
+    return (
+        "Startup skill gate:\n"
+        f"- Before any TASKBOARD action, load `/taskboard-dev {role}` so the full shared protocol and role reference are active.\n"
+        "- Then invoke the required role tools/skills listed below before planning, reviewing, implementing, or handing off.\n"
+        "- If a required skill/tool is unavailable, record the fallback reason before proceeding."
+    )
+
 
 T0_BOUNDARY = (
     "T0 manager-only: T0 是管理员/调度器，不直接执行开发任务；"
@@ -207,7 +220,7 @@ def build_session(
         "title": title,
         "command": f"/taskboard-dev {role}",
         "target": (
-            f"{target}\n{T0_INPUT_BOUNDARY_CONTRACT}\n{heartbeat}\n{role_contract}\n"
+            f"{target}\n{T0_INPUT_BOUNDARY_CONTRACT}\n{startup_skill_gate(role)}\n{heartbeat}\n{role_contract}\n"
             f"{tooling_contract}\n{EXTERNAL_TOOL_CONTRACT}\n{loop_contract}"
         ),
     }

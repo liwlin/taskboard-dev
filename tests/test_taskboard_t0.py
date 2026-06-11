@@ -305,6 +305,51 @@ class TaskboardT0Test(unittest.TestCase):
             self.assertIn("Record the tool or skill used", text)
             self.assertIn("fallback reason", text)
 
+    def test_role_target_files_include_startup_skill_gate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            self.run_t0(
+                root,
+                "--goal",
+                "Ship demo",
+                "--launcher",
+                "windows-terminal",
+                "--agent-template",
+                'codex --prompt-file "{target_file}"',
+            )
+            target_texts = [
+                (root / ".taskboard" / "targets" / f"taskboard-{role}.md").read_text(encoding="utf-8")
+                for role in ("T1", "T2", "T3")
+            ]
+
+        for role, text in zip(("T1", "T2", "T3"), target_texts):
+            self.assertIn("Startup skill gate", text)
+            self.assertIn(f"Before any TASKBOARD action, load `/taskboard-dev {role}`", text)
+            self.assertIn("invoke the required role tools/skills listed below", text)
+            self.assertIn("If a required skill/tool is unavailable, record the fallback reason before proceeding", text)
+
+    def test_t2_target_rejects_missing_worker_skill_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            self.run_t0(
+                root,
+                "--goal",
+                "Ship demo",
+                "--launcher",
+                "windows-terminal",
+                "--agent-template",
+                'codex --prompt-file "{target_file}"',
+            )
+            t2_text = (root / ".taskboard" / "targets" / "taskboard-T2.md").read_text(encoding="utf-8")
+
+        self.assertIn("Evidence enforcement gate", t2_text)
+        self.assertIn("Missing Required skills evidence is a review failure", t2_text)
+        self.assertIn("return the task to the producing role", t2_text)
+
     def test_role_target_files_include_external_tool_contracts(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
