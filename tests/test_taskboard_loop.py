@@ -1052,6 +1052,61 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertEqual(events[0]["state"], "config-error")
         self.assertIn("agent preflight command failed", events[0]["error"])
 
+    def test_auth_refused_agent_preflight_writes_user_owned_launch_scripts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--root",
+                    str(root),
+                    "--format",
+                    "json",
+                    "--goal",
+                    "Ship demo",
+                    "--iterations",
+                    "1",
+                    "--launcher",
+                    "powershell",
+                    "--agent-template",
+                    f'"{sys.executable}" -c "print(123)" --prompt-file "{{target_file}}"',
+                    "--agent-preflight-command",
+                    (
+                        f'"{sys.executable}" -c '
+                        '"import sys; print(\'Failed to authenticate. API Error: 403 Request not allowed\'); sys.exit(7)"'
+                    ),
+                    "--execute-launches",
+                ],
+                cwd=ROOT,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout)
+            payload = json.loads(result.stdout)[0]
+            manual_files = payload["manual_launch_files"]
+            open_tabs = Path(manual_files["open_tabs"])
+            launch_role = Path(manual_files["launch_role"])
+            open_tabs_exists = open_tabs.exists()
+            launch_role_exists = launch_role.exists()
+            open_tabs_text = open_tabs.read_text(encoding="utf-8")
+            launch_role_text = launch_role.read_text(encoding="utf-8")
+
+        self.assertEqual(payload["agent_preflight"]["state"], "spawn-refused")
+        self.assertIn("API Error: 403", payload["agent_preflight"]["output"])
+        self.assertEqual(payload["executed_commands"], [])
+        self.assertEqual(payload["launch_commands"], [])
+        self.assertTrue(open_tabs_exists)
+        self.assertTrue(launch_role_exists)
+        open_tabs_text.encode("ascii")
+        launch_role_text.encode("ascii")
+        self.assertIn("taskboard-T1", open_tabs_text)
+        self.assertIn("Run the generated user-owned Windows Terminal script", " ".join(payload["actions"]))
+
     def test_loop_persists_interruption_recovery_state(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

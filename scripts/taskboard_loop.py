@@ -537,6 +537,17 @@ def validate_agent_preflight(
         )
         output = completed.stdout.strip()
         if completed.returncode != 0:
+            probe_item = {"returncode": completed.returncode, "output": output}
+            if launch_failure_is_spawn_refusal(probe_item):
+                return {
+                    "enabled": True,
+                    "state": "spawn-refused",
+                    "mode": "command",
+                    "command": preflight_command,
+                    "returncode": completed.returncode,
+                    "output": output[:2000],
+                    "reason": "agent-preflight-spawn-refused",
+                }
             raise ValueError(
                 "agent preflight command failed "
                 f"returncode={completed.returncode}: {preflight_command}: {output}"
@@ -746,7 +757,22 @@ def run_once(
         else planned_launch_commands
     )
     launch_state_payload = launch_state if launch_state is not None else read_launch_state(root)
-    if execute_launches:
+    manual_launch_files: dict[str, object] = {}
+    preflight_spawn_refused = bool(
+        isinstance(agent_preflight, dict) and agent_preflight.get("state") == "spawn-refused"
+    )
+    if execute_launches and preflight_spawn_refused:
+        source_sessions = assignment_recovery_session_list or stalled_recovery_session_list or fallback_source_sessions(
+            session_probe, dispatch_plan, used_recovery_commands
+        )
+        manual_launch_files = write_manual_windows_launch_scripts(
+            root,
+            source_sessions,
+            agent_template,
+        )
+        launch_commands = []
+        suppressed_launches = []
+    elif execute_launches:
         launch_commands, suppressed_launches = filter_launch_commands(
             requested_launch_commands,
             launch_state_payload,
@@ -774,7 +800,6 @@ def run_once(
         )
         executed_commands.extend(fallback_executed)
         suppressed_launches.extend(fallback_suppressed)
-    manual_launch_files: dict[str, object] = {}
     if execute_launches and any(launch_failure_is_spawn_refusal(item) for item in executed_commands):
         source_sessions = assignment_recovery_session_list or stalled_recovery_session_list or fallback_source_sessions(
             session_probe, dispatch_plan, used_recovery_commands

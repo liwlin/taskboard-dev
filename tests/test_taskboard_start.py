@@ -173,6 +173,56 @@ class TaskboardStartTest(unittest.TestCase):
         self.assertEqual(events[-1]["state"], "config-error")
         self.assertIn("agent command '__taskboard_missing_agent__'", events[-1]["error"])
 
+    def test_starter_auth_refused_preflight_generates_user_owned_worker_launcher(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--root",
+                    str(root),
+                    "--format",
+                    "json",
+                    "--goal",
+                    "Ship demo",
+                    "--iterations",
+                    "1",
+                    "--launcher",
+                    "powershell",
+                    "--agent-template",
+                    f'"{sys.executable}" -c "print(123)" --prompt-file "{{target_file}}"',
+                    "--agent-preflight-command",
+                    (
+                        f'"{sys.executable}" -c '
+                        '"import sys; print(\'Failed to authenticate. API Error: 403 Request not allowed\'); sys.exit(7)"'
+                    ),
+                ],
+                cwd=ROOT,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+            payload = json.loads(result.stdout)[0]
+            manual_files = payload["manual_launch_files"]
+            open_tabs = Path(manual_files["open_tabs"])
+            open_tabs_exists = open_tabs.exists()
+            events = [
+                json.loads(line)
+                for line in (root / ".taskboard" / "t0" / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertEqual(payload["agent_preflight"]["state"], "spawn-refused")
+        self.assertTrue(open_tabs_exists)
+        self.assertIn("Run the generated user-owned Windows Terminal script", " ".join(payload["actions"]))
+        self.assertEqual(events[-1]["state"], "attention")
+        self.assertEqual(events[-1]["launch_failure_count"], 0)
+
     def test_starter_resumes_saved_goal_without_retyping_it(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

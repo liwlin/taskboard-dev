@@ -92,9 +92,9 @@ python scripts/taskboard_start.py --goal "<user goal>"
 
 默认使用 Windows Terminal 创建/恢复 `taskboard-T1/T2/T3`，并用 `codex --prompt-file "{target_file}"` 让每个 worker 读取自己的 `.taskboard/targets/taskboard-T*.md`。只传 `--goal` 就会进入一键自动模式：执行 T0 管理面的启动/恢复命令，并持续运行到目标完成或触发停止门。可以追加 `--fallback-launcher powershell` 或重复追加多个 fallback launcher；当主 launcher 失败时，T0 会自动按顺序重试备用 launcher，而不是立刻要求用户接管 T1/T2/T3。如果没有传入目标且没有保存的目标，T0 会在第一轮 `needs-goal` 后停下并要求用户给 T0 一个目标，不会无意义空转。只做调度检查时显式加 `--dry-run --iterations 1 --launcher none`。
 
-执行 worker launcher 前，T0 默认会从 `--agent-template` 解析首个 agent command 并检查它是否在 PATH 中；如果命令不存在，会在启动 T1/T2/T3 前进入 `config-error`，持久化错误并要求修正 T0 配置。需要更深的 CLI/auth 检查时，使用 `--agent-preflight-command "<safe check command>"`，例如按当前客户端选择一个不会修改仓库的登录/版本/健康检查命令；该命令返回非零时错误文本会包含 `agent preflight command failed`。高级用户可以用 `--no-agent-preflight` 关闭这一步，但默认建议保留，避免 Claude/Codex 等 agent CLI 未安装、未登录或命令模板写错时把失败留在子终端里。
+执行 worker launcher 前，T0 默认会从 `--agent-template` 解析首个 agent command 并检查它是否在 PATH 中；如果命令不存在，会在启动 T1/T2/T3 前进入 `config-error`，持久化错误并要求修正 T0 配置。需要更深的 CLI/auth 检查时，使用 `--agent-preflight-command "<safe check command>"`，例如按当前客户端选择一个不会修改仓库的登录/版本/健康检查命令；该命令返回普通非零结果时错误文本会包含 `agent preflight command failed`。如果 preflight 输出包含 `API Error: 403`、`Request not allowed`、`Failed to authenticate` 等托管子进程认证/权限拒绝线索，T0 会把 `agent_preflight.state` 标记为 `spawn-refused`，不再继续执行会失败的 launcher，而是直接写出下面的用户自有终端启动脚本。高级用户可以用 `--no-agent-preflight` 关闭这一步，但默认建议保留，避免 Claude/Codex 等 agent CLI 未安装、未登录或命令模板写错时把失败留在子终端里。
 
-如果 launcher 执行失败输出包含托管子进程认证/权限拒绝线索（例如 `API Error: 403`、`Request not allowed`、`Failed to authenticate`），T0 会写出用户自有终端启动脚本：`.taskboard/open-tabs.ps1` 和 `.taskboard/launch-role.ps1`。此时用户只执行一次 `powershell -ExecutionPolicy Bypass -File ".taskboard/open-tabs.ps1"` 来打开受控的 `taskboard-T1/T2/T3` 终端；这仍是 T0 指挥的启动动作，不是让用户分别管理 T1/T2/T3。
+如果 preflight 或 launcher 执行失败输出包含托管子进程认证/权限拒绝线索（例如 `API Error: 403`、`Request not allowed`、`Failed to authenticate`），T0 会写出用户自有终端启动脚本：`.taskboard/open-tabs.ps1` 和 `.taskboard/launch-role.ps1`。此时用户只执行一次 `powershell -ExecutionPolicy Bypass -File ".taskboard/open-tabs.ps1"` 来打开受控的 `taskboard-T1/T2/T3` 终端；这仍是 T0 指挥的启动动作，不是让用户分别管理 T1/T2/T3。
 
 v4.5 起新增紧凑控制面入口 `python scripts/taskboard.py`，旧脚本继续兼容。T0/worker 优先使用这个单入口做确定性看板操作：
 
