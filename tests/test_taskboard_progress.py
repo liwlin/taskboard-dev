@@ -119,6 +119,59 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("launch_probe_recommended_backend=subagent", text)
         self.assertIn("latest_event_launch_probe_recommended_backend=subagent", text)
 
+    def test_progress_surfaces_checkout_owner_conflict(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+            owner_file = root / ".taskboard" / "t0" / "checkout-owner.json"
+            owner_file.parent.mkdir(parents=True)
+            owner_file.write_text(
+                json.dumps(
+                    {
+                        "kind": "taskboard-checkout-owner",
+                        "owner_id": "claudecode-live-run",
+                        "updated_at_epoch": 9999999999,
+                        "lease_seconds": 300,
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with patch(
+                "taskboard_loop.execute_commands",
+                side_effect=AssertionError("checkout conflict must suppress worker launches"),
+            ):
+                payload = loop_module.run_once(
+                    root,
+                    "Ship demo",
+                    30,
+                    300,
+                    "powershell",
+                    'python "{target}"',
+                    True,
+                    300,
+                    root / ".taskboard" / "targets",
+                    agent_preflight={"state": "passed"},
+                    checkout_owner_id="codex-live-run",
+                )
+            loop_module.write_state_snapshot(
+                root / ".taskboard" / "t0" / "latest.json",
+                root,
+                "Ship demo",
+                [payload],
+                True,
+            )
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertEqual(progress["checkout_owner_state"], "conflict")
+        self.assertEqual(progress["checkout_owner_id"], "claudecode-live-run")
+        self.assertEqual(progress["checkout_owner_requested_id"], "codex-live-run")
+        self.assertIn("another top-level agent owns this Git checkout", progress["user_summary"])
+        self.assertIn("Checkout ownership conflict", progress["user_action"])
+        self.assertIn("Do not manage T1/T2/T3 manually", progress["user_action"])
+        self.assertIn("checkout_owner_state=conflict", text)
+
     def test_progress_flags_stale_t0_supervisor_snapshot_for_resume(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

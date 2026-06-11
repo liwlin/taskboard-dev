@@ -1,4 +1,4 @@
-# TASKBOARD v4.5.6 Templates
+# TASKBOARD v4.5.7 Templates
 
 ## Directory Structure (auto-generated on first run)
 
@@ -95,6 +95,7 @@ T0 runtime files:
 - `.taskboard/t0/latest.json`: latest `taskboard-t0-supervisor-state` snapshot with `resume_config`.
 - `.taskboard/t0/events.jsonl`: append-only `taskboard-t0-supervisor-event` audit log.
 - `.taskboard/t0/launches.json`: launch lease state that prevents duplicate managed terminals.
+- `.taskboard/t0/checkout-owner.json`: top-level checkout-owner marker that suppresses worker launch when another peer orchestrator owns the same Git checkout.
 - `.taskboard/t0/subagent-fallback.json`: recoverable prompts for isolated native subagent fallback.
 - `.taskboard/t0/subagents.json`: T0 native-subagent dispatch ack state (`pending_roles` / `dispatched_roles`).
 - `.taskboard/targets/taskboard-T1.md`, `.taskboard/targets/taskboard-T2.md`, `.taskboard/targets/taskboard-T3.md`: isolated role inbox files written by T0.
@@ -106,7 +107,7 @@ Current v4.4 recovery rules:
 - `taskboard_watchdog.py --execute` resumes only T0 from the recorded `resume_command` when the T0 supervisor snapshot is stale or missing; it returns `taskboard-t0-watchdog` and must not launch or manage T1/T2/T3 directly.
 - Stop gates are aggregated through T0: progress exposes `decision_command`, and `taskboard_decide.py` records the user's answer before T1 continues.
 - Completion is gated by empty active queues, `STATE.md` goal-complete sentinel, archived TASK evidence, and dev-log completion evidence.
-- Assignment lease expiry, pending-ack timeout, stalled TASK detection, launch lease suppression, launcher failures, and fallback launchers are handled inside T0; user action should remain T0-level.
+- Assignment lease expiry, pending-ack timeout, stalled TASK detection, launch lease suppression, checkout-owner conflicts, launcher failures, and fallback launchers are handled inside T0; user action should remain T0-level.
 - T0 manager-boundary claims must pass `python scripts/taskboard_t0_boundary_smoke.py`; the smoke fails if T0 dry-start creates worker-owned context, TASK/archive, source, git, or executed-launch artifacts.
 - Native subagent fallback is also handled inside T0: T0 uses `taskboard.py subagent next`, dispatches the returned prompt through the current client's native subagent tool, records the agent id with `taskboard.py subagent ack`, records final results with `taskboard.py subagent done` / `taskboard.py subagent fail`, and uses `taskboard.py subagent retry` to archive a failed attempt before requeueing that role. `taskboard_progress.py` exposes `subagent_control_state`, `subagent_control_next_role`, `subagent_next_command`, `subagent_ack_command`, `subagent_done_command`, `subagent_fail_command`, and `subagent_retry_commands` so T0 can resume the correct native subagent control action after restart. Restarts continue pending/active/failed roles instead of asking the user to manage T1/T2/T3.
 - Real native-subagent backend claims must pass `python scripts/taskboard_subagent_acceptance.py --root . --require-real-agent-ids`; the smoke script alone proves bookkeeping, not live native-subagent execution.

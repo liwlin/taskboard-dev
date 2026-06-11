@@ -620,6 +620,92 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertEqual(output[0]["launch_commands"], [])
         self.assertIn("keep taskboard-T1 active", " ".join(output[0]["actions"]))
 
+    def test_execute_launches_stops_when_checkout_is_owned_by_peer_agent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+            owner_file = root / ".taskboard" / "t0" / "checkout-owner.json"
+            owner_file.parent.mkdir(parents=True)
+            owner_file.write_text(
+                json.dumps(
+                    {
+                        "kind": "taskboard-checkout-owner",
+                        "owner_id": "claudecode-live-run",
+                        "updated_at_epoch": time.time(),
+                        "lease_seconds": 300,
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with patch(
+                "taskboard_loop.execute_commands",
+                side_effect=AssertionError("checkout conflict must suppress worker launches"),
+            ):
+                output = loop_module.run_once(
+                    root,
+                    "Ship demo",
+                    30,
+                    300,
+                    "powershell",
+                    'python "{target}"',
+                    True,
+                    300,
+                    root / ".taskboard" / "targets",
+                    agent_preflight={"state": "passed"},
+                    checkout_owner_id="codex-live-run",
+                )
+
+        self.assertEqual(output["checkout_owner"]["state"], "conflict")
+        self.assertEqual(output["checkout_owner"]["owner_id"], "claudecode-live-run")
+        self.assertEqual(output["launch_commands"], [])
+        self.assertEqual(output["executed_commands"], [])
+        self.assertIn("checkout ownership conflict", " ".join(output["actions"]))
+
+    def test_execute_launches_reclaims_expired_checkout_owner(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+            owner_file = root / ".taskboard" / "t0" / "checkout-owner.json"
+            owner_file.parent.mkdir(parents=True)
+            owner_file.write_text(
+                json.dumps(
+                    {
+                        "kind": "taskboard-checkout-owner",
+                        "owner_id": "stale-peer",
+                        "updated_at_epoch": time.time() - 600,
+                        "lease_seconds": 300,
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with patch(
+                "taskboard_loop.execute_commands",
+                return_value=[
+                    {"command": "fake launch", "returncode": 0, "output": ""},
+                ],
+            ) as execute_mock:
+                output = loop_module.run_once(
+                    root,
+                    "Ship demo",
+                    30,
+                    300,
+                    "powershell",
+                    'python "{target}"',
+                    True,
+                    300,
+                    root / ".taskboard" / "targets",
+                    agent_preflight={"state": "passed"},
+                    checkout_owner_id="codex-live-run",
+                )
+            owner_payload = json.loads(owner_file.read_text(encoding="utf-8"))
+
+        self.assertTrue(execute_mock.called)
+        self.assertEqual(output["checkout_owner"]["state"], "acquired")
+        self.assertEqual(output["checkout_owner"]["previous_state"], "expired")
+        self.assertEqual(owner_payload["owner_id"], "codex-live-run")
+
     def test_loop_writes_latest_t0_state_snapshot_by_default(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

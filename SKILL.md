@@ -9,9 +9,9 @@ description: >
   /taskboard-dev T1, /taskboard-dev T2, or /taskboard-dev T3.
 ---
 
-# TASKBOARD-Driven Development v4.5.6
+# TASKBOARD-Driven Development v4.5.7
 
-T0-managed collaborative development. The user gives T0 one goal, and T0 manages the T1 architect/scheduler, T2 reviewer/verifier, and T3 executor loops until the goal is complete or a stop gate is hit. Status is still encoded in filenames. Polling still uses Glob with zero file content reads. The read-only context layer remains the cross-session memory. v4.5.6 keeps the v4 task file protocol, the compact `taskboard.py` CLI facade, completion/subagent/boundary smoke checks, and a stricter T0 seeding boundary that forbids T0 from pre-filling REQ skeletons, priorities, interface signatures, task IDs, acceptance rows, or MAP risk sections.
+T0-managed collaborative development. The user gives T0 one goal, and T0 manages the T1 architect/scheduler, T2 reviewer/verifier, and T3 executor loops until the goal is complete or a stop gate is hit. Status is still encoded in filenames. Polling still uses Glob with zero file content reads. The read-only context layer remains the cross-session memory. v4.5.7 keeps the v4 task file protocol, the compact `taskboard.py` CLI facade, completion/subagent/boundary smoke checks, checkout-owner launch guarding, and a stricter T0 seeding boundary that forbids T0 from pre-filling REQ skeletons, priorities, interface signatures, task IDs, acceptance rows, or MAP risk sections.
 
 ## Five Principles (non-negotiable)
 
@@ -559,6 +559,10 @@ Any agent reading this skill in any role session MUST read and respect the
   Claude Code, Codex, or other peer agents must work independently, put them in
   separate `git worktree` checkouts or serialize their writes before either
   agent touches the Git index.
+- T0 `--execute-launches` must respect `.taskboard/t0/checkout-owner.json`:
+  a fresh marker from another top-level owner means suppress worker launch,
+  report `checkout_owner_state=conflict`, and wait or use a separate worktree
+  instead of asking the user to manage T1/T2/T3 manually.
 
 ### User Override Protocol
 

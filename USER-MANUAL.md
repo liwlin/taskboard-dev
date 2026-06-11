@@ -1,4 +1,4 @@
-# taskboard-dev v4.5.6 用户手册
+# taskboard-dev v4.5.7 用户手册
 
 T0 管理的 TASKBOARD 驱动开发工作流 — 用户只对 T0 下达目标，T0 负责管理 T1 架构师、T2 审核者、T3 执行者，基于文件名即状态的零轮询开销设计。v4.5 面向 Claude Code / Codex 的现代长任务能力：loop、目标/target、后台执行、resume、工具检查点，以及紧凑 `taskboard.py` 控制面入口。默认原则是“能自动做就自动做”，只有真正的停止门才需要人确认。
 
@@ -247,6 +247,12 @@ python scripts/taskboard_loop.py --root . --goal "完成 <你的开发目标>" -
 `git worktree`，或者错峰执行写入、stage、commit、reset、clean、release 生成等操作。
 T0 管理的 T1/T2/T3 角色终端可以共享 TASKBOARD checkout，是因为状态机保证一个任务文件
 同一时间只有一个角色 owner；这不等同于两个顶层编排器可以同时改同一个索引。
+当启用 `--execute-launches` 时，T0 会在真正执行 worker launcher 前写入
+`.taskboard/t0/checkout-owner.json`。如果该文件里有另一个仍新鲜的顶层 owner，
+T0 会停止启动 worker，并在 progress 中显示 `checkout_owner_state=conflict`；
+此时应等待当前 owner 完成或把另一个顶层 agent 移到单独 `git worktree`，而不是让用户
+手动接管 T1/T2/T3。高级用法可通过 `--checkout-owner-id` 固定 owner 标识，并用
+`--checkout-owner-lease-seconds` 调整自动回收时间。
 每个生成的目标还会包含 `External tool contract`：需要仓库、PR、issue、release 或 CI 证据时使用 GitHub tooling；需要网页 UI 检查、浏览器调试、截图或前端渲染验证时使用 Chrome/Browser tooling；只有 shell、浏览器、仓库工具无法覆盖的本地桌面/GUI 流程才使用 Computer Use。工具调用仍然必须遵守当前角色边界，不把日常 T1/T2/T3 操作转交给用户。
 
 每轮 loop 默认会把最新 T0 supervisor 运行态快照写入 `.taskboard/t0/latest.json`。这个 `taskboard-t0-supervisor-state` 文件只记录 T0 的管理视图，方便中断后恢复判断；它不是任务状态、不是 worker 记忆，也不能替代 TASKBOARD 文件名、history、dev-log、HANDOFF 或完成 sentinel。需要自定义路径时使用 `--state-file <path>`；只想 dry check 且不留下运行态快照时使用 `--no-state-file`。

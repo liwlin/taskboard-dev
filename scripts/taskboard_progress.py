@@ -185,9 +185,15 @@ def build_user_summary(
     fallback_launchers: Optional[list[str]] = None,
     subagent_fallback_available: bool = False,
     subagent_prompt_roles: Optional[list[str]] = None,
+    checkout_owner_state: str = "",
 ) -> str:
     if state == "config-error":
         return f"T0 configuration error for goal '{goal}': {error}"
+    if checkout_owner_state == "conflict":
+        return (
+            f"T0 paused worker launch for goal '{goal}' because another top-level "
+            "agent owns this Git checkout."
+        )
     if stop_gate_count:
         return (
             f"T0 has {stop_gate_count} stop gate(s) for goal '{goal}'. "
@@ -265,11 +271,18 @@ def build_user_action(
     stalled_recovery_count: int = 0,
     subagent_fallback_available: bool = False,
     subagent_prompt_roles: Optional[list[str]] = None,
+    checkout_owner_state: str = "",
 ) -> str:
     if state == "config-error":
         return (
             "T0 configuration failed; fix T0 launcher configuration before resuming. "
             f"Error: {error}"
+        )
+    if checkout_owner_state == "conflict":
+        return (
+            "Checkout ownership conflict; wait for the current top-level checkout owner "
+            "to finish or move the peer agent to a separate git worktree. Do not manage "
+            "T1/T2/T3 manually."
         )
     if stop_gate_count:
         return "T0 stop gate requires user decision; answer T0's summarized question, not T1/T2/T3."
@@ -576,6 +589,11 @@ def report_progress(root: Path) -> dict[str, object]:
             latest_event_payload.get("launch_probe_recommended_backend") or ""
         )
         latest_event_launch_probe_reason = str(latest_event_payload.get("launch_probe_reason") or "")
+        latest_event_checkout_owner_state = str(latest_event_payload.get("checkout_owner_state") or "")
+        latest_event_checkout_owner_id = str(latest_event_payload.get("checkout_owner_id") or "")
+        latest_event_checkout_owner_requested_id = str(
+            latest_event_payload.get("checkout_owner_requested_id") or ""
+        )
         live_queue_health = report_health(root, 30, goal or None)
         live_queue_payload = live_queue_health if isinstance(live_queue_health, dict) else {}
         queue_metrics = build_queue_metrics(
@@ -723,6 +741,9 @@ def report_progress(root: Path) -> dict[str, object]:
             "launch_probe_state": latest_event_launch_probe_state,
             "launch_probe_recommended_backend": latest_event_launch_probe_recommended_backend,
             "launch_probe_reason": latest_event_launch_probe_reason,
+            "checkout_owner_state": latest_event_checkout_owner_state,
+            "checkout_owner_id": latest_event_checkout_owner_id,
+            "checkout_owner_requested_id": latest_event_checkout_owner_requested_id,
             "fallback_launchers": latest_event_fallback_launchers,
             "fallback_launch_recovered": latest_event_fallback_launch_recovered,
             "suppressed_launches": latest_event_suppressed_list,
@@ -775,6 +796,7 @@ def report_progress(root: Path) -> dict[str, object]:
                 latest_event_fallback_launchers,
                 latest_event_subagent_fallback_available,
                 latest_event_subagent_prompt_roles,
+                latest_event_checkout_owner_state,
             ),
             "user_action": build_user_action(
                 fallback_state,
@@ -792,6 +814,7 @@ def report_progress(root: Path) -> dict[str, object]:
                 latest_event_stalled_recovery_count,
                 latest_event_subagent_fallback_available,
                 latest_event_subagent_prompt_roles,
+                latest_event_checkout_owner_state,
             ),
             "boundary": T0_PROGRESS_BOUNDARY,
         }
@@ -812,6 +835,19 @@ def report_progress(root: Path) -> dict[str, object]:
     launch_probe_payload = launch_probe if isinstance(launch_probe, dict) else {}
     latest_event_payload = event_summary.get("latest_event", {})
     latest_event_payload = latest_event_payload if isinstance(latest_event_payload, dict) else {}
+    checkout_owner = latest_payload.get("checkout_owner", {})
+    checkout_owner_payload = checkout_owner if isinstance(checkout_owner, dict) else {}
+    checkout_owner_state = str(
+        checkout_owner_payload.get("state") or latest_event_payload.get("checkout_owner_state") or ""
+    )
+    checkout_owner_id = str(
+        checkout_owner_payload.get("owner_id") or latest_event_payload.get("checkout_owner_id") or ""
+    )
+    checkout_owner_requested_id = str(
+        checkout_owner_payload.get("requested_owner_id")
+        or latest_event_payload.get("checkout_owner_requested_id")
+        or ""
+    )
     launch_probe_state = str(
         launch_probe_payload.get("state") or latest_event_payload.get("launch_probe_state") or ""
     )
@@ -955,6 +991,9 @@ def report_progress(root: Path) -> dict[str, object]:
         "launch_probe_state": launch_probe_state,
         "launch_probe_recommended_backend": launch_probe_recommended_backend,
         "launch_probe_reason": launch_probe_reason,
+        "checkout_owner_state": checkout_owner_state,
+        "checkout_owner_id": checkout_owner_id,
+        "checkout_owner_requested_id": checkout_owner_requested_id,
         "fallback_launchers": fallback_launchers,
         "fallback_launch_recovered": fallback_launch_recovered,
         "subagent_fallback_available": subagent_fallback_available,
@@ -1007,6 +1046,7 @@ def report_progress(root: Path) -> dict[str, object]:
             fallback_launchers,
             subagent_fallback_available,
             subagent_prompt_roles,
+            checkout_owner_state,
         ),
         "user_action": build_user_action(
             state,
@@ -1024,6 +1064,7 @@ def report_progress(root: Path) -> dict[str, object]:
             stalled_recovery_count,
             subagent_fallback_available,
             subagent_prompt_roles,
+            checkout_owner_state,
         ),
         "actions": action_list,
         "boundary": T0_PROGRESS_BOUNDARY,
@@ -1086,8 +1127,12 @@ def format_text(payload: dict[str, object]) -> str:
         f"launch_probe_state={payload.get('launch_probe_state', '')}",
         f"launch_probe_recommended_backend={payload.get('launch_probe_recommended_backend', '')}",
         f"launch_probe_reason={payload.get('launch_probe_reason', '')}",
+        f"checkout_owner_state={payload.get('checkout_owner_state', '')}",
+        f"checkout_owner_id={payload.get('checkout_owner_id', '')}",
+        f"checkout_owner_requested_id={payload.get('checkout_owner_requested_id', '')}",
         f"latest_event_launch_probe_state={latest_event_payload.get('launch_probe_state', '')}",
         f"latest_event_launch_probe_recommended_backend={latest_event_payload.get('launch_probe_recommended_backend', '')}",
+        f"latest_event_checkout_owner_state={latest_event_payload.get('checkout_owner_state', '')}",
         f"fallback_launch_recovered={payload.get('fallback_launch_recovered', False)}",
         "fallback_launchers="
         + ",".join(str(item) for item in payload.get("fallback_launchers", []) if item),

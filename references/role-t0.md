@@ -240,6 +240,11 @@ T0 uses lightweight filesystem signals, not a new database:
   single-owner guarantee. When two leaders need to work at once, use separate
   worktrees; otherwise serialize their writes before staging, committing,
   resetting, cleaning, or regenerating release artifacts.
+- **Checkout-owner launch guard**: before `--execute-launches` runs worker
+  launcher commands, T0 claims `.taskboard/t0/checkout-owner.json`. If another
+  fresh top-level owner is present, T0 must suppress worker launch, report
+  `checkout_owner_state=conflict`, and ask for owner serialization or a
+  separate `git worktree`; do not ask the user to manage T1/T2/T3 manually.
 
 ### T0 User Output Contract
 

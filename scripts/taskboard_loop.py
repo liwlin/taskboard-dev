@@ -3,10 +3,12 @@
 
 from argparse import ArgumentParser
 from pathlib import Path
+import os
 import json
 import re
 import shlex
 import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -55,6 +57,106 @@ def choose_executable_launch_commands(session_probe: dict[str, object], dispatch
 
 def default_launch_state_file(root: Path) -> Path:
     return root / ".taskboard" / "t0" / "launches.json"
+
+
+def default_checkout_owner_file(root: Path) -> Path:
+    return root / ".taskboard" / "t0" / "checkout-owner.json"
+
+
+def default_checkout_owner_id() -> str:
+    return f"taskboard-t0:{socket.gethostname()}:{os.getpid()}"
+
+
+def process_is_alive(pid: object) -> bool:
+    try:
+        normalized = int(pid)
+    except (TypeError, ValueError):
+        return True
+    if normalized <= 0:
+        return True
+    if normalized == os.getpid():
+        return True
+    try:
+        os.kill(normalized, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True
+    return True
+
+
+def read_checkout_owner(root: Path) -> dict[str, object]:
+    path = default_checkout_owner_file(root)
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def acquire_checkout_owner(
+    root: Path,
+    owner_id: str,
+    lease_seconds: int,
+    current_time: float,
+) -> dict[str, object]:
+    path = default_checkout_owner_file(root)
+    existing = read_checkout_owner(root)
+    existing_owner = str(existing.get("owner_id") or "")
+    previous_state = "missing"
+    if existing_owner:
+        try:
+            updated_at_epoch = float(existing.get("updated_at_epoch") or 0)
+        except (TypeError, ValueError):
+            updated_at_epoch = 0
+        try:
+            existing_lease = int(existing.get("lease_seconds") or lease_seconds)
+        except (TypeError, ValueError):
+            existing_lease = lease_seconds
+        age_seconds = int(max(0, current_time - updated_at_epoch)) if updated_at_epoch else lease_seconds + 1
+        if existing_owner == owner_id:
+            previous_state = "same-owner"
+        elif age_seconds >= existing_lease:
+            previous_state = "expired"
+        elif not process_is_alive(existing.get("pid")):
+            previous_state = "abandoned"
+        else:
+            return {
+                "kind": "taskboard-checkout-owner",
+                "state": "conflict",
+                "owner_id": existing_owner,
+                "requested_owner_id": owner_id,
+                "age_seconds": age_seconds,
+                "remaining_seconds": int(max(0, existing_lease - age_seconds)),
+                "path": str(path),
+                "boundary": (
+                    "Another top-level agent owns this checkout. T0 must not "
+                    "launch worker writers in the same Git checkout; wait or use a worktree."
+                ),
+            }
+
+    payload = {
+        "kind": "taskboard-checkout-owner",
+        "version": 1,
+        "state": "acquired",
+        "previous_state": previous_state,
+        "owner_id": owner_id,
+        "pid": os.getpid(),
+        "host": socket.gethostname(),
+        "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(current_time)),
+        "updated_at_epoch": current_time,
+        "lease_seconds": lease_seconds,
+        "path": str(path),
+        "boundary": (
+            "T0 owns launcher execution for this checkout only; this marker is "
+            "not TASKBOARD task state and does not authorize T0 to do worker tasks."
+        ),
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
+    return payload
 
 
 def read_launch_state(root: Path) -> dict[str, object]:
@@ -372,8 +474,14 @@ def build_actions(
     stalled_recovery_items: Optional[list[dict[str, object]]] = None,
     manual_launch_files: Optional[dict[str, object]] = None,
     subagent_fallback: Optional[dict[str, object]] = None,
+    checkout_owner: Optional[dict[str, object]] = None,
 ) -> list[str]:
     actions: list[str] = []
+    if checkout_owner and checkout_owner.get("state") == "conflict":
+        actions.append(
+            "checkout ownership conflict: wait for the current checkout owner to finish "
+            "or move the peer top-level agent to a separate git worktree before launching workers."
+        )
     launch_failure_count = 0
     recovered_fallback_launcher = ""
     for attempt in fallback_launch_attempts or []:
@@ -766,6 +874,8 @@ def run_once(
     fallback_launchers: Optional[list[str]] = None,
     assignment_watch: Optional[dict[str, object]] = None,
     agent_preflight: Optional[dict[str, object]] = None,
+    checkout_owner_id: Optional[str] = None,
+    checkout_owner_lease_seconds: int = 1800,
 ) -> dict[str, object]:
     launch_probe = build_launch_probe(launcher, agent_preflight)
     session_probe = probe_sessions(
@@ -856,6 +966,16 @@ def run_once(
     preflight_spawn_refused = bool(
         isinstance(agent_preflight, dict) and agent_preflight.get("state") == "spawn-refused"
     )
+    checkout_owner = (
+        acquire_checkout_owner(
+            root,
+            checkout_owner_id or default_checkout_owner_id(),
+            checkout_owner_lease_seconds,
+            current_time,
+        )
+        if execute_launches
+        else {"kind": "taskboard-checkout-owner", "state": "skipped", "reason": "launches-disabled"}
+    )
     if execute_launches and preflight_spawn_refused:
         source_sessions = assignment_recovery_session_list or stalled_recovery_session_list or fallback_source_sessions(
             session_probe, dispatch_plan, used_recovery_commands
@@ -870,6 +990,9 @@ def run_once(
             source_sessions,
             agent_template,
         )
+        launch_commands = []
+        suppressed_launches = []
+    elif execute_launches and checkout_owner.get("state") == "conflict":
         launch_commands = []
         suppressed_launches = []
     elif execute_launches:
@@ -927,6 +1050,8 @@ def run_once(
         state = "idle"
     elif executed_commands and any(item["returncode"] != 0 for item in executed_commands):
         state = "attention"
+    elif checkout_owner.get("state") == "conflict":
+        state = "attention"
     elif assignment.get("state") == "pending-ack-expired":
         state = "attention"
     elif session_probe.get("state") == "healthy" and queue_health.get("state") in {"empty"}:
@@ -965,11 +1090,13 @@ def run_once(
             stalled_recovery_list,
             manual_launch_files,
             subagent_fallback,
+            checkout_owner,
         ),
         "fallback_launch_attempts": fallback_attempts,
         "manual_launch_files": manual_launch_files,
         "subagent_fallback": subagent_fallback,
         "subagent_fallback_packet": {},
+        "checkout_owner": checkout_owner,
         "assignment_watch": json.loads(json.dumps(assignment_watch_payload, ensure_ascii=False)),
         "agent_preflight": agent_preflight or {},
         "launch_probe": launch_probe,
@@ -1362,6 +1489,8 @@ def append_event_log(
     subagent_packet_payload = subagent_packet if isinstance(subagent_packet, dict) else {}
     launch_probe = payload.get("launch_probe", {})
     launch_probe_payload = launch_probe if isinstance(launch_probe, dict) else {}
+    checkout_owner = payload.get("checkout_owner", {})
+    checkout_owner_payload = checkout_owner if isinstance(checkout_owner, dict) else {}
     event = {
         "kind": "taskboard-t0-supervisor-event",
         "version": 1,
@@ -1390,6 +1519,10 @@ def append_event_log(
         "launch_probe_state": str(launch_probe_payload.get("state") or ""),
         "launch_probe_recommended_backend": str(launch_probe_payload.get("recommended_backend") or ""),
         "launch_probe_reason": str(launch_probe_payload.get("reason") or ""),
+        "checkout_owner_state": str(checkout_owner_payload.get("state") or ""),
+        "checkout_owner_id": str(checkout_owner_payload.get("owner_id") or ""),
+        "checkout_owner_requested_id": str(checkout_owner_payload.get("requested_owner_id") or ""),
+        "checkout_owner_remaining_seconds": int(checkout_owner_payload.get("remaining_seconds") or 0),
         "fallback_launch_count": len(fallback_attempt_list),
         "fallback_launchers": [
             str(item.get("launcher") or "")
@@ -1462,6 +1595,8 @@ def run_loop(
     fallback_launchers: Optional[list[str]] = None,
     agent_preflight_enabled: bool = True,
     agent_preflight_command: Optional[str] = None,
+    checkout_owner_id: Optional[str] = None,
+    checkout_owner_lease_seconds: int = 1800,
 ) -> list[dict[str, object]]:
     if interval_seconds < 0:
         raise ValueError("--interval-seconds must be >= 0")
@@ -1471,6 +1606,8 @@ def run_loop(
         raise ValueError("--assignment-lease-seconds must be >= 1")
     if launch_lease_seconds < 1:
         raise ValueError("--launch-lease-seconds must be >= 1")
+    if checkout_owner_lease_seconds < 1:
+        raise ValueError("--checkout-owner-lease-seconds must be >= 1")
 
     write_runtime_goal(root, goal)
     effective_goal = read_goal(root, goal)
@@ -1514,6 +1651,8 @@ def run_loop(
             fallback_launchers,
             assignment_watch,
             agent_preflight,
+            checkout_owner_id,
+            checkout_owner_lease_seconds,
         )
         if runtime_metadata:
             payload.update(runtime_metadata)
@@ -1683,6 +1822,16 @@ def main(argv: Optional[list[str]] = None) -> int:
         "--agent-preflight-command",
         help="Optional command T0 runs once before worker launches to verify agent CLI readiness.",
     )
+    parser.add_argument(
+        "--checkout-owner-id",
+        help="Optional stable top-level checkout owner id for launcher execution guard.",
+    )
+    parser.add_argument(
+        "--checkout-owner-lease-seconds",
+        type=int,
+        default=1800,
+        help="Freshness window for .taskboard/t0/checkout-owner.json before T0 may reclaim launcher ownership.",
+    )
     parser.add_argument("--format", choices=("text", "json"), default="text")
     args = parser.parse_args(argv)
     root = Path(args.root).resolve()
@@ -1717,6 +1866,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             fallback_launchers=args.fallback_launcher,
             agent_preflight_enabled=not args.no_agent_preflight,
             agent_preflight_command=args.agent_preflight_command,
+            checkout_owner_id=args.checkout_owner_id,
+            checkout_owner_lease_seconds=args.checkout_owner_lease_seconds,
         )
     except KeyboardInterrupt:
         effective_goal = read_goal(root, args.goal)

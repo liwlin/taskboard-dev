@@ -266,6 +266,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--stale-seconds", type=int, default=300)
     parser.add_argument("--assignment-lease-seconds", type=int, default=300)
     parser.add_argument("--launch-lease-seconds", type=int, default=300)
+    parser.add_argument("--checkout-owner-lease-seconds", type=int, default=1800)
     parser.add_argument("--interval-seconds", type=int, default=300)
     parser.add_argument("--iterations", type=int, default=1)
     parser.add_argument(
@@ -310,6 +311,10 @@ def main(argv: Optional[list[str]] = None) -> int:
         action="store_true",
         help="Disable writing per-role target files for dry checks.",
     )
+    parser.add_argument(
+        "--checkout-owner-id",
+        help="Optional stable top-level checkout owner id for launcher execution guard.",
+    )
     parser.add_argument("--format", choices=("text", "json"), default="text")
     args = parser.parse_args(argv)
 
@@ -351,6 +356,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             args.fallback_launcher,
             not args.no_agent_preflight,
             args.agent_preflight_command,
+            args.checkout_owner_id,
+            args.checkout_owner_lease_seconds,
         )
         results = annotate_starter_mode(results, auto_mode)
         if state_file is not None and results:
