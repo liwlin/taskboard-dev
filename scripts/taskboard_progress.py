@@ -10,7 +10,7 @@ from typing import Optional
 
 from taskboard_completion import report_completion
 from taskboard_health import report_health
-from taskboard_loop import default_event_log_file, default_state_file
+from taskboard_loop import default_event_log_file, default_state_file, default_subagent_fallback_file
 from taskboard_stopgates import report_stop_gates
 from taskboard_t0 import read_goal
 
@@ -143,6 +143,27 @@ def read_event_log_summary(root: Path) -> dict[str, object]:
             "T0 append-only event log summarizes supervisor decisions; "
             "it is not TASKBOARD state or worker memory."
         ),
+    }
+
+
+def read_subagent_fallback_packet(root: Path) -> dict[str, object]:
+    path = default_subagent_fallback_file(root)
+    if not path.exists():
+        return {"available": False, "path": str(path)}
+    try:
+        packet = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return {"available": False, "path": str(path)}
+    if not isinstance(packet, dict):
+        return {"available": False, "path": str(path)}
+    roles = packet.get("subagent_prompt_roles", [])
+    role_list = [str(item) for item in roles if str(item)] if isinstance(roles, list) else []
+    return {
+        "available": True,
+        "path": str(path),
+        "kind": str(packet.get("kind") or ""),
+        "prompt_count": safe_int(packet.get("subagent_prompt_count"), len(role_list)),
+        "prompt_roles": role_list,
     }
 
 
@@ -417,6 +438,7 @@ def build_queue_metrics(
 
 def report_progress(root: Path) -> dict[str, object]:
     event_summary = read_event_log_summary(root)
+    subagent_packet = read_subagent_fallback_packet(root)
     completion_audit = report_completion(root)
     completion_missing = completion_audit.get("missing_evidence", [])
     completion_missing_list = completion_missing if isinstance(completion_missing, list) else []
@@ -534,14 +556,19 @@ def report_progress(root: Path) -> dict[str, object]:
             if isinstance(latest_event_subagent_prompt_roles_raw, list)
             else []
         )
+        if not latest_event_subagent_prompt_roles and subagent_packet.get("available"):
+            packet_roles = subagent_packet.get("prompt_roles", [])
+            latest_event_subagent_prompt_roles = (
+                [str(item) for item in packet_roles if str(item)] if isinstance(packet_roles, list) else []
+            )
         latest_event_subagent_fallback_available = bool(
-            latest_event_payload.get("subagent_fallback_available")
+            latest_event_payload.get("subagent_fallback_available") or subagent_packet.get("available")
         )
         latest_event_subagent_fallback_kind = str(latest_event_payload.get("subagent_fallback_kind") or "")
         latest_event_subagent_fallback_reason = str(latest_event_payload.get("subagent_fallback_reason") or "")
         latest_event_subagent_prompt_count = safe_int(
             latest_event_payload.get("subagent_prompt_count"),
-            len(latest_event_subagent_prompt_roles),
+            safe_int(subagent_packet.get("prompt_count"), len(latest_event_subagent_prompt_roles)),
         )
         if (
             fallback_state == "needs-supervisor-run"
@@ -605,6 +632,8 @@ def report_progress(root: Path) -> dict[str, object]:
             "subagent_fallback_available": latest_event_subagent_fallback_available,
             "subagent_fallback_kind": latest_event_subagent_fallback_kind,
             "subagent_fallback_reason": latest_event_subagent_fallback_reason,
+            "subagent_fallback_packet_available": bool(subagent_packet.get("available")),
+            "subagent_fallback_packet_file": str(subagent_packet.get("path") or ""),
             "subagent_prompt_count": latest_event_subagent_prompt_count,
             "subagent_prompt_roles": latest_event_subagent_prompt_roles,
             "stalled_recoveries": latest_event_stalled_recoveries,
@@ -723,16 +752,22 @@ def report_progress(root: Path) -> dict[str, object]:
         if isinstance(item, dict) and item.get("launcher")
     ]
     subagent_fallback_summary = summarize_subagent_fallback(latest_payload.get("subagent_fallback", {}))
-    subagent_fallback_available = bool(subagent_fallback_summary.get("available"))
+    subagent_fallback_available = bool(subagent_fallback_summary.get("available") or subagent_packet.get("available"))
     subagent_fallback_kind = str(subagent_fallback_summary.get("kind") or "")
     subagent_fallback_reason = str(subagent_fallback_summary.get("reason") or "")
-    subagent_prompt_count = safe_int(subagent_fallback_summary.get("prompt_count"), 0)
+    subagent_prompt_count = safe_int(
+        subagent_fallback_summary.get("prompt_count"),
+        safe_int(subagent_packet.get("prompt_count"), 0),
+    )
     subagent_prompt_roles_raw = subagent_fallback_summary.get("prompt_roles", [])
     subagent_prompt_roles = (
         [str(item) for item in subagent_prompt_roles_raw if str(item)]
         if isinstance(subagent_prompt_roles_raw, list)
         else []
     )
+    if not subagent_prompt_roles and subagent_packet.get("available"):
+        packet_roles = subagent_packet.get("prompt_roles", [])
+        subagent_prompt_roles = [str(item) for item in packet_roles if str(item)] if isinstance(packet_roles, list) else []
 
     goal = str(snapshot.get("goal") or latest_payload.get("goal") or read_goal(root, ""))
     state = str(latest_payload.get("state") or dispatch_payload.get("state") or "unknown")
@@ -797,6 +832,8 @@ def report_progress(root: Path) -> dict[str, object]:
         "subagent_fallback_available": subagent_fallback_available,
         "subagent_fallback_kind": subagent_fallback_kind,
         "subagent_fallback_reason": subagent_fallback_reason,
+        "subagent_fallback_packet_available": bool(subagent_packet.get("available")),
+        "subagent_fallback_packet_file": str(subagent_packet.get("path") or ""),
         "subagent_prompt_count": subagent_prompt_count,
         "subagent_prompt_roles": subagent_prompt_roles,
         "suppressed_launches": suppressed_launch_list,
@@ -916,6 +953,8 @@ def format_text(payload: dict[str, object]) -> str:
         f"subagent_fallback_available={payload.get('subagent_fallback_available', False)}",
         f"subagent_fallback_kind={payload.get('subagent_fallback_kind', '')}",
         f"subagent_fallback_reason={payload.get('subagent_fallback_reason', '')}",
+        f"subagent_fallback_packet_available={payload.get('subagent_fallback_packet_available', False)}",
+        f"subagent_fallback_packet_file={payload.get('subagent_fallback_packet_file', '')}",
         f"subagent_prompt_count={payload.get('subagent_prompt_count', 0)}",
         "subagent_prompt_roles="
         + ",".join(str(item) for item in payload.get("subagent_prompt_roles", []) if item),

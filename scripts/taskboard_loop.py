@@ -910,9 +910,12 @@ def run_once(
         "fallback_launch_attempts": fallback_attempts,
         "manual_launch_files": manual_launch_files,
         "subagent_fallback": subagent_fallback,
+        "subagent_fallback_packet": {},
         "assignment_watch": json.loads(json.dumps(assignment_watch_payload, ensure_ascii=False)),
         "agent_preflight": agent_preflight or {},
     }
+    if subagent_fallback:
+        payload["subagent_fallback_packet"] = write_subagent_fallback_packet(root, goal, subagent_fallback)
     if completion_audit_payload is not None:
         payload["completion_audit"] = completion_audit_payload
     return payload
@@ -924,6 +927,10 @@ def default_state_file(root: Path) -> Path:
 
 def default_event_log_file(root: Path) -> Path:
     return root / ".taskboard" / "t0" / "events.jsonl"
+
+
+def default_subagent_fallback_file(root: Path) -> Path:
+    return root / ".taskboard" / "t0" / "subagent-fallback.json"
 
 
 def read_assignment_watch(state_file: Optional[Path]) -> dict[str, object]:
@@ -964,6 +971,39 @@ def write_state_snapshot(
     }
     state_file.parent.mkdir(parents=True, exist_ok=True)
     state_file.write_text(json.dumps(snapshot, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def write_subagent_fallback_packet(
+    root: Path,
+    goal: Optional[str],
+    subagent_fallback: dict[str, object],
+) -> dict[str, object]:
+    if not subagent_fallback:
+        return {}
+    prompts = subagent_fallback.get("subagent_prompts", [])
+    prompt_list = prompts if isinstance(prompts, list) else []
+    packet = {
+        "kind": "taskboard-subagent-fallback-packet",
+        "version": 1,
+        "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "root": str(root),
+        "goal": goal or "",
+        "subagent_fallback": subagent_fallback,
+        "subagent_prompt_count": len(prompt_list),
+        "subagent_prompt_roles": [
+            str(item.get("role") or "")
+            for item in prompt_list
+            if isinstance(item, dict) and item.get("role")
+        ],
+        "boundary": (
+            "T0 recovery packet for dispatching isolated native subagents; "
+            "do not treat this as TASKBOARD state or worker memory."
+        ),
+    }
+    path = default_subagent_fallback_file(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(packet, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+    return {"path": str(path), "prompt_count": packet["subagent_prompt_count"]}
 
 
 def build_resume_config(
@@ -1258,6 +1298,8 @@ def append_event_log(
     subagent_fallback_payload = subagent_fallback if isinstance(subagent_fallback, dict) else {}
     subagent_prompts = subagent_fallback_payload.get("subagent_prompts", [])
     subagent_prompt_list = subagent_prompts if isinstance(subagent_prompts, list) else []
+    subagent_packet = payload.get("subagent_fallback_packet", {})
+    subagent_packet_payload = subagent_packet if isinstance(subagent_packet, dict) else {}
     event = {
         "kind": "taskboard-t0-supervisor-event",
         "version": 1,
@@ -1297,6 +1339,7 @@ def append_event_log(
         "subagent_fallback_available": bool(subagent_fallback_payload),
         "subagent_fallback_kind": str(subagent_fallback_payload.get("kind") or ""),
         "subagent_fallback_reason": str(subagent_fallback_payload.get("reason") or ""),
+        "subagent_fallback_packet_file": str(subagent_packet_payload.get("path") or ""),
         "subagent_prompt_count": len(subagent_prompt_list),
         "subagent_prompt_roles": [
             str(item.get("role") or "")

@@ -1199,9 +1199,17 @@ class TaskboardProgressTest(unittest.TestCase):
             )
             progress = self.run_json(PROGRESS_SCRIPT, root)
             text = self.run_text(PROGRESS_SCRIPT, root)
+            fallback_file = root / ".taskboard" / "t0" / "subagent-fallback.json"
+            fallback_file_exists = fallback_file.exists()
+            fallback_packet = json.loads(fallback_file.read_text(encoding="utf-8"))
 
         self.assertFalse((root / ".taskboard" / "t0" / "latest.json").exists())
+        self.assertTrue(fallback_file_exists)
+        self.assertEqual(fallback_packet["kind"], "taskboard-subagent-fallback-packet")
+        self.assertEqual(len(fallback_packet["subagent_fallback"]["subagent_prompts"]), 3)
         self.assertTrue(progress["subagent_fallback_available"])
+        self.assertTrue(progress["subagent_fallback_packet_available"])
+        self.assertEqual(progress["subagent_fallback_packet_file"], str(fallback_file))
         self.assertEqual(progress["subagent_fallback_kind"], "taskboard-subagent-fallback")
         self.assertEqual(progress["subagent_fallback_reason"], "agent-preflight-spawn-refused")
         self.assertEqual(progress["subagent_prompt_count"], 3)
