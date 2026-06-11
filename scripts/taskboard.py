@@ -303,6 +303,8 @@ def build_parser() -> ArgumentParser:
     subagent_ack = subagent_subparsers.add_parser("ack", help="Record a native-subagent dispatch")
     subagent_ack.add_argument("--role", required=True)
     subagent_ack.add_argument("--agent-id", required=True)
+    subagent_ack.add_argument("--spawn-tool", default="")
+    subagent_ack.add_argument("--agent-nickname", default="")
     subagent_ack.add_argument("--note", default="")
     subagent_done = subagent_subparsers.add_parser("done", help="Record a completed native subagent")
     subagent_done.add_argument("--role", required=True)
@@ -346,7 +348,14 @@ def run(args) -> dict[str, object]:
         if args.subagent_command == "next":
             return subagent_next_payload(root)
         if args.subagent_command == "ack":
-            return subagent_ack_payload(root, args.role, args.agent_id, args.note)
+            return subagent_ack_payload(
+                root,
+                args.role,
+                args.agent_id,
+                args.note,
+                args.spawn_tool,
+                args.agent_nickname,
+            )
         if args.subagent_command == "done":
             return subagent_result_payload(root, args.role, "completed", args.summary)
         if args.subagent_command == "fail":

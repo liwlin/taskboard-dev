@@ -1534,6 +1534,8 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertEqual(progress["subagent_control_next_role"], "T1")
         self.assertIn("subagent next", progress["subagent_next_command"])
         self.assertIn("subagent ack --role T1", progress["subagent_ack_command"])
+        self.assertIn("--spawn-tool", progress["subagent_ack_command"])
+        self.assertIn("--agent-nickname", progress["subagent_ack_command"])
         self.assertIn("subagent done --role T1", progress["subagent_done_command"])
         self.assertIn("subagent fail --role T1", progress["subagent_fail_command"])
         self.assertEqual(progress["subagent_retry_commands"], [])

@@ -9,6 +9,7 @@ from typing import Optional
 
 from taskboard_subagents import (
     SUBAGENT_ROLES,
+    prompt_hash,
     read_subagent_fallback_packet,
     subagent_status_payload,
 )
@@ -52,7 +53,12 @@ def is_placeholder_agent_id(agent_id: str) -> bool:
     return not lowered or lowered.startswith(PLACEHOLDER_AGENT_ID_PREFIXES)
 
 
-def collect_acceptance(root: Path, required_roles: list[str], require_real_agent_ids: bool) -> dict[str, object]:
+def collect_acceptance(
+    root: Path,
+    required_roles: list[str],
+    require_real_agent_ids: bool,
+    require_spawn_evidence: bool,
+) -> dict[str, object]:
     packet = read_subagent_fallback_packet(root)
     status = subagent_status_payload(root)
     records = status.get("records", {})
@@ -111,6 +117,38 @@ def collect_acceptance(root: Path, required_roles: list[str], require_real_agent
             failures.append(f"{role}: agent_id missing")
         elif require_real_agent_ids and is_placeholder_agent_id(agent_id):
             failures.append(f"{role}: agent_id looks like placeholder evidence: {agent_id}")
+        if require_spawn_evidence:
+            spawn_receipt = record.get("spawn_receipt")
+            completion_receipt = record.get("completion_receipt")
+            if not isinstance(spawn_receipt, dict):
+                failures.append(f"{role}: spawn_receipt missing")
+            else:
+                expected_prompt_hash = prompt_hash(prompt_by_role.get(role, ""))
+                if str(spawn_receipt.get("role") or "") != role:
+                    failures.append(f"{role}: spawn_receipt role mismatch")
+                if str(spawn_receipt.get("agent_id") or "") != agent_id:
+                    failures.append(f"{role}: spawn_receipt agent_id mismatch")
+                if not str(spawn_receipt.get("spawn_tool") or "").strip():
+                    failures.append(f"{role}: spawn_tool missing")
+                if not str(spawn_receipt.get("agent_nickname") or "").strip():
+                    failures.append(f"{role}: agent_nickname missing")
+                if str(spawn_receipt.get("prompt_hash") or "") != expected_prompt_hash:
+                    failures.append(f"{role}: prompt_hash mismatch")
+                if str(spawn_receipt.get("native_status") or "") not in {"spawned", "dispatched", "running"}:
+                    failures.append(f"{role}: spawn_receipt native_status invalid")
+                if not str(spawn_receipt.get("recorded_at") or "").strip():
+                    failures.append(f"{role}: spawn_receipt recorded_at missing")
+            if not isinstance(completion_receipt, dict):
+                failures.append(f"{role}: completion_receipt missing")
+            else:
+                if str(completion_receipt.get("role") or "") != role:
+                    failures.append(f"{role}: completion_receipt role mismatch")
+                if str(completion_receipt.get("agent_id") or "") != agent_id:
+                    failures.append(f"{role}: completion_receipt agent_id mismatch")
+                if str(completion_receipt.get("native_status") or "") != "completed":
+                    failures.append(f"{role}: completion_receipt native_status is not completed")
+                if not str(completion_receipt.get("recorded_at") or "").strip():
+                    failures.append(f"{role}: completion_receipt recorded_at missing")
         summary = str(record.get("summary") or "")
         if not summary.strip():
             failures.append(f"{role}: completion summary missing")
@@ -127,6 +165,7 @@ def collect_acceptance(root: Path, required_roles: list[str], require_real_agent
         "root": str(root),
         "required_roles": required_roles,
         "require_real_agent_ids": require_real_agent_ids,
+        "require_spawn_evidence": require_spawn_evidence,
         "packet_file": str(packet.get("path") or ""),
         "state_file": str(status.get("state_file") or ""),
         "prompt_roles": prompt_roles,
@@ -162,6 +201,11 @@ def build_parser() -> ArgumentParser:
         action="store_true",
         help="Reject placeholder/smoke/test agent ids when recording real field evidence",
     )
+    parser.add_argument(
+        "--require-spawn-evidence",
+        action="store_true",
+        help="Require native spawn tool metadata recorded by subagent ack",
+    )
     parser.add_argument("--format", choices=("text", "json"), default="text")
     return parser
 
@@ -175,7 +219,12 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(str(exc), file=sys.stderr)
         return 2
 
-    payload = collect_acceptance(Path(args.root).resolve(), required_roles, args.require_real_agent_ids)
+    payload = collect_acceptance(
+        Path(args.root).resolve(),
+        required_roles,
+        args.require_real_agent_ids,
+        args.require_spawn_evidence,
+    )
     if args.format == "json":
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
     else:

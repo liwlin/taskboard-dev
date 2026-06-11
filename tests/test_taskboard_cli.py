@@ -278,6 +278,10 @@ class TaskboardCliTest(unittest.TestCase):
                 "T1",
                 "--agent-id",
                 "019eb5de-749f-79c2-a355-7fb95d946c99",
+                "--spawn-tool",
+                "multi_agent_v1.spawn_agent",
+                "--agent-nickname",
+                "T1 architect child",
                 "--note",
                 "spawned by T0 native subagent tool",
             )
@@ -301,6 +305,13 @@ class TaskboardCliTest(unittest.TestCase):
         self.assertEqual(ack["kind"], "taskboard-subagent-ack")
         self.assertEqual(ack["record"]["role"], "T1")
         self.assertEqual(ack["record"]["agent_id"], "019eb5de-749f-79c2-a355-7fb95d946c99")
+        self.assertEqual(ack["record"]["spawn_tool"], "multi_agent_v1.spawn_agent")
+        self.assertEqual(ack["record"]["agent_nickname"], "T1 architect child")
+        self.assertEqual(ack["record"]["spawn_receipt"]["role"], "T1")
+        self.assertEqual(ack["record"]["spawn_receipt"]["agent_id"], "019eb5de-749f-79c2-a355-7fb95d946c99")
+        self.assertEqual(ack["record"]["spawn_receipt"]["spawn_tool"], "multi_agent_v1.spawn_agent")
+        self.assertEqual(ack["record"]["spawn_receipt"]["native_status"], "spawned")
+        self.assertRegex(ack["record"]["spawn_receipt"]["prompt_hash"], r"^sha256:[0-9a-f]{64}$")
         self.assertEqual(after_ack["pending_roles"], ["T2", "T3"])
         self.assertEqual(after_ack["dispatched_roles"], ["T1"])
         self.assertEqual(next_after_ack["role"], "T2")
@@ -341,6 +352,9 @@ class TaskboardCliTest(unittest.TestCase):
         self.assertEqual(done["kind"], "taskboard-subagent-result")
         self.assertEqual(done["record"]["status"], "completed")
         self.assertEqual(done["record"]["summary"], "T1 created TASK files")
+        self.assertEqual(done["record"]["completion_receipt"]["role"], "T1")
+        self.assertEqual(done["record"]["completion_receipt"]["agent_id"], "agent-t1")
+        self.assertEqual(done["record"]["completion_receipt"]["native_status"], "completed")
         self.assertEqual(failed["record"]["status"], "failed")
         self.assertEqual(failed["record"]["summary"], "review tool unavailable")
         self.assertEqual(status["completed_roles"], ["T1"])

@@ -486,7 +486,8 @@ def build_subagent_control(
         "subagent_control_next_role": next_role,
         "subagent_next_command": f"{base} next" if state == "dispatch-next" else "",
         "subagent_ack_command": (
-            f'{base} ack --role {next_role} --agent-id "<agent id>"'
+            f'{base} ack --role {next_role} --agent-id "<agent id>" '
+            f'--spawn-tool "<native spawn tool>" --agent-nickname "<agent nickname>"'
             if state == "dispatch-next"
             else ""
         ),

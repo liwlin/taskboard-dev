@@ -2,6 +2,7 @@
 """T0 native-subagent dispatch state helpers."""
 
 from pathlib import Path
+import hashlib
 import json
 import time
 
@@ -100,6 +101,20 @@ def prompt_roles(packet: dict[str, object]) -> list[str]:
     return [role for role in (str(item) for item in roles) if role in SUBAGENT_ROLES]
 
 
+def prompt_for_role(packet: dict[str, object], role: str) -> str:
+    prompts = packet.get("prompts", [])
+    if not isinstance(prompts, list):
+        return ""
+    for item in prompts:
+        if isinstance(item, dict) and str(item.get("role") or "") == role:
+            return str(item.get("prompt") or "")
+    return ""
+
+
+def prompt_hash(prompt: str) -> str:
+    return "sha256:" + hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+
+
 def dispatch_records(state: dict[str, object]) -> dict[str, dict[str, object]]:
     roles = state.get("roles", {})
     if not isinstance(roles, dict):
@@ -183,7 +198,14 @@ def subagent_next_payload(root: Path) -> dict[str, object]:
     }
 
 
-def subagent_ack_payload(root: Path, role: str, agent_id: str, note: str = "") -> dict[str, object]:
+def subagent_ack_payload(
+    root: Path,
+    role: str,
+    agent_id: str,
+    note: str = "",
+    spawn_tool: str = "",
+    agent_nickname: str = "",
+) -> dict[str, object]:
     normalized_role = role.upper()
     if normalized_role not in SUBAGENT_ROLES:
         raise ValueError(f"invalid subagent role: {role}")
@@ -211,6 +233,20 @@ def subagent_ack_payload(root: Path, role: str, agent_id: str, note: str = "") -
         "note": note.strip(),
         "packet_file": str(packet.get("path") or default_subagent_fallback_file(root)),
     }
+    if spawn_tool.strip():
+        record["spawn_tool"] = spawn_tool.strip()
+    if agent_nickname.strip():
+        record["agent_nickname"] = agent_nickname.strip()
+    if spawn_tool.strip() or agent_nickname.strip():
+        record["spawn_receipt"] = {
+            "agent_id": agent_id.strip(),
+            "agent_nickname": agent_nickname.strip(),
+            "native_status": "spawned",
+            "prompt_hash": prompt_hash(prompt_for_role(packet, normalized_role)),
+            "recorded_at": record["dispatched_at"],
+            "role": normalized_role,
+            "spawn_tool": spawn_tool.strip(),
+        }
     if attempts:
         record["attempts"] = attempts
     role_records[normalized_role] = record
@@ -244,6 +280,12 @@ def subagent_result_payload(root: Path, role: str, status: str, summary: str = "
     record["summary"] = summary.strip()
     timestamp_key = "completed_at" if status == "completed" else "failed_at"
     record[timestamp_key] = utc_now()
+    record["completion_receipt"] = {
+        "agent_id": str(record.get("agent_id") or ""),
+        "native_status": status,
+        "recorded_at": record[timestamp_key],
+        "role": normalized_role,
+    }
     role_records[normalized_role] = record
     state["roles"] = role_records
     write_subagent_dispatch_state(root, state)
