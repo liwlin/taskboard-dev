@@ -64,7 +64,8 @@ class TaskboardT0Test(unittest.TestCase):
         self.assertIn("do not execute T0/T1/T3 responsibilities", output["target"])
         self.assertIn("do not rely on another role's chat context", output["target"])
         self.assertIn("Worker loop contract", output["target"])
-        self.assertIn("Continue cycling this role until no unblocked work remains", output["target"])
+        self.assertIn("Continue cycling this role while unblocked T2 work is available", output["target"])
+        self.assertIn("Do not terminate just because this role queue is empty", output["target"])
         self.assertIn("refresh your heartbeat at the start of each cycle", output["target"])
         self.assertIn("T0 manager-only", output["boundary"])
         self.assertIn("不直接执行开发任务", output["boundary"])
@@ -194,6 +195,31 @@ class TaskboardT0Test(unittest.TestCase):
         self.assertIn("assigned_role: T1", t1_target_text)
         self.assertIn("Worker loop contract", t1_target_text)
         self.assertIn("Do not stop after one action if more T1 work is available", t1_target_text)
+
+    def test_role_target_files_include_idle_recheck_contract(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            self.run_t0(
+                root,
+                "--goal",
+                "Ship demo",
+                "--launcher",
+                "windows-terminal",
+                "--agent-template",
+                'codex --prompt-file "{target_file}"',
+            )
+            target_texts = [
+                (root / ".taskboard" / "targets" / f"taskboard-{role}.md").read_text(encoding="utf-8")
+                for role in ("T1", "T2", "T3")
+            ]
+
+        for text in target_texts:
+            self.assertIn("Idle recheck contract", text)
+            self.assertIn("Do not terminate just because this role queue is empty", text)
+            self.assertIn("sleep/yield for the configured interval", text)
+            self.assertIn("goal completion, stop gate, explicit user pause, or context-limit restart", text)
 
     def test_role_target_files_include_default_tooling_contracts(self):
         with tempfile.TemporaryDirectory() as tmp:

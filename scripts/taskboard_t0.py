@@ -138,7 +138,7 @@ def build_target(role: str, status: str, task_name: str, goal: str, reason: str)
         f"调度原因：{reason}\n"
         f"角色目标：{base}\n"
         f"本轮动作：{action}\n"
-        "持续自主执行，直到该角色队列清空、任务交接完成或触发停止门。"
+        "持续自主执行；队列暂空时进入 idle recheck，不要退出，直到目标完成、触发停止门、用户暂停或需要上下文重启。"
     )
 
 
@@ -183,10 +183,14 @@ def build_session(
     )
     loop_contract = (
         "Worker loop contract:\n"
-        f"- Continue cycling this role until no unblocked work remains for {role}, the TASKBOARD handoff is complete, or a stop gate is required.\n"
+        f"- Continue cycling this role while unblocked {role} work is available; after each TASKBOARD handoff, check again before yielding.\n"
         "- At each cycle, re-read TASKBOARD filenames and stable docs instead of relying on prior chat context.\n"
         "- Always refresh your heartbeat at the start of each cycle: liveness marker first, then assignment heartbeat after each TASKBOARD handoff.\n"
-        f"- Do not stop after one action if more {role} work is available; keep advancing the role queue under T0 management."
+        f"- Do not stop after one action if more {role} work is available; keep advancing the role queue under T0 management.\n"
+        "Idle recheck contract:\n"
+        "- Do not terminate just because this role queue is empty; an empty queue is an idle state, not completion.\n"
+        "- When no unblocked role work is visible, write the liveness marker, sleep/yield for the configured interval, then re-read this target file and TASKBOARD filenames.\n"
+        "- Suggest exit only for goal completion, stop gate, explicit user pause, or context-limit restart."
     )
     tooling_contract = ROLE_TOOLING_CONTRACTS[role]
     title = f"taskboard-{role}"
