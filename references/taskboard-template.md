@@ -56,6 +56,7 @@ python scripts/taskboard.py --root . next T0
 python scripts/taskboard.py --root . move TASK-001.v1.T3-待执行.md T3-待验证 --note "verified locally"
 python scripts/taskboard.py --root . alive T2
 python scripts/taskboard.py --root . cycle T2 --sleep-seconds 120
+python scripts/taskboard.py --root . launch-probe --launcher windows-terminal --agent-template "codex --prompt-file \"{target_file}\""
 python scripts/taskboard.py --root . stall --minutes 30
 python scripts/taskboard.py --root . decide TASK-001.v1.T1-待决策.md --answer "<user answer>"
 python scripts/taskboard.py --root . subagent status
@@ -77,6 +78,9 @@ python scripts/taskboard_sessions.py --root . probe --stale-seconds 300
 
 `taskboard.py` is the preferred v4.5 compact CLI. The older scripts remain
 available for compatibility and for the T0 supervisor loop internals.
+`taskboard launch-probe` is a read-only backend probe. Its
+`recommended_backend` tells T0 to use `terminal`, `subagent`, or `fix-config`
+before worker startup; it must not make the user manage T1/T2/T3.
 
 Worker liveness and idle recheck use `.taskboard/alive/T{N}` mtime through
 `python scripts/taskboard.py --root . cycle T{N} --sleep-seconds 120`.

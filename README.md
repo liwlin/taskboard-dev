@@ -27,7 +27,7 @@
 │   └── test_t0_contract.py          # T0 协议 smoke test
 └── scripts/
     ├── package.sh                   # 生成发布包
-    ├── taskboard.py                 # v4.5 compact CLI: status/next/move/alive/cycle/stall/decide
+    ├── taskboard.py                 # v4.5 compact CLI: status/next/move/alive/cycle/launch-probe/stall/decide
     ├── taskboard_t0.py              # 生成 T0 自动创建/恢复角色终端的调度计划
     ├── taskboard_loop.py            # T0 supervisor loop: session probe + queue health + dispatch
     ├── taskboard_demo.py            # 生成可重复的 T0 dry-run TASKBOARD 示例
@@ -92,7 +92,7 @@ python scripts/taskboard_start.py --goal "<user goal>"
 
 默认使用 Windows Terminal 创建/恢复 `taskboard-T1/T2/T3`，并用 `codex --prompt-file "{target_file}"` 让每个 worker 读取自己的 `.taskboard/targets/taskboard-T*.md`。只传 `--goal` 就会进入一键自动模式：执行 T0 管理面的启动/恢复命令，并持续运行到目标完成或触发停止门。可以追加 `--fallback-launcher powershell` 或重复追加多个 fallback launcher；当主 launcher 失败时，T0 会自动按顺序重试备用 launcher，而不是立刻要求用户接管 T1/T2/T3。如果没有传入目标且没有保存的目标，T0 会在第一轮 `needs-goal` 后停下并要求用户给 T0 一个目标，不会无意义空转。只做调度检查时显式加 `--dry-run --iterations 1 --launcher none`。
 
-执行 worker launcher 前，T0 默认会从 `--agent-template` 解析首个 agent command 并检查它是否在 PATH 中；如果命令不存在，会在启动 T1/T2/T3 前进入 `config-error`，持久化错误并要求修正 T0 配置。需要更深的 CLI/auth 检查时，使用 `--agent-preflight-command "<safe check command>"`，例如按当前客户端选择一个不会修改仓库的登录/版本/健康检查命令；该命令返回普通非零结果时错误文本会包含 `agent preflight command failed`。如果 preflight 输出包含 `API Error: 403`、`Request not allowed`、`Failed to authenticate` 等托管子进程认证/权限拒绝线索，T0 会把 `agent_preflight.state` 标记为 `spawn-refused`，不再继续执行会失败的 launcher，而是直接写出下面的用户自有终端启动脚本。高级用户可以用 `--no-agent-preflight` 关闭这一步，但默认建议保留，避免 Claude/Codex 等 agent CLI 未安装、未登录或命令模板写错时把失败留在子终端里。
+执行 worker launcher 前，T0 默认会从 `--agent-template` 解析首个 agent command 并检查它是否在 PATH 中；如果命令不存在，会在启动 T1/T2/T3 前进入 `config-error`，持久化错误并要求修正 T0 配置。需要更深的 CLI/auth 检查时，使用 `--agent-preflight-command "<safe check command>"`，例如按当前客户端选择一个不会修改仓库的登录/版本/健康检查命令；该命令返回普通非零结果时错误文本会包含 `agent preflight command failed`。如果 preflight 输出包含 `API Error: 403`、`Request not allowed`、`Failed to authenticate` 等托管子进程认证/权限拒绝线索，T0 会把 `agent_preflight.state` 标记为 `spawn-refused`，不再继续执行会失败的 launcher，而是直接写出下面的用户自有终端启动脚本。T0 可先运行 `python scripts/taskboard.py --root . launch-probe --launcher windows-terminal --agent-template "codex --prompt-file \"{target_file}\""`，读取机器可读的 `recommended_backend`：`terminal` 表示使用 T0-managed terminal launcher，`subagent` 表示直接使用 native subagent fallback，`fix-config` 表示先修 T0 启动配置；这个探测是只读的，不能把 T1/T2/T3 管理转交给用户。高级用户可以用 `--no-agent-preflight` 关闭这一步，但默认建议保留，避免 Claude/Codex 等 agent CLI 未安装、未登录或命令模板写错时把失败留在子终端里。
 
 如果 preflight 或 launcher 执行失败输出包含托管子进程认证/权限拒绝线索（例如 `API Error: 403`、`Request not allowed`、`Failed to authenticate`），T0 会写出用户自有终端启动脚本：`.taskboard/open-tabs.ps1` 和 `.taskboard/launch-role.ps1`。同一轮 `taskboard_loop.py` payload 还会包含 `subagent_fallback`，其 `kind` 为 `taskboard-subagent-fallback`，并携带可直接派发给原生隔离子代理的 `subagent_prompts`。此时 T0 优先使用可用的原生子代理后备调度；如果当前客户端没有子代理能力，用户只执行一次 `powershell -ExecutionPolicy Bypass -File ".taskboard/open-tabs.ps1"` 来打开受控的 `taskboard-T1/T2/T3` 终端。这仍是 T0 指挥的启动动作，不是让用户分别管理 T1/T2/T3。
 
@@ -110,6 +110,7 @@ python scripts/taskboard.py --root . next T0
 python scripts/taskboard.py --root . move TASK-001.v1.T3-待执行.md T3-待验证 --note "verified locally"
 python scripts/taskboard.py --root . alive T2
 python scripts/taskboard.py --root . cycle T2 --sleep-seconds 120
+python scripts/taskboard.py --root . launch-probe --launcher windows-terminal --agent-template "codex --prompt-file \"{target_file}\""
 python scripts/taskboard.py --root . stall --minutes 30
 python scripts/taskboard.py --root . decide TASK-001.v1.T1-待决策.md --answer "<user answer>"
 python scripts/taskboard.py --root . subagent status
@@ -122,7 +123,7 @@ python scripts/taskboard.py --root . subagent retry --role T1 --note "<retry rea
 
 `move` 会校验状态名、rename、写入 `docs/taskboard/history/TASK-NNN.history.md` 并刷新 mtime；非法状态（例如编造的 `T3-待合并-L2`）会被拒绝且不改文件。
 
-`alive` 会 touch `.taskboard/alive/T{N}`，作为 worker 每轮循环的轻量 liveness marker。T0 的 session probe 会读取这个 mtime，即使 `.taskboard/sessions/taskboard-T{N}.json` 尚未写入，也能判断该角色循环仍然存活；具体 TASK 的认领仍由下面的 assignment heartbeat 负责。
+`launch-probe` 复用 supervisor loop 的 agent preflight 规则，但不启动 worker、不写 runtime state。它输出 `kind=taskboard-launch-probe`、`state`、`agent_preflight` 和 `recommended_backend`，让 T0 在同一回合内决定 terminal / subagent / fix-config 路径。`alive` 会 touch `.taskboard/alive/T{N}`，作为 worker 每轮循环的轻量 liveness marker。T0 的 session probe 会读取这个 mtime，即使 `.taskboard/sessions/taskboard-T{N}.json` 尚未写入，也能判断该角色循环仍然存活；具体 TASK 的认领仍由下面的 assignment heartbeat 负责。
 
 首次传入 `--goal` 后，T0 会把用户目标保存到 `.taskboard/t0/goal.json`。T0 重启或恢复时可以不再重复输入目标；这个 `taskboard-t0-goal` 文件只是 T0 控制面恢复状态，不是 TASKBOARD 任务状态。
 

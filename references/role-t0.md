@@ -85,6 +85,7 @@ python scripts/taskboard.py --root . next T0
 python scripts/taskboard.py --root . move TASK-001.v1.T3-待执行.md T3-待验证 --note "verified locally"
 python scripts/taskboard.py --root . alive T2
 python scripts/taskboard.py --root . cycle T2 --sleep-seconds 120
+python scripts/taskboard.py --root . launch-probe --launcher windows-terminal --agent-template "codex --prompt-file \"{target_file}\""
 python scripts/taskboard.py --root . stall --minutes 30
 python scripts/taskboard.py --root . decide TASK-001.v1.T1-待决策.md --answer "<user answer>"
 ```
@@ -116,6 +117,7 @@ Launcher rules:
 - If the selected role is still heartbeating a different task or assignment and does not acknowledge T0's current assignment within `--assignment-lease-seconds`, T0 reports `pending-ack-expired`, records `assignment_pending_age_seconds`, and in `--execute-launches` mode recovers only that selected role terminal. Progress must still report `No user action required`; the user does not manage T1/T2/T3.
 - If the selected TASK file is older than `--stale-minutes`, T0 reports `stalled_recoveries` / `stalled_recovery_count` and, in `--execute-launches` mode, recovers the selected role terminal even when the role heartbeat is still alive. Progress must still report `No user action required`; stalled execution recovery stays inside T0.
 - Use `--launch-lease-seconds` to prevent duplicate managed terminals after a successful T0 launch/recovery command. T0 writes `.taskboard/t0/launches.json` as `taskboard-t0-launch-state`, waits for worker heartbeats while the launch lease is active, and reports suppressed launches without asking the user to manage T1/T2/T3.
+- Before choosing a worker backend, T0 may run `python scripts/taskboard.py --root . launch-probe --launcher windows-terminal --agent-template "codex --prompt-file \"{target_file}\""` with the same `--agent-preflight-command` it will use for the supervisor loop. The probe is read-only and returns `kind=taskboard-launch-probe`, `agent_preflight`, and `recommended_backend`. `terminal` means use the T0-managed terminal launcher, `subagent` means use native subagent fallback, and `fix-config` means repair T0 launcher/template configuration before starting workers. The probe never authorizes T0 to ask the user to manage T1/T2/T3.
 - If `--agent-preflight-command` or an executed launcher command reports managed child-process auth/permission refusal such as `API Error: 403`, `Request not allowed`, or `Failed to authenticate`, classify it as `agent_preflight.state=spawn-refused` or a spawn-refusal launch failure. Do not keep executing doomed launcher commands. Include `subagent_fallback.kind=taskboard-subagent-fallback` plus `subagent_prompts` in the loop payload so T0 can dispatch isolated native subagents when the client supports them. Also write `.taskboard/open-tabs.ps1` and `.taskboard/launch-role.ps1` as the user-owned terminal fallback, so the user performs at most one T0-directed startup action from their own authenticated terminal.
 - When native subagent fallback is available, T0 MUST use the deterministic dispatch surface instead of asking the user to manage workers: run `python scripts/taskboard.py --root . subagent next`, dispatch that prompt with the current client's native subagent tool, then record the returned agent id with `python scripts/taskboard.py --root . subagent ack --role T{N} --agent-id "<agent id>"`. When the native subagent returns, record the result with `python scripts/taskboard.py --root . subagent done --role T{N} --summary "<result>"` or `python scripts/taskboard.py --root . subagent fail --role T{N} --summary "<failure>"`. If a failed role should run again, T0 uses `python scripts/taskboard.py --root . subagent retry --role T{N} --note "<retry reason>"` to archive the failed attempt and return the role to pending before dispatching again. Use `python scripts/taskboard.py --root . subagent status` after restart to continue pending/active/failed roles from `.taskboard/t0/subagents.json`. This records T0 dispatch ownership only; it does not authorize T0 to perform T1/T2/T3 work inline.
 - If an executed launcher command fails for other reasons, loop actions report `T0 launch/recovery failed` and tell the user to fix T0 launcher configuration or retry another launcher; do not ask the user to manage T1/T2/T3 directly. Stop launching further worker commands after the first launcher failure in the loop iteration. If `--fallback-launcher <launcher>` is configured, T0 automatically regenerates the same managed role commands with that fallback launcher and retries unlaunched roles before surfacing the failure to the user.
@@ -201,14 +203,15 @@ Stop and re-route to T1 if T0 is about to say or do any of these:
 1. Capture or restate the user goal.
 2. Initialize `docs/taskboard/` if missing.
 3. Run `python scripts/taskboard.py --root . status` before each scheduling decision.
-4. Build the orchestration plan with `python scripts/taskboard_t0.py --goal "<user goal>" --root .`.
-5. Run `python scripts/taskboard_loop.py --root . --goal "<user goal>" --forever ...` as the T0 supervisor loop, creating or recovering managed role terminals when launch execution is enabled.
-6. Run `/taskboard-progress`.
-7. If there is no active milestone context, T1 creates or refreshes PROJECT/MAP/REQUIREMENTS/STATE and initial tasks.
-8. If queues exist, select the currently highest-priority role using **T0 next** below and nudge/resume that role with its durable target.
-9. After each role handoff, run `/taskboard-progress` again.
-10. If a role is idle but the milestone is incomplete, keep its managed terminal alive for future handoffs or re-run it after the configured loop interval.
-11. Continue until all tasks are archived, `dev-log.md` is current, `HANDOFF.md` is saved if pausing, and the user's goal is satisfied.
+4. Run `python scripts/taskboard.py --root . launch-probe ...` before choosing terminal vs native subagent startup; follow `recommended_backend`.
+5. Build the orchestration plan with `python scripts/taskboard_t0.py --goal "<user goal>" --root .`.
+6. Run `python scripts/taskboard_loop.py --root . --goal "<user goal>" --forever ...` as the T0 supervisor loop, creating or recovering managed role terminals when launch execution is enabled.
+7. Run `/taskboard-progress`.
+8. If there is no active milestone context, T1 creates or refreshes PROJECT/MAP/REQUIREMENTS/STATE and initial tasks.
+9. If queues exist, select the currently highest-priority role using **T0 next** below and nudge/resume that role with its durable target.
+10. After each role handoff, run `/taskboard-progress` again.
+11. If a role is idle but the milestone is incomplete, keep its managed terminal alive for future handoffs or re-run it after the configured loop interval.
+12. Continue until all tasks are archived, `dev-log.md` is current, `HANDOFF.md` is saved if pausing, and the user's goal is satisfied.
 
 ### T0 Liveness / Heartbeat Rules
 

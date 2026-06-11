@@ -122,6 +122,55 @@ class TaskboardCliTest(unittest.TestCase):
         self.assertIn("taskboard.py --root . cycle T3 --sleep-seconds 120", payload["next_cycle_command"])
         self.assertIn("empty queue is not completion", payload["boundary"])
 
+    def test_launch_probe_recommends_subagent_when_agent_spawn_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            _, stdout = self.run_cli(
+                root,
+                "launch-probe",
+                "--launcher",
+                "windows-terminal",
+                "--agent-template",
+                f'"{sys.executable}" --version',
+                "--agent-preflight-command",
+                (
+                    f'"{sys.executable}" -c '
+                    '"import sys; print(\'Failed to authenticate. API Error: 403 Request not allowed\'); sys.exit(7)"'
+                ),
+            )
+            payload = json.loads(stdout)
+
+        self.assertEqual(payload["kind"], "taskboard-launch-probe")
+        self.assertEqual(payload["state"], "spawn-refused")
+        self.assertEqual(payload["recommended_backend"], "subagent")
+        self.assertEqual(payload["agent_preflight"]["state"], "spawn-refused")
+        self.assertIn("API Error: 403", payload["agent_preflight"]["output"])
+        self.assertIn("native subagent", payload["user_action"])
+        self.assertIn("do not ask the user to manage T1/T2/T3", payload["boundary"])
+
+    def test_launch_probe_recommends_terminal_when_agent_preflight_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            _, stdout = self.run_cli(
+                root,
+                "launch-probe",
+                "--launcher",
+                "windows-terminal",
+                "--agent-template",
+                f'"{sys.executable}" --version',
+                "--agent-preflight-command",
+                f'"{sys.executable}" -c "print(\'ok\')"',
+            )
+            payload = json.loads(stdout)
+
+        self.assertEqual(payload["kind"], "taskboard-launch-probe")
+        self.assertEqual(payload["state"], "ready")
+        self.assertEqual(payload["recommended_backend"], "terminal")
+        self.assertEqual(payload["agent_preflight"]["state"], "passed")
+        self.assertIn("T0-managed terminal launcher", payload["user_action"])
+
     def test_stall_reports_old_task_without_writing_state(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

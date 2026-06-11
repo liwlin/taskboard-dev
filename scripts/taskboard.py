@@ -16,6 +16,7 @@ from typing import Optional
 from taskboard_completion import report_completion
 from taskboard_decide import record_decision
 from taskboard_health import report_health
+from taskboard_loop import validate_agent_preflight
 from taskboard_next import ROLE_PRIORITY, STATUS_RE, has_goal_complete_sentinel, select_task
 from taskboard_stopgates import report_stop_gates
 from taskboard_subagents import (
@@ -139,6 +140,87 @@ def cycle_payload(root: Path, role: str, sleep_seconds: int) -> dict[str, object
     }
 
 
+def launch_probe_payload(
+    root: Path,
+    launcher: str,
+    agent_template: str,
+    agent_preflight_enabled: bool,
+    agent_preflight_command: Optional[str],
+) -> dict[str, object]:
+    del root
+    try:
+        agent_preflight = validate_agent_preflight(
+            agent_template,
+            launcher != "none",
+            launcher,
+            agent_preflight_enabled,
+            agent_preflight_command,
+        )
+    except ValueError as exc:
+        agent_preflight = {
+            "enabled": agent_preflight_enabled,
+            "state": "config-error",
+            "reason": "agent-preflight-config-error",
+            "command": agent_preflight_command or agent_template or "",
+            "error": str(exc),
+        }
+        return {
+            "kind": "taskboard-launch-probe",
+            "state": "config-error",
+            "launcher": launcher,
+            "agent_preflight": agent_preflight,
+            "recommended_backend": "fix-config",
+            "reason": "agent-preflight-config-error",
+            "user_action": "Fix the T0 launcher or agent-template configuration before starting workers.",
+            "boundary": (
+                "T0 launch probe is read-only; fix T0 configuration, and do not ask "
+                "the user to manage T1/T2/T3 directly."
+            ),
+        }
+
+    preflight_state = str(agent_preflight.get("state") or "")
+    if preflight_state == "spawn-refused":
+        state = "spawn-refused"
+        recommended_backend = "subagent"
+        reason = "agent-preflight-spawn-refused"
+        user_action = (
+            "Use native subagent fallback for T1/T2/T3. If native subagents are "
+            "unavailable, generate a single T0-owned user terminal launcher."
+        )
+    elif preflight_state == "skipped":
+        state = "launch-disabled"
+        recommended_backend = "none"
+        reason = "launches-disabled"
+        user_action = "Launcher execution is disabled; keep this as a dry-run probe."
+    elif preflight_state == "disabled":
+        state = "unverified"
+        recommended_backend = "terminal"
+        reason = "agent-preflight-disabled"
+        user_action = (
+            "Use the T0-managed terminal launcher only if the operator intentionally "
+            "disabled preflight."
+        )
+    else:
+        state = "ready"
+        recommended_backend = "terminal"
+        reason = "agent-preflight-passed"
+        user_action = "Use the T0-managed terminal launcher for T1/T2/T3 worker loops."
+
+    return {
+        "kind": "taskboard-launch-probe",
+        "state": state,
+        "launcher": launcher,
+        "agent_preflight": agent_preflight,
+        "recommended_backend": recommended_backend,
+        "reason": reason,
+        "user_action": user_action,
+        "boundary": (
+            "T0 launch probe is read-only; T0 chooses the worker backend; do "
+            "not ask the user to manage T1/T2/T3 directly."
+        ),
+    }
+
+
 def parse_task_name(task_name: str) -> tuple[str, str, str]:
     match = STATUS_RE.match(task_name)
     if not match:
@@ -227,6 +309,12 @@ def build_parser() -> ArgumentParser:
     cycle_parser.add_argument("role", choices=("T1", "T2", "T3"))
     cycle_parser.add_argument("--sleep-seconds", type=int, default=120)
 
+    launch_probe_parser = subparsers.add_parser("launch-probe", help="Probe T0 worker backend readiness")
+    launch_probe_parser.add_argument("--launcher", default="windows-terminal")
+    launch_probe_parser.add_argument("--agent-template", default='codex --prompt-file "{target_file}"')
+    launch_probe_parser.add_argument("--agent-preflight-command")
+    launch_probe_parser.add_argument("--no-agent-preflight", action="store_true")
+
     decide_parser = subparsers.add_parser("decide", help="Record a T0 stop-gate decision")
     decide_parser.add_argument("task")
     decide_parser.add_argument("--answer", required=True)
@@ -269,6 +357,14 @@ def run(args) -> dict[str, object]:
         return alive_payload(root, args.role)
     if args.command == "cycle":
         return cycle_payload(root, args.role, args.sleep_seconds)
+    if args.command == "launch-probe":
+        return launch_probe_payload(
+            root,
+            args.launcher,
+            args.agent_template,
+            not args.no_agent_preflight,
+            args.agent_preflight_command,
+        )
     if args.command == "decide":
         return record_decision(root, args.answer, args.task, args.resume_status)
     if args.command == "move":
