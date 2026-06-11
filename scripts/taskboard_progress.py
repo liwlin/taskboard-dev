@@ -894,6 +894,10 @@ def report_progress(root: Path) -> dict[str, object]:
     state = str(latest_payload.get("state") or dispatch_payload.get("state") or "unknown")
     next_role = str(dispatch_payload.get("next_role") or "T0")
     task = str(dispatch_payload.get("task") or "none")
+    if bool(completion_audit.get("completion_ready")):
+        state = "complete"
+        next_role = "T0"
+        task = "none"
     assignment_state = str(assignment_payload.get("state") or "none")
     assignment_role = str(assignment_payload.get("role") or "")
     assignment_task = str(assignment_payload.get("task") or "none")

@@ -44,8 +44,15 @@ class TaskboardE2ESmokeTest(unittest.TestCase):
         self.assertEqual(payload["worker_cycle"]["task"], payload["first_dispatch"]["task"])
         self.assertEqual(payload["worker_heartbeat"]["assignment_id"], payload["acknowledged_assignment"]["expected_assignment_id"])
         self.assertEqual(payload["acknowledged_assignment"]["state"], "acknowledged")
-        self.assertEqual(payload["progress"]["assignment_state"], "acknowledged")
+        self.assertEqual(payload["completion"]["state"], "complete-ready")
+        self.assertTrue(payload["completion"]["completion_ready"])
+        self.assertGreaterEqual(payload["completion"]["archived_count"], 1)
+        self.assertEqual(payload["completion"]["missing_evidence"], [])
+        self.assertEqual(payload["final_dispatch"]["state"], "complete")
+        self.assertEqual(payload["progress"]["state"], "complete")
         self.assertIn("T0 progress reports the assignment as acknowledged", payload["evidence"])
+        self.assertIn("Completion audit reached complete-ready", payload["evidence"])
+        self.assertIn("T0 progress reports the goal as complete", payload["evidence"])
 
     def test_smoke_refuses_existing_docs_without_force(self):
         with tempfile.TemporaryDirectory() as tmp:

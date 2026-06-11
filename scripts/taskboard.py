@@ -196,7 +196,17 @@ def validate_status(status: str) -> None:
 
 def move_target_name(task_name: str, new_status: str) -> str:
     task_id, version, _ = parse_task_name(task_name)
+    if new_status.startswith("archive-"):
+        archive_status = new_status.removeprefix("archive-")
+        return f"{task_id}.v{version}.{archive_status}.md"
     return f"{task_id}.v{version}.{new_status}.md"
+
+
+def move_target_path(root: Path, source: Path, task_name: str, new_status: str) -> Path:
+    target_name = move_target_name(task_name, new_status)
+    if new_status.startswith("archive-"):
+        return taskboard_dir(root) / "archive" / target_name
+    return source.with_name(target_name)
 
 
 def append_history(root: Path, task_id: str, old_name: str, new_name: str, note: str) -> Path:
@@ -224,11 +234,12 @@ def move_payload(root: Path, task_name: str, new_status: str, note: str = "") ->
     source = taskboard_dir(root) / task_name
     if not source.exists():
         raise ValueError(f"task not found: {task_name}")
-    target_name = move_target_name(task_name, new_status)
-    target = source.with_name(target_name)
+    target = move_target_path(root, source, task_name, new_status)
+    target_name = target.name
     if target.exists():
         raise ValueError(f"move target already exists: {target_name}")
 
+    target.parent.mkdir(parents=True, exist_ok=True)
     source.rename(target)
     now = time.time()
     os.utime(target, (now, now))

@@ -9,7 +9,8 @@ import sys
 import tempfile
 from typing import Optional
 
-from taskboard import cycle_payload, status_payload
+from taskboard import cycle_payload, move_payload, status_payload
+from taskboard_completion import report_completion
 from taskboard_demo import GOAL as DEMO_GOAL, create_demo
 from taskboard_loop import default_event_log_file, default_state_file, run_loop
 from taskboard_progress import report_progress
@@ -53,6 +54,31 @@ def require(condition: bool, message: str) -> None:
         raise RuntimeError(message)
 
 
+def write_completion_evidence(root: Path, goal: str) -> list[dict[str, object]]:
+    taskboard = root / "docs" / "taskboard"
+    archived = []
+    for task in sorted(taskboard.glob("TASK-*.md")):
+        payload = move_payload(root, task.name, "archive-完成", "e2e smoke completed by managed worker")
+        archived.append(payload)
+
+    state = root / "docs" / "STATE.md"
+    existing_state = state.read_text(encoding="utf-8") if state.exists() else "# STATE\n"
+    state.write_text(existing_state.rstrip() + f"\n\n**Goal Complete**: yes\n\n- Smoke goal completed: {goal}\n", encoding="utf-8")
+
+    dev_log = root / "docs" / "dev-log.md"
+    existing_log = dev_log.read_text(encoding="utf-8") if dev_log.exists() else "# Development Log\n"
+    lines = [
+        existing_log.rstrip(),
+        "",
+        "## E2E Smoke Completion",
+        "",
+    ]
+    for item in archived:
+        lines.append(f"- {item['to']} completed and archived by managed worker simulation.")
+    dev_log.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    return archived
+
+
 def run_smoke(root: Path, goal: str, force: bool) -> dict[str, object]:
     root = root.resolve()
     demo = create_demo(root, force=force, with_heartbeats=False)
@@ -88,7 +114,16 @@ def run_smoke(root: Path, goal: str, force: bool) -> dict[str, object]:
     require(assignment.get("state") == "acknowledged", "T0 did not observe worker acknowledgement")
     require(assignment.get("expected_assignment_id") == assignment_id, "acknowledged assignment id mismatch")
 
+    archived_moves = write_completion_evidence(root, goal)
+    completion = report_completion(root)
+    require(bool(completion.get("completion_ready")), "T0 completion audit did not become complete-ready")
+    final = supervisor_once(root, goal)
+    final_dispatch = final.get("dispatch", {})
+    require(isinstance(final_dispatch, dict), "final T0 dispatch is missing")
+    require(final_dispatch.get("state") == "complete", "T0 did not enter complete state after completion evidence")
+
     progress = report_progress(root)
+    require(progress.get("state") == "complete", "T0 progress did not report complete state")
     status = status_payload(root, stale_minutes=30, goal=goal)
     return {
         "kind": "taskboard-e2e-smoke",
@@ -121,6 +156,19 @@ def run_smoke(root: Path, goal: str, force: bool) -> dict[str, object]:
             "expected_assignment_id": assignment.get("expected_assignment_id"),
             "reason": assignment.get("reason"),
         },
+        "completion": {
+            "state": completion.get("state"),
+            "completion_ready": completion.get("completion_ready"),
+            "archived_count": completion.get("archived_count"),
+            "archived_tasks": completion.get("archived_tasks"),
+            "missing_evidence": completion.get("missing_evidence"),
+        },
+        "final_dispatch": {
+            "state": final_dispatch.get("state"),
+            "next_role": final_dispatch.get("next_role"),
+            "task": final_dispatch.get("task"),
+            "reason": final_dispatch.get("reason"),
+        },
         "progress": {
             "state": progress.get("state"),
             "next_role": progress.get("next_role"),
@@ -134,12 +182,23 @@ def run_smoke(root: Path, goal: str, force: bool) -> dict[str, object]:
             "next": status.get("next"),
             "completion_ready": status.get("completion", {}).get("completion_ready"),
         },
+        "archived_moves": [
+            {
+                "from": item.get("from"),
+                "to": item.get("to"),
+                "to_status": item.get("to_status"),
+            }
+            for item in archived_moves
+        ],
         "evidence": [
             "T0 accepted one goal and selected a managed worker role",
             "T0 wrote isolated role target files",
             "Worker cycle selected the same task and refreshed liveness",
             "Worker heartbeat acknowledged the T0 assignment",
             "T0 progress reports the assignment as acknowledged",
+            "Managed worker simulation archived all active tasks",
+            "Completion audit reached complete-ready",
+            "T0 progress reports the goal as complete",
         ],
     }
 
@@ -148,6 +207,7 @@ def format_text(payload: dict[str, object]) -> str:
     first = payload["first_dispatch"]
     ack = payload["acknowledged_assignment"]
     progress = payload["progress"]
+    completion = payload["completion"]
     lines = [
         f"state={payload['state']}",
         f"root={payload['root']}",
@@ -155,6 +215,7 @@ def format_text(payload: dict[str, object]) -> str:
         f"first_dispatch={first['role']} {first['task']} target_files={first['target_file_count']}",
         f"worker_cycle_action={payload['worker_cycle']['action']}",
         f"acknowledged_assignment={ack['state']} {ack['role']} {ack['task']}",
+        f"completion={completion['state']} archived_count={completion['archived_count']}",
         f"progress_state={progress['state']}",
         f"progress_assignment_state={progress['assignment_state']}",
         f"user_action={progress['user_action']}",

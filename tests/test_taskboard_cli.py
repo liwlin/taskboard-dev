@@ -226,6 +226,28 @@ class TaskboardCliTest(unittest.TestCase):
         self.assertGreater(moved_mtime, old_time)
         self.assertIn("verified locally", history_text)
 
+    def test_move_archives_completed_task_under_archive_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            task = self.write_task(root, "TASK-001.v1.T2-待审核代码-L2.md")
+
+            _, stdout = self.run_cli(root, "move", task.name, "archive-完成", "--note", "T2 approved")
+            payload = json.loads(stdout)
+            archived = root / "docs" / "taskboard" / "archive" / "TASK-001.v1.完成.md"
+            active_archive_name = root / "docs" / "taskboard" / "TASK-001.v1.archive-完成.md"
+            history = root / "docs" / "taskboard" / "history" / "TASK-001.history.md"
+            archived_exists = archived.exists()
+            active_archive_exists = active_archive_name.exists()
+            history_text = history.read_text(encoding="utf-8") if history.exists() else ""
+
+        self.assertEqual(payload["kind"], "taskboard-move")
+        self.assertEqual(payload["from"], "TASK-001.v1.T2-待审核代码-L2.md")
+        self.assertEqual(payload["to"], "TASK-001.v1.完成.md")
+        self.assertEqual(payload["to_status"], "archive-完成")
+        self.assertTrue(archived_exists)
+        self.assertFalse(active_archive_exists)
+        self.assertIn("T2 approved", history_text)
+
     def test_move_rejects_fabricated_status_without_renaming(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
