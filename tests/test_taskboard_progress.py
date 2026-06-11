@@ -1532,6 +1532,7 @@ class TaskboardProgressTest(unittest.TestCase):
 
         self.assertEqual(progress["subagent_control_state"], "dispatch-next")
         self.assertEqual(progress["subagent_control_next_role"], "T1")
+        self.assertIn("subagent plan", progress["subagent_plan_command"])
         self.assertIn("subagent next", progress["subagent_next_command"])
         self.assertIn("subagent ack --role T1", progress["subagent_ack_command"])
         self.assertIn("--spawn-tool", progress["subagent_ack_command"])
@@ -1541,6 +1542,7 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertEqual(progress["subagent_retry_commands"], [])
         self.assertIn("subagent_control_state=dispatch-next", text)
         self.assertIn("subagent_control_next_role=T1", text)
+        self.assertIn("subagent_plan_command=", text)
         self.assertIn("subagent_next_command=", text)
 
     def test_progress_exposes_retry_commands_for_failed_subagents(self):

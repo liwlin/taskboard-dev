@@ -1201,6 +1201,89 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertIn("Startup skill gate", fallback["subagent_prompts"][0]["prompt"])
         self.assertIn("native subagent fallback", " ".join(payload["actions"]))
 
+    def test_loop_emits_subagent_control_plan_after_spawn_refusal(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            output = self.run_loop(
+                root,
+                "--goal",
+                "Ship demo",
+                "--iterations",
+                "1",
+                "--launcher",
+                "powershell",
+                "--agent-template",
+                f'"{sys.executable}" -c "print(123)" --prompt-file "{{target_file}}"',
+                "--agent-preflight-command",
+                (
+                    f'"{sys.executable}" -c '
+                    '"import sys; print(\'Failed to authenticate. API Error: 403 Request not allowed\'); sys.exit(7)"'
+                ),
+                "--execute-launches",
+            )
+            payload = output[0]
+            event_log = root / ".taskboard" / "t0" / "events.jsonl"
+            events = [
+                json.loads(line)
+                for line in event_log.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        control = payload["subagent_control"]
+        self.assertEqual(control["kind"], "taskboard-subagent-loop-control")
+        self.assertEqual(control["state"], "dispatch-next")
+        self.assertEqual(control["action"], "spawn-native-subagent")
+        self.assertEqual(control["role"], "T1")
+        self.assertRegex(control["prompt_hash"], r"^sha256:[0-9a-f]{64}$")
+        self.assertEqual(control["native_spawn"]["tool_hint"], "multi_agent_v1.spawn_agent")
+        self.assertEqual(payload["executed_commands"], [])
+        self.assertNotIn("manage T1/T2/T3", " ".join(payload["actions"]))
+        self.assertEqual(events[-1]["subagent_control_state"], "dispatch-next")
+        self.assertEqual(events[-1]["subagent_control_action"], "spawn-native-subagent")
+        self.assertEqual(events[-1]["subagent_control_role"], "T1")
+
+    def test_loop_records_injected_native_spawn_receipt_and_advances_subagent_plan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            payload = loop_module.run_once(
+                root,
+                "Ship demo",
+                30,
+                300,
+                "powershell",
+                f'"{sys.executable}" -c "print(123)" --prompt-file "{{target_file}}"',
+                True,
+                300,
+                loop_module.default_target_dir(root),
+                agent_preflight={
+                    "kind": "taskboard-agent-preflight",
+                    "state": "spawn-refused",
+                    "output": "Failed to authenticate. API Error: 403 Request not allowed",
+                },
+                native_spawn_result={
+                    "role": "T1",
+                    "agent_id": "019eb760-native-t1",
+                    "agent_nickname": "T1 architect child",
+                    "spawn_tool": "multi_agent_v1.spawn_agent",
+                    "note": "spawned by T0 loop bridge",
+                },
+            )
+            state = json.loads((root / ".taskboard" / "t0" / "subagents.json").read_text(encoding="utf-8"))
+
+        control = payload["subagent_control"]
+        self.assertEqual(control["state"], "dispatched")
+        self.assertEqual(control["action"], "recorded-native-spawn")
+        self.assertEqual(control["role"], "T1")
+        self.assertEqual(control["subagent_ack"]["record"]["spawn_receipt"]["spawn_tool"], "multi_agent_v1.spawn_agent")
+        self.assertEqual(control["subagent_next_plan"]["state"], "dispatch-next")
+        self.assertEqual(control["subagent_next_plan"]["role"], "T2")
+        self.assertEqual(state["roles"]["T1"]["status"], "dispatched")
+        self.assertEqual(state["roles"]["T1"]["agent_id"], "019eb760-native-t1")
+
     def test_loop_persists_interruption_recovery_state(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

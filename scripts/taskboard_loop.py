@@ -17,6 +17,7 @@ from typing import Optional
 from taskboard_health import report_health
 from taskboard_sessions import probe_sessions
 from taskboard_stopgates import report_stop_gates
+from taskboard_subagents import subagent_ack_payload, subagent_plan_payload
 from taskboard_t0 import (
     build_backend,
     build_launch_commands,
@@ -876,6 +877,7 @@ def run_once(
     agent_preflight: Optional[dict[str, object]] = None,
     checkout_owner_id: Optional[str] = None,
     checkout_owner_lease_seconds: int = 1800,
+    native_spawn_result: Optional[dict[str, object]] = None,
 ) -> dict[str, object]:
     launch_probe = build_launch_probe(launcher, agent_preflight)
     session_probe = probe_sessions(
@@ -1103,6 +1105,7 @@ def run_once(
     }
     if subagent_fallback:
         payload["subagent_fallback_packet"] = write_subagent_fallback_packet(root, goal, subagent_fallback)
+    payload["subagent_control"] = build_subagent_loop_control(root, native_spawn_result)
     if completion_audit_payload is not None:
         payload["completion_audit"] = completion_audit_payload
     return payload
@@ -1118,6 +1121,58 @@ def default_event_log_file(root: Path) -> Path:
 
 def default_subagent_fallback_file(root: Path) -> Path:
     return root / ".taskboard" / "t0" / "subagent-fallback.json"
+
+
+def build_subagent_loop_control(
+    root: Path,
+    native_spawn_result: Optional[dict[str, object]] = None,
+) -> dict[str, object]:
+    plan = subagent_plan_payload(root)
+    control = {
+        "kind": "taskboard-subagent-loop-control",
+        "state": str(plan.get("state") or ""),
+        "action": str(plan.get("action") or ""),
+        "role": str(plan.get("role") or ""),
+        "prompt_hash": str(plan.get("prompt_hash") or ""),
+        "native_spawn": plan.get("native_spawn", {}),
+        "subagent_plan": plan,
+        "subagent_ack": {},
+        "subagent_next_plan": {},
+        "boundary": (
+            "T0 loop owns native-subagent dispatch control. It may emit a spawn "
+            "plan or record an injected native spawn receipt, but it must not "
+            "fabricate agent ids or perform worker responsibilities."
+        ),
+    }
+    if (
+        str(plan.get("state") or "") != "dispatch-next"
+        or not isinstance(native_spawn_result, dict)
+        or not native_spawn_result
+    ):
+        return control
+
+    role = str(plan.get("role") or "")
+    result_role = str(native_spawn_result.get("role") or role).upper()
+    if result_role != role:
+        control["state"] = "spawn-receipt-mismatch"
+        control["action"] = "reject-native-spawn-receipt"
+        control["error"] = f"native spawn receipt role {result_role} does not match planned role {role}"
+        return control
+
+    ack = subagent_ack_payload(
+        root,
+        role,
+        str(native_spawn_result.get("agent_id") or ""),
+        str(native_spawn_result.get("note") or "spawned by T0 loop bridge"),
+        str(native_spawn_result.get("spawn_tool") or ""),
+        str(native_spawn_result.get("agent_nickname") or ""),
+    )
+    next_plan = subagent_plan_payload(root)
+    control["state"] = "dispatched"
+    control["action"] = "recorded-native-spawn"
+    control["subagent_ack"] = ack
+    control["subagent_next_plan"] = next_plan
+    return control
 
 
 def read_assignment_watch(state_file: Optional[Path]) -> dict[str, object]:
@@ -1487,6 +1542,8 @@ def append_event_log(
     subagent_prompt_list = subagent_prompts if isinstance(subagent_prompts, list) else []
     subagent_packet = payload.get("subagent_fallback_packet", {})
     subagent_packet_payload = subagent_packet if isinstance(subagent_packet, dict) else {}
+    subagent_control = payload.get("subagent_control", {})
+    subagent_control_payload = subagent_control if isinstance(subagent_control, dict) else {}
     launch_probe = payload.get("launch_probe", {})
     launch_probe_payload = launch_probe if isinstance(launch_probe, dict) else {}
     checkout_owner = payload.get("checkout_owner", {})
@@ -1544,6 +1601,10 @@ def append_event_log(
             for item in subagent_prompt_list
             if isinstance(item, dict) and item.get("role")
         ],
+        "subagent_control_state": str(subagent_control_payload.get("state") or ""),
+        "subagent_control_action": str(subagent_control_payload.get("action") or ""),
+        "subagent_control_role": str(subagent_control_payload.get("role") or ""),
+        "subagent_control_prompt_hash": str(subagent_control_payload.get("prompt_hash") or ""),
         "stalled_recovery_count": len(stalled_recovery_list),
         "stalled_recoveries": [
             {

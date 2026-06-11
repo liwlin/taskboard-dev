@@ -484,6 +484,7 @@ def build_subagent_control(
     return {
         "subagent_control_state": state,
         "subagent_control_next_role": next_role,
+        "subagent_plan_command": f"{base} plan" if fallback_available else "",
         "subagent_next_command": f"{base} next" if state == "dispatch-next" else "",
         "subagent_ack_command": (
             f'{base} ack --role {next_role} --agent-id "<agent id>" '
@@ -1158,6 +1159,7 @@ def format_text(payload: dict[str, object]) -> str:
         + ",".join(str(item) for item in payload.get("subagent_failed_roles", []) if item),
         f"subagent_control_state={payload.get('subagent_control_state', '')}",
         f"subagent_control_next_role={payload.get('subagent_control_next_role', '')}",
+        f"subagent_plan_command={payload.get('subagent_plan_command', '')}",
         f"subagent_next_command={payload.get('subagent_next_command', '')}",
         f"subagent_ack_command={payload.get('subagent_ack_command', '')}",
         f"subagent_done_command={payload.get('subagent_done_command', '')}",

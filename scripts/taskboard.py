@@ -22,6 +22,7 @@ from taskboard_stopgates import report_stop_gates
 from taskboard_subagents import (
     subagent_ack_payload,
     subagent_next_payload,
+    subagent_plan_payload,
     subagent_result_payload,
     subagent_retry_payload,
     subagent_status_payload,
@@ -300,6 +301,7 @@ def build_parser() -> ArgumentParser:
     subagent_subparsers = subagent_parser.add_subparsers(dest="subagent_command", required=True)
     subagent_subparsers.add_parser("status", help="Show native-subagent dispatch status")
     subagent_subparsers.add_parser("next", help="Return the next pending native-subagent prompt")
+    subagent_subparsers.add_parser("plan", help="Return the next T0 native-subagent control action")
     subagent_ack = subagent_subparsers.add_parser("ack", help="Record a native-subagent dispatch")
     subagent_ack.add_argument("--role", required=True)
     subagent_ack.add_argument("--agent-id", required=True)
@@ -347,6 +349,8 @@ def run(args) -> dict[str, object]:
             return subagent_status_payload(root)
         if args.subagent_command == "next":
             return subagent_next_payload(root)
+        if args.subagent_command == "plan":
+            return subagent_plan_payload(root)
         if args.subagent_command == "ack":
             return subagent_ack_payload(
                 root,

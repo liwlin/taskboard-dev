@@ -9,9 +9,9 @@ description: >
   /taskboard-dev T1, /taskboard-dev T2, or /taskboard-dev T3.
 ---
 
-# TASKBOARD-Driven Development v4.5.9
+# TASKBOARD-Driven Development v4.5.10
 
-T0-managed collaborative development. The user gives T0 one goal, and T0 manages the T1 architect/scheduler, T2 reviewer/verifier, and T3 executor loops until the goal is complete or a stop gate is hit. Status is still encoded in filenames. Polling still uses Glob with zero file content reads. The read-only context layer remains the cross-session memory. v4.5.9 keeps the v4 task file protocol, the compact `taskboard.py` CLI facade, completion/subagent/boundary smoke checks, checkout-owner launch guarding, live milestone acceptance, and a stricter T0 seeding boundary that forbids T0 from pre-filling REQ skeletons, priorities, interface signatures, task IDs, acceptance rows, or MAP risk sections.
+T0-managed collaborative development. The user gives T0 one goal, and T0 manages the T1 architect/scheduler, T2 reviewer/verifier, and T3 executor loops until the goal is complete or a stop gate is hit. Status is still encoded in filenames. Polling still uses Glob with zero file content reads. The read-only context layer remains the cross-session memory. v4.5.10 keeps the v4 task file protocol, the compact `taskboard.py` CLI facade, completion/subagent/boundary smoke checks, checkout-owner launch guarding, live milestone acceptance, native-subagent dispatch plans, and T0 loop subagent control receipts while preserving the stricter T0 seeding boundary that forbids T0 from pre-filling REQ skeletons, priorities, interface signatures, task IDs, acceptance rows, or MAP risk sections.
 
 ## Five Principles (non-negotiable)
 

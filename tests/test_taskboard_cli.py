@@ -319,6 +319,66 @@ class TaskboardCliTest(unittest.TestCase):
         self.assertIn("T1", state["roles"])
         self.assertIn("T0 records native subagent dispatch", state["boundary"])
 
+    def test_subagent_plan_returns_single_t0_dispatch_action(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write_subagent_packet(root)
+
+            _, stdout = self.run_cli(root, "subagent", "plan")
+            plan = json.loads(stdout)
+
+        self.assertEqual(plan["kind"], "taskboard-subagent-plan")
+        self.assertEqual(plan["state"], "dispatch-next")
+        self.assertEqual(plan["action"], "spawn-native-subagent")
+        self.assertEqual(plan["role"], "T1")
+        self.assertIn("references/role-t1.md", plan["prompt"])
+        self.assertRegex(plan["prompt_hash"], r"^sha256:[0-9a-f]{64}$")
+        self.assertEqual(plan["native_spawn"]["tool_hint"], "multi_agent_v1.spawn_agent")
+        self.assertEqual(plan["native_spawn"]["receipt_required"], True)
+        self.assertIn("subagent ack --role T1", plan["ack_command"])
+        self.assertIn("--spawn-tool", plan["ack_command"])
+        self.assertIn("--agent-nickname", plan["ack_command"])
+        self.assertIn("subagent done --role T1", plan["done_command"])
+        self.assertIn("subagent fail --role T1", plan["fail_command"])
+        self.assertIn("--require-spawn-evidence", plan["acceptance_command"])
+
+    def test_subagent_plan_surfaces_active_failed_and_complete_actions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write_subagent_packet(root)
+            self.run_cli(root, "subagent", "ack", "--role", "T1", "--agent-id", "agent-t1")
+            self.run_cli(root, "subagent", "ack", "--role", "T2", "--agent-id", "agent-t2")
+            self.run_cli(root, "subagent", "ack", "--role", "T3", "--agent-id", "agent-t3")
+
+            _, stdout = self.run_cli(root, "subagent", "plan")
+            active = json.loads(stdout)
+
+            self.run_cli(root, "subagent", "done", "--role", "T1", "--summary", "T1 done")
+            self.run_cli(root, "subagent", "fail", "--role", "T2", "--summary", "review timeout")
+            _, stdout = self.run_cli(root, "subagent", "plan")
+            failed = json.loads(stdout)
+
+            self.run_cli(root, "subagent", "retry", "--role", "T2", "--note", "retry")
+            self.run_cli(root, "subagent", "ack", "--role", "T2", "--agent-id", "agent-t2-retry")
+            self.run_cli(root, "subagent", "done", "--role", "T2", "--summary", "T2 done")
+            self.run_cli(root, "subagent", "done", "--role", "T3", "--summary", "T3 done")
+            _, stdout = self.run_cli(root, "subagent", "plan")
+            complete = json.loads(stdout)
+
+        self.assertEqual(active["state"], "await-results")
+        self.assertEqual(active["action"], "record-subagent-result")
+        self.assertEqual(active["role"], "T1")
+        self.assertEqual(active["ack_command"], "")
+        self.assertIn("subagent done --role T1", active["done_command"])
+        self.assertEqual(failed["state"], "retry-or-escalate")
+        self.assertEqual(failed["action"], "retry-failed-subagent")
+        self.assertEqual(failed["role"], "T2")
+        self.assertIn("subagent retry --role T2", failed["retry_command"])
+        self.assertEqual(complete["state"], "complete")
+        self.assertEqual(complete["action"], "run-acceptance")
+        self.assertEqual(complete["role"], "")
+        self.assertIn("taskboard_subagent_acceptance.py", complete["acceptance_command"])
+
     def test_subagent_done_and_fail_record_worker_results(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -115,6 +115,23 @@ def prompt_hash(prompt: str) -> str:
     return "sha256:" + hashlib.sha256(prompt.encode("utf-8")).hexdigest()
 
 
+def quote_cli_value(value: object) -> str:
+    text = str(value)
+    escaped = text.replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def subagent_command_base(root: Path) -> str:
+    return f"python scripts/taskboard.py --root {quote_cli_value(root)} subagent"
+
+
+def subagent_acceptance_command(root: Path) -> str:
+    return (
+        f"python scripts/taskboard_subagent_acceptance.py --root {quote_cli_value(root)} "
+        "--require-real-agent-ids --require-spawn-evidence"
+    )
+
+
 def dispatch_records(state: dict[str, object]) -> dict[str, dict[str, object]]:
     roles = state.get("roles", {})
     if not isinstance(roles, dict):
@@ -196,6 +213,103 @@ def subagent_next_payload(root: Path) -> dict[str, object]:
         "packet_file": str(packet.get("path") or default_subagent_fallback_file(root)),
         "boundary": DISPATCH_BOUNDARY,
     }
+
+
+def subagent_plan_payload(root: Path) -> dict[str, object]:
+    status = subagent_status_payload(root)
+    packet = read_subagent_fallback_packet(root)
+    prompt_role_list = [str(item) for item in status.get("prompt_roles", []) if str(item)]
+    pending_roles = [str(item) for item in status.get("pending_roles", []) if str(item)]
+    active_roles = [str(item) for item in status.get("active_roles", []) if str(item)]
+    completed_roles = [str(item) for item in status.get("completed_roles", []) if str(item)]
+    failed_roles = [str(item) for item in status.get("failed_roles", []) if str(item)]
+    base = subagent_command_base(root)
+    acceptance = subagent_acceptance_command(root)
+
+    plan: dict[str, object] = {
+        "kind": "taskboard-subagent-plan",
+        "packet_available": bool(status.get("packet_available")),
+        "packet_file": str(status.get("packet_file") or default_subagent_fallback_file(root)),
+        "state_file": str(default_subagent_dispatch_file(root)),
+        "prompt_roles": prompt_role_list,
+        "pending_roles": pending_roles,
+        "active_roles": active_roles,
+        "completed_roles": completed_roles,
+        "failed_roles": failed_roles,
+        "state": "idle",
+        "action": "none",
+        "role": "",
+        "prompt": "",
+        "prompt_hash": "",
+        "native_spawn": {},
+        "ack_command": "",
+        "done_command": "",
+        "fail_command": "",
+        "retry_command": "",
+        "acceptance_command": acceptance,
+        "boundary": (
+            "T0 subagent plan is a read-only dispatch recipe. T0 must call the "
+            "native subagent tool itself, then record ack/result receipts with "
+            "taskboard.py subagent commands."
+        ),
+    }
+
+    if not status.get("packet_available"):
+        plan["state"] = "missing-packet"
+        plan["action"] = "create-subagent-fallback-packet"
+        return plan
+
+    if failed_roles:
+        role = failed_roles[0]
+        plan["state"] = "retry-or-escalate"
+        plan["action"] = "retry-failed-subagent"
+        plan["role"] = role
+        plan["retry_command"] = f'{base} retry --role {role} --note "<retry reason>"'
+        return plan
+
+    if pending_roles:
+        role = pending_roles[0]
+        prompt = prompt_for_role(packet, role)
+        plan["state"] = "dispatch-next"
+        plan["action"] = "spawn-native-subagent"
+        plan["role"] = role
+        plan["prompt"] = prompt
+        plan["prompt_hash"] = prompt_hash(prompt)
+        plan["dispatch_order"] = prompt_role_list.index(role) + 1 if role in prompt_role_list else 0
+        plan["native_spawn"] = {
+            "tool_hint": "multi_agent_v1.spawn_agent",
+            "receipt_required": True,
+            "recorded_fields": [
+                "agent_id",
+                "agent_nickname",
+                "spawn_tool",
+                "prompt_hash",
+            ],
+            "prompt_field": "prompt",
+        }
+        plan["ack_command"] = (
+            f'{base} ack --role {role} --agent-id "<agent id>" '
+            f'--spawn-tool "<native spawn tool>" --agent-nickname "<agent nickname>"'
+        )
+        plan["done_command"] = f'{base} done --role {role} --summary "<result>"'
+        plan["fail_command"] = f'{base} fail --role {role} --summary "<failure>"'
+        return plan
+
+    if active_roles:
+        role = active_roles[0]
+        plan["state"] = "await-results"
+        plan["action"] = "record-subagent-result"
+        plan["role"] = role
+        plan["done_command"] = f'{base} done --role {role} --summary "<result>"'
+        plan["fail_command"] = f'{base} fail --role {role} --summary "<failure>"'
+        return plan
+
+    if prompt_role_list and set(completed_roles) >= set(prompt_role_list):
+        plan["state"] = "complete"
+        plan["action"] = "run-acceptance"
+        return plan
+
+    return plan
 
 
 def subagent_ack_payload(
