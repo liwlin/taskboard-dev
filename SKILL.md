@@ -9,9 +9,9 @@ description: >
   /taskboard-dev T1, /taskboard-dev T2, or /taskboard-dev T3.
 ---
 
-# TASKBOARD-Driven Development v4.4.4
+# TASKBOARD-Driven Development v4.5.0
 
-T0-managed collaborative development. The user gives T0 one goal, and T0 manages the T1 architect/scheduler, T2 reviewer/verifier, and T3 executor loops until the goal is complete or a stop gate is hit. Status is still encoded in filenames. Polling still uses Glob with zero file content reads. The read-only context layer remains the cross-session memory. v4.4.4 keeps the same task file protocol and T0 orchestration as v4.4, with patch-level fixes for managed-session spawn refusal recovery, required skills evidence, and T0 manager-only seeding boundaries.
+T0-managed collaborative development. The user gives T0 one goal, and T0 manages the T1 architect/scheduler, T2 reviewer/verifier, and T3 executor loops until the goal is complete or a stop gate is hit. Status is still encoded in filenames. Polling still uses Glob with zero file content reads. The read-only context layer remains the cross-session memory. v4.5.0 keeps the v4 task file protocol and adds a compact `taskboard.py` CLI facade for status, next, move, alive, stall, and decide while legacy scripts remain compatible.
 
 ## Five Principles (non-negotiable)
 

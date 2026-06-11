@@ -63,6 +63,25 @@ python scripts/taskboard_t0.py --goal "<user goal>" --root . --launcher powershe
 python scripts/taskboard_t0.py --goal "<user goal>" --root . --launcher tmux --agent-template 'codex --prompt "{target}"'
 ```
 
+### Compact Control-Plane CLI
+
+Prefer the v4.5 single CLI for deterministic board operations. Legacy scripts
+remain compatible, but T0 should use the compact surface when possible:
+
+```bash
+python scripts/taskboard.py --root . status
+python scripts/taskboard.py --root . next T0
+python scripts/taskboard.py --root . move TASK-001.v1.T3-待执行.md T3-待验证 --note "verified locally"
+python scripts/taskboard.py --root . alive T2
+python scripts/taskboard.py --root . stall --minutes 30
+python scripts/taskboard.py --root . decide TASK-001.v1.T1-待决策.md --answer "<user answer>"
+```
+
+`taskboard.py move` is the preferred status-transition operation because it
+validates the destination status, renames the task, appends history, and
+touches mtime in one command. Hand-written polling or fabricated statuses are
+T0 red flags.
+
 Launcher rules:
 
 - `scripts/taskboard_start.py --goal "<user goal>"` is the one-command T0 entry point and is the default user-facing entry for actual T0 supervision: it executes managed-role launch/recovery commands and keeps supervising until completion, a stop gate, a missing goal, a configuration error, or interruption. It defaults to `--launcher windows-terminal` and `codex --prompt-file "{target_file}"`. Use `--dry-run --iterations 1 --launcher none` only for short verification runs that must not open worker terminals.
@@ -162,20 +181,23 @@ Stop and re-route to T1 if T0 is about to say or do any of these:
 
 1. Capture or restate the user goal.
 2. Initialize `docs/taskboard/` if missing.
-3. Build the orchestration plan with `python scripts/taskboard_t0.py --goal "<user goal>" --root .`.
-4. Run `python scripts/taskboard_loop.py --root . --goal "<user goal>" --forever ...` as the T0 supervisor loop, creating or recovering managed role terminals when launch execution is enabled.
-5. Run `/taskboard-progress`.
-6. If there is no active milestone context, T1 creates or refreshes PROJECT/MAP/REQUIREMENTS/STATE and initial tasks.
-7. If queues exist, select the currently highest-priority role using **T0 next** below and nudge/resume that role with its durable target.
-8. After each role handoff, run `/taskboard-progress` again.
-9. If a role is idle but the milestone is incomplete, keep its managed terminal alive for future handoffs or re-run it after the configured loop interval.
-10. Continue until all tasks are archived, `dev-log.md` is current, `HANDOFF.md` is saved if pausing, and the user's goal is satisfied.
+3. Run `python scripts/taskboard.py --root . status` before each scheduling decision.
+4. Build the orchestration plan with `python scripts/taskboard_t0.py --goal "<user goal>" --root .`.
+5. Run `python scripts/taskboard_loop.py --root . --goal "<user goal>" --forever ...` as the T0 supervisor loop, creating or recovering managed role terminals when launch execution is enabled.
+6. Run `/taskboard-progress`.
+7. If there is no active milestone context, T1 creates or refreshes PROJECT/MAP/REQUIREMENTS/STATE and initial tasks.
+8. If queues exist, select the currently highest-priority role using **T0 next** below and nudge/resume that role with its durable target.
+9. After each role handoff, run `/taskboard-progress` again.
+10. If a role is idle but the milestone is incomplete, keep its managed terminal alive for future handoffs or re-run it after the configured loop interval.
+11. Continue until all tasks are archived, `dev-log.md` is current, `HANDOFF.md` is saved if pausing, and the user's goal is satisfied.
 
 ### T0 Liveness / Heartbeat Rules
 
 T0 uses lightweight filesystem signals, not a new database:
 
-- Run `python scripts/taskboard_health.py --root . --stale-minutes 30` to inspect active queues, stalled TASK files, next role, and wake/recovery actions.
+- Run `python scripts/taskboard.py --root . status` to inspect active queues, stop gates, completion evidence, stalled TASK files, next role, and wake/recovery actions.
+- Run `python scripts/taskboard.py --root . stall --minutes 30` for deterministic stalled-task detection; do not hand-roll polling.
+- Run `python scripts/taskboard_health.py --root . --stale-minutes 30` only as the legacy compatibility equivalent.
 - Run `python scripts/taskboard_sessions.py --root . probe --stale-seconds 300 --goal "<user goal>"` to detect missing or stale managed role loops before reissuing targets.
 - **Healthy**: a role reports progress, a task file mtime changes, a task status advances, or `dev-log.md` receives a completion entry.
 - **Idle**: a role queue is empty while other queues still have work. T0 keeps the role available and checks again after the loop interval.

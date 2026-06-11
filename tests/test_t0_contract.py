@@ -35,6 +35,7 @@ class T0ContractTest(unittest.TestCase):
 
         self.assertIn('mkdir -p "$STAGE_DIR/references" "$STAGE_DIR/scripts"', package_script)
         self.assertIn('cp "$ROOT_DIR/scripts/package.sh"', package_script)
+        self.assertIn('cp "$ROOT_DIR/scripts/taskboard.py"', package_script)
         self.assertIn('cp "$ROOT_DIR/scripts/taskboard_start.py"', package_script)
         self.assertIn('cp "$ROOT_DIR/scripts/taskboard_t0.py"', package_script)
         self.assertIn('cp "$ROOT_DIR/scripts/taskboard_loop.py"', package_script)
@@ -200,6 +201,9 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("--launcher windows-terminal", readme)
         self.assertIn("python scripts/taskboard_demo.py --root .taskboard-demo --with-heartbeats", readme)
         self.assertIn("python scripts/taskboard_start.py --goal", readme)
+        self.assertIn("python scripts/taskboard.py --root . status", readme)
+        self.assertIn("python scripts/taskboard.py --root . move", readme)
+        self.assertIn("非法状态", readme)
         self.assertIn("--dry-run", readme)
         self.assertIn("auto_mode", readme)
         self.assertIn("starter_mode", readme)

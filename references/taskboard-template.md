@@ -1,4 +1,4 @@
-# TASKBOARD v4.4.4 Templates
+# TASKBOARD v4.5.0 Templates
 
 ## Directory Structure (auto-generated on first run)
 
@@ -51,6 +51,12 @@ T0 is the preferred user-facing entry point. Users give goals to T0; T0 manages 
 Use these entries from the project root. They are T0 control-plane tools; they must not make the user manage T1/T2/T3 directly.
 
 ```bash
+python scripts/taskboard.py --root . status
+python scripts/taskboard.py --root . next T0
+python scripts/taskboard.py --root . move TASK-001.v1.T3-待执行.md T3-待验证 --note "verified locally"
+python scripts/taskboard.py --root . alive T2
+python scripts/taskboard.py --root . stall --minutes 30
+python scripts/taskboard.py --root . decide TASK-001.v1.T1-待决策.md --answer "<user answer>"
 python scripts/taskboard_start.py --goal "<user goal>"
 python scripts/taskboard_start.py --goal "<user goal>" --dry-run --iterations 1 --launcher none
 python scripts/taskboard_progress.py --root .
@@ -61,6 +67,9 @@ python scripts/taskboard_decide.py --root . --decision "<user answer>"
 python scripts/taskboard_health.py --root . --stale-minutes 30
 python scripts/taskboard_sessions.py --root . probe --stale-seconds 300
 ```
+
+`taskboard.py` is the preferred v4.5 compact CLI. The older scripts remain
+available for compatibility and for the T0 supervisor loop internals.
 
 T0 runtime files:
 
