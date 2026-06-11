@@ -18,7 +18,12 @@ from taskboard_decide import record_decision
 from taskboard_health import report_health
 from taskboard_next import ROLE_PRIORITY, STATUS_RE, select_task
 from taskboard_stopgates import report_stop_gates
-from taskboard_subagents import subagent_ack_payload, subagent_next_payload, subagent_status_payload
+from taskboard_subagents import (
+    subagent_ack_payload,
+    subagent_next_payload,
+    subagent_result_payload,
+    subagent_status_payload,
+)
 
 
 VALID_ROLES = {"T0", "T1", "T2", "T3"}
@@ -201,6 +206,12 @@ def build_parser() -> ArgumentParser:
     subagent_ack.add_argument("--role", required=True)
     subagent_ack.add_argument("--agent-id", required=True)
     subagent_ack.add_argument("--note", default="")
+    subagent_done = subagent_subparsers.add_parser("done", help="Record a completed native subagent")
+    subagent_done.add_argument("--role", required=True)
+    subagent_done.add_argument("--summary", default="")
+    subagent_fail = subagent_subparsers.add_parser("fail", help="Record a failed native subagent")
+    subagent_fail.add_argument("--role", required=True)
+    subagent_fail.add_argument("--summary", default="")
     return parser
 
 
@@ -225,6 +236,10 @@ def run(args) -> dict[str, object]:
             return subagent_next_payload(root)
         if args.subagent_command == "ack":
             return subagent_ack_payload(root, args.role, args.agent_id, args.note)
+        if args.subagent_command == "done":
+            return subagent_result_payload(root, args.role, "completed", args.summary)
+        if args.subagent_command == "fail":
+            return subagent_result_payload(root, args.role, "failed", args.summary)
     raise ValueError(f"unknown command: {args.command}")
 
 

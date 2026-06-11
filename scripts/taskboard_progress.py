@@ -447,6 +447,15 @@ def report_progress(root: Path) -> dict[str, object]:
     subagent_pending_roles = [
         str(item) for item in subagent_dispatch.get("pending_roles", []) if str(item)
     ]
+    subagent_active_roles = [
+        str(item) for item in subagent_dispatch.get("active_roles", []) if str(item)
+    ]
+    subagent_completed_roles = [
+        str(item) for item in subagent_dispatch.get("completed_roles", []) if str(item)
+    ]
+    subagent_failed_roles = [
+        str(item) for item in subagent_dispatch.get("failed_roles", []) if str(item)
+    ]
     subagent_dispatch_records = subagent_dispatch.get("records", {})
     if not isinstance(subagent_dispatch_records, dict):
         subagent_dispatch_records = {}
@@ -650,6 +659,9 @@ def report_progress(root: Path) -> dict[str, object]:
             "subagent_dispatch_state_file": str(subagent_dispatch.get("state_file") or ""),
             "subagent_dispatched_roles": subagent_dispatched_roles,
             "subagent_pending_roles": subagent_pending_roles,
+            "subagent_active_roles": subagent_active_roles,
+            "subagent_completed_roles": subagent_completed_roles,
+            "subagent_failed_roles": subagent_failed_roles,
             "subagent_dispatch_records": subagent_dispatch_records,
             "stalled_recoveries": latest_event_stalled_recoveries,
             "stalled_recovery_count": latest_event_stalled_recovery_count,
@@ -854,6 +866,9 @@ def report_progress(root: Path) -> dict[str, object]:
         "subagent_dispatch_state_file": str(subagent_dispatch.get("state_file") or ""),
         "subagent_dispatched_roles": subagent_dispatched_roles,
         "subagent_pending_roles": subagent_pending_roles,
+        "subagent_active_roles": subagent_active_roles,
+        "subagent_completed_roles": subagent_completed_roles,
+        "subagent_failed_roles": subagent_failed_roles,
         "subagent_dispatch_records": subagent_dispatch_records,
         "suppressed_launches": suppressed_launch_list,
         "suppressed_launch_count": len(suppressed_launch_list),
@@ -982,6 +997,12 @@ def format_text(payload: dict[str, object]) -> str:
         + ",".join(str(item) for item in payload.get("subagent_dispatched_roles", []) if item),
         "subagent_pending_roles="
         + ",".join(str(item) for item in payload.get("subagent_pending_roles", []) if item),
+        "subagent_active_roles="
+        + ",".join(str(item) for item in payload.get("subagent_active_roles", []) if item),
+        "subagent_completed_roles="
+        + ",".join(str(item) for item in payload.get("subagent_completed_roles", []) if item),
+        "subagent_failed_roles="
+        + ",".join(str(item) for item in payload.get("subagent_failed_roles", []) if item),
         f"latest_event_subagent_fallback_available={latest_event_payload.get('subagent_fallback_available', False)}",
         f"stalled_recovery_count={payload.get('stalled_recovery_count', 0)}",
         f"latest_event_completion_ready={latest_event_payload.get('completion_ready', '')}",

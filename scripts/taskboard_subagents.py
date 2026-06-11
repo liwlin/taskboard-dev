@@ -119,6 +119,9 @@ def subagent_status_payload(root: Path) -> dict[str, object]:
     records = dispatch_records(state)
     roles = prompt_roles(packet)
     dispatched = [role for role in roles if role in records]
+    active = [role for role in dispatched if str(records[role].get("status") or "") == "dispatched"]
+    completed = [role for role in dispatched if str(records[role].get("status") or "") == "completed"]
+    failed = [role for role in dispatched if str(records[role].get("status") or "") == "failed"]
     pending = [role for role in roles if role not in records]
     return {
         "kind": "taskboard-subagent-dispatch",
@@ -128,6 +131,9 @@ def subagent_status_payload(root: Path) -> dict[str, object]:
         "prompt_roles": roles,
         "pending_roles": pending,
         "dispatched_roles": dispatched,
+        "active_roles": active,
+        "completed_roles": completed,
+        "failed_roles": failed,
         "records": records,
         "boundary": DISPATCH_BOUNDARY,
     }
@@ -201,6 +207,37 @@ def subagent_ack_payload(root: Path, role: str, agent_id: str, note: str = "") -
     write_subagent_dispatch_state(root, state)
     return {
         "kind": "taskboard-subagent-ack",
+        "record": record,
+        "state_file": str(default_subagent_dispatch_file(root)),
+        "boundary": DISPATCH_BOUNDARY,
+    }
+
+
+def subagent_result_payload(root: Path, role: str, status: str, summary: str = "") -> dict[str, object]:
+    normalized_role = role.upper()
+    if normalized_role not in SUBAGENT_ROLES:
+        raise ValueError(f"invalid subagent role: {role}")
+    if status not in {"completed", "failed"}:
+        raise ValueError(f"invalid subagent result status: {status}")
+
+    state = read_subagent_dispatch_state(root)
+    roles = state.get("roles", {})
+    role_records = roles if isinstance(roles, dict) else {}
+    existing = role_records.get(normalized_role)
+    if not isinstance(existing, dict):
+        raise ValueError(f"subagent dispatch is not acknowledged for role: {normalized_role}")
+
+    record = dict(existing)
+    record["role"] = normalized_role
+    record["status"] = status
+    record["summary"] = summary.strip()
+    timestamp_key = "completed_at" if status == "completed" else "failed_at"
+    record[timestamp_key] = utc_now()
+    role_records[normalized_role] = record
+    state["roles"] = role_records
+    write_subagent_dispatch_state(root, state)
+    return {
+        "kind": "taskboard-subagent-result",
         "record": record,
         "state_file": str(default_subagent_dispatch_file(root)),
         "boundary": DISPATCH_BOUNDARY,

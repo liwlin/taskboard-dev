@@ -215,6 +215,48 @@ class TaskboardCliTest(unittest.TestCase):
         self.assertIn("T1", state["roles"])
         self.assertIn("T0 records native subagent dispatch", state["boundary"])
 
+    def test_subagent_done_and_fail_record_worker_results(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write_subagent_packet(root)
+            self.run_cli(root, "subagent", "ack", "--role", "T1", "--agent-id", "agent-t1")
+            self.run_cli(root, "subagent", "ack", "--role", "T2", "--agent-id", "agent-t2")
+
+            _, stdout = self.run_cli(
+                root,
+                "subagent",
+                "done",
+                "--role",
+                "T1",
+                "--summary",
+                "T1 created TASK files",
+            )
+            done = json.loads(stdout)
+            _, stdout = self.run_cli(
+                root,
+                "subagent",
+                "fail",
+                "--role",
+                "T2",
+                "--summary",
+                "review tool unavailable",
+            )
+            failed = json.loads(stdout)
+            _, stdout = self.run_cli(root, "subagent", "status")
+            status = json.loads(stdout)
+
+        self.assertEqual(done["kind"], "taskboard-subagent-result")
+        self.assertEqual(done["record"]["status"], "completed")
+        self.assertEqual(done["record"]["summary"], "T1 created TASK files")
+        self.assertEqual(failed["record"]["status"], "failed")
+        self.assertEqual(failed["record"]["summary"], "review tool unavailable")
+        self.assertEqual(status["completed_roles"], ["T1"])
+        self.assertEqual(status["failed_roles"], ["T2"])
+        self.assertEqual(status["active_roles"], [])
+        self.assertEqual(status["pending_roles"], ["T3"])
+        self.assertIn("completed_at", status["records"]["T1"])
+        self.assertIn("failed_at", status["records"]["T2"])
+
 
 if __name__ == "__main__":
     unittest.main()
