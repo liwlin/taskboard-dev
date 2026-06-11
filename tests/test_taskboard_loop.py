@@ -1106,6 +1106,14 @@ class TaskboardLoopTest(unittest.TestCase):
         launch_role_text.encode("ascii")
         self.assertIn("taskboard-T1", open_tabs_text)
         self.assertIn("Run the generated user-owned Windows Terminal script", " ".join(payload["actions"]))
+        fallback = payload["subagent_fallback"]
+        self.assertEqual(fallback["kind"], "taskboard-subagent-fallback")
+        self.assertEqual(fallback["backend"]["kind"], "taskboard-subagent-backend")
+        self.assertEqual(len(fallback["subagent_prompts"]), 3)
+        self.assertIn("references/role-t1.md", fallback["subagent_prompts"][0]["prompt"])
+        self.assertIn("Do not inherit T0 private reasoning", fallback["subagent_prompts"][0]["prompt"])
+        self.assertIn("Startup skill gate", fallback["subagent_prompts"][0]["prompt"])
+        self.assertIn("native subagent fallback", " ".join(payload["actions"]))
 
     def test_loop_persists_interruption_recovery_state(self):
         with tempfile.TemporaryDirectory() as tmp:

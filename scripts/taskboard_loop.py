@@ -16,7 +16,9 @@ from taskboard_health import report_health
 from taskboard_sessions import probe_sessions
 from taskboard_stopgates import report_stop_gates
 from taskboard_t0 import (
+    build_backend,
     build_launch_commands,
+    build_subagent_prompts,
     default_target_dir,
     dispatch,
     write_manual_windows_launch_scripts,
@@ -319,6 +321,33 @@ def stalled_recovery_sessions(
     ]
 
 
+def build_subagent_fallback(
+    dispatch_plan: dict[str, object],
+    source_sessions: list[dict[str, str]],
+    reason: str,
+) -> dict[str, object]:
+    sessions = source_sessions
+    if not sessions:
+        raw_sessions = dispatch_plan.get("managed_sessions", [])
+        sessions = [item for item in raw_sessions if isinstance(item, dict)] if isinstance(raw_sessions, list) else []
+    if not sessions:
+        return {}
+
+    manifest = dispatch_plan.get("session_manifest", {})
+    raw_recovery_order = manifest.get("recovery_order", []) if isinstance(manifest, dict) else []
+    recovery_order = [str(role) for role in raw_recovery_order if str(role)]
+    return {
+        "kind": "taskboard-subagent-fallback",
+        "reason": reason,
+        "backend": build_backend("subagent"),
+        "subagent_prompts": build_subagent_prompts(sessions, recovery_order),
+        "boundary": (
+            "T0 may dispatch these prompts to native isolated subagents; "
+            "do not share T0 or worker chat context."
+        ),
+    }
+
+
 def dedupe_commands(commands: list[str]) -> list[str]:
     deduped: list[str] = []
     for command in commands:
@@ -339,6 +368,7 @@ def build_actions(
     fallback_launch_attempts: Optional[list[dict[str, object]]] = None,
     stalled_recovery_items: Optional[list[dict[str, object]]] = None,
     manual_launch_files: Optional[dict[str, object]] = None,
+    subagent_fallback: Optional[dict[str, object]] = None,
 ) -> list[str]:
     actions: list[str] = []
     launch_failure_count = 0
@@ -417,6 +447,11 @@ def build_actions(
         actions.append(
             "Run the generated user-owned Windows Terminal script for managed worker launch; "
             f"this is one T0-directed startup action, not manual T1/T2/T3 management: {user_command}"
+        )
+    if subagent_fallback:
+        actions.append(
+            "native subagent fallback available for managed T1/T2/T3 startup; "
+            "T0 may dispatch subagent_prompts instead of asking the user to manage workers."
         )
 
     deduped: list[str] = []
@@ -758,12 +793,18 @@ def run_once(
     )
     launch_state_payload = launch_state if launch_state is not None else read_launch_state(root)
     manual_launch_files: dict[str, object] = {}
+    subagent_fallback: dict[str, object] = {}
     preflight_spawn_refused = bool(
         isinstance(agent_preflight, dict) and agent_preflight.get("state") == "spawn-refused"
     )
     if execute_launches and preflight_spawn_refused:
         source_sessions = assignment_recovery_session_list or stalled_recovery_session_list or fallback_source_sessions(
             session_probe, dispatch_plan, used_recovery_commands
+        )
+        subagent_fallback = build_subagent_fallback(
+            dispatch_plan,
+            source_sessions,
+            "agent-preflight-spawn-refused",
         )
         manual_launch_files = write_manual_windows_launch_scripts(
             root,
@@ -803,6 +844,11 @@ def run_once(
     if execute_launches and any(launch_failure_is_spawn_refusal(item) for item in executed_commands):
         source_sessions = assignment_recovery_session_list or stalled_recovery_session_list or fallback_source_sessions(
             session_probe, dispatch_plan, used_recovery_commands
+        )
+        subagent_fallback = build_subagent_fallback(
+            dispatch_plan,
+            source_sessions,
+            "managed-child-process-spawn-refused",
         )
         manual_launch_files = write_manual_windows_launch_scripts(
             root,
@@ -859,9 +905,11 @@ def run_once(
             fallback_attempts,
             stalled_recovery_list,
             manual_launch_files,
+            subagent_fallback,
         ),
         "fallback_launch_attempts": fallback_attempts,
         "manual_launch_files": manual_launch_files,
+        "subagent_fallback": subagent_fallback,
         "assignment_watch": json.loads(json.dumps(assignment_watch_payload, ensure_ascii=False)),
         "agent_preflight": agent_preflight or {},
     }
