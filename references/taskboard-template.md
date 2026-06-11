@@ -57,6 +57,9 @@ python scripts/taskboard.py --root . move TASK-001.v1.T3-待执行.md T3-待验�
 python scripts/taskboard.py --root . alive T2
 python scripts/taskboard.py --root . stall --minutes 30
 python scripts/taskboard.py --root . decide TASK-001.v1.T1-待决策.md --answer "<user answer>"
+python scripts/taskboard.py --root . subagent status
+python scripts/taskboard.py --root . subagent next
+python scripts/taskboard.py --root . subagent ack --role T1 --agent-id "<agent id>"
 python scripts/taskboard_start.py --goal "<user goal>"
 python scripts/taskboard_start.py --goal "<user goal>" --dry-run --iterations 1 --launcher none
 python scripts/taskboard_progress.py --root .
@@ -82,6 +85,8 @@ T0 runtime files:
 - `.taskboard/t0/latest.json`: latest `taskboard-t0-supervisor-state` snapshot with `resume_config`.
 - `.taskboard/t0/events.jsonl`: append-only `taskboard-t0-supervisor-event` audit log.
 - `.taskboard/t0/launches.json`: launch lease state that prevents duplicate managed terminals.
+- `.taskboard/t0/subagent-fallback.json`: recoverable prompts for isolated native subagent fallback.
+- `.taskboard/t0/subagents.json`: T0 native-subagent dispatch ack state (`pending_roles` / `dispatched_roles`).
 - `.taskboard/targets/taskboard-T1.md`, `.taskboard/targets/taskboard-T2.md`, `.taskboard/targets/taskboard-T3.md`: isolated role inbox files written by T0.
 
 Current v4.4 recovery rules:
@@ -92,6 +97,7 @@ Current v4.4 recovery rules:
 - Stop gates are aggregated through T0: progress exposes `decision_command`, and `taskboard_decide.py` records the user's answer before T1 continues.
 - Completion is gated by empty active queues, `STATE.md` goal-complete sentinel, archived TASK evidence, and dev-log completion evidence.
 - Assignment lease expiry, pending-ack timeout, stalled TASK detection, launch lease suppression, launcher failures, and fallback launchers are handled inside T0; user action should remain T0-level.
+- Native subagent fallback is also handled inside T0: T0 uses `taskboard.py subagent next`, dispatches the returned prompt through the current client's native subagent tool, and records the agent id with `taskboard.py subagent ack` so restarts continue pending roles instead of asking the user to manage T1/T2/T3.
 
 ---
 

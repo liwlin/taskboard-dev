@@ -18,6 +18,7 @@ from taskboard_decide import record_decision
 from taskboard_health import report_health
 from taskboard_next import ROLE_PRIORITY, STATUS_RE, select_task
 from taskboard_stopgates import report_stop_gates
+from taskboard_subagents import subagent_ack_payload, subagent_next_payload, subagent_status_payload
 
 
 VALID_ROLES = {"T0", "T1", "T2", "T3"}
@@ -191,6 +192,15 @@ def build_parser() -> ArgumentParser:
     move_parser.add_argument("task")
     move_parser.add_argument("status")
     move_parser.add_argument("--note", default="")
+
+    subagent_parser = subparsers.add_parser("subagent", help="Manage T0 native-subagent dispatch records")
+    subagent_subparsers = subagent_parser.add_subparsers(dest="subagent_command", required=True)
+    subagent_subparsers.add_parser("status", help="Show native-subagent dispatch status")
+    subagent_subparsers.add_parser("next", help="Return the next pending native-subagent prompt")
+    subagent_ack = subagent_subparsers.add_parser("ack", help="Record a native-subagent dispatch")
+    subagent_ack.add_argument("--role", required=True)
+    subagent_ack.add_argument("--agent-id", required=True)
+    subagent_ack.add_argument("--note", default="")
     return parser
 
 
@@ -208,6 +218,13 @@ def run(args) -> dict[str, object]:
         return record_decision(root, args.answer, args.task, args.resume_status)
     if args.command == "move":
         return move_payload(root, args.task, args.status, args.note)
+    if args.command == "subagent":
+        if args.subagent_command == "status":
+            return subagent_status_payload(root)
+        if args.subagent_command == "next":
+            return subagent_next_payload(root)
+        if args.subagent_command == "ack":
+            return subagent_ack_payload(root, args.role, args.agent_id, args.note)
     raise ValueError(f"unknown command: {args.command}")
 
 

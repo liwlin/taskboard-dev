@@ -28,6 +28,7 @@ cp "$ROOT_DIR/scripts/taskboard_completion.py" "$STAGE_DIR/scripts/taskboard_com
 cp "$ROOT_DIR/scripts/taskboard_progress.py" "$STAGE_DIR/scripts/taskboard_progress.py"
 cp "$ROOT_DIR/scripts/taskboard_watchdog.py" "$STAGE_DIR/scripts/taskboard_watchdog.py"
 cp "$ROOT_DIR/scripts/taskboard_stopgates.py" "$STAGE_DIR/scripts/taskboard_stopgates.py"
+cp "$ROOT_DIR/scripts/taskboard_subagents.py" "$STAGE_DIR/scripts/taskboard_subagents.py"
 cp "$ROOT_DIR/scripts/taskboard_decide.py" "$STAGE_DIR/scripts/taskboard_decide.py"
 cp "$ROOT_DIR/scripts/taskboard_health.py" "$STAGE_DIR/scripts/taskboard_health.py"
 cp "$ROOT_DIR/scripts/taskboard_sessions.py" "$STAGE_DIR/scripts/taskboard_sessions.py"

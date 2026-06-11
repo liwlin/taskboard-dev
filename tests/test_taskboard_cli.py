@@ -35,6 +35,28 @@ class TaskboardCliTest(unittest.TestCase):
         path.write_text(text, encoding="utf-8")
         return path
 
+    def write_subagent_packet(self, root: Path) -> Path:
+        t0_dir = root / ".taskboard" / "t0"
+        t0_dir.mkdir(parents=True, exist_ok=True)
+        packet = {
+            "kind": "taskboard-subagent-fallback-packet",
+            "version": 1,
+            "subagent_prompt_count": 3,
+            "subagent_prompt_roles": ["T1", "T2", "T3"],
+            "subagent_fallback": {
+                "kind": "taskboard-subagent-fallback",
+                "reason": "agent-preflight-spawn-refused",
+                "subagent_prompts": [
+                    {"role": "T1", "prompt": "T1 prompt: read SKILL.md and references/role-t1.md"},
+                    {"role": "T2", "prompt": "T2 prompt: read SKILL.md and references/role-t2.md"},
+                    {"role": "T3", "prompt": "T3 prompt: read SKILL.md and references/role-t3.md"},
+                ],
+            },
+        }
+        path = t0_dir / "subagent-fallback.json"
+        path.write_text(json.dumps(packet), encoding="utf-8")
+        return path
+
     def test_next_selects_t0_priority_task(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -145,6 +167,53 @@ class TaskboardCliTest(unittest.TestCase):
         self.assertIn("invalid status", stdout)
         self.assertTrue(original_exists)
         self.assertFalse(fabricated_exists)
+
+    def test_subagent_status_next_and_ack_track_native_dispatch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            packet = self.write_subagent_packet(root)
+
+            _, stdout = self.run_cli(root, "subagent", "status")
+            initial = json.loads(stdout)
+            _, stdout = self.run_cli(root, "subagent", "next")
+            next_item = json.loads(stdout)
+            _, stdout = self.run_cli(
+                root,
+                "subagent",
+                "ack",
+                "--role",
+                "T1",
+                "--agent-id",
+                "019eb5de-749f-79c2-a355-7fb95d946c99",
+                "--note",
+                "spawned by T0 native subagent tool",
+            )
+            ack = json.loads(stdout)
+            _, stdout = self.run_cli(root, "subagent", "status")
+            after_ack = json.loads(stdout)
+            _, stdout = self.run_cli(root, "subagent", "next")
+            next_after_ack = json.loads(stdout)
+            state_file = root / ".taskboard" / "t0" / "subagents.json"
+            state = json.loads(state_file.read_text(encoding="utf-8"))
+
+        self.assertEqual(initial["kind"], "taskboard-subagent-dispatch")
+        self.assertTrue(initial["packet_available"])
+        self.assertEqual(initial["packet_file"], str(packet))
+        self.assertEqual(initial["prompt_roles"], ["T1", "T2", "T3"])
+        self.assertEqual(initial["pending_roles"], ["T1", "T2", "T3"])
+        self.assertEqual(initial["dispatched_roles"], [])
+        self.assertEqual(next_item["kind"], "taskboard-subagent-next")
+        self.assertEqual(next_item["role"], "T1")
+        self.assertIn("references/role-t1.md", next_item["prompt"])
+        self.assertEqual(ack["kind"], "taskboard-subagent-ack")
+        self.assertEqual(ack["record"]["role"], "T1")
+        self.assertEqual(ack["record"]["agent_id"], "019eb5de-749f-79c2-a355-7fb95d946c99")
+        self.assertEqual(after_ack["pending_roles"], ["T2", "T3"])
+        self.assertEqual(after_ack["dispatched_roles"], ["T1"])
+        self.assertEqual(next_after_ack["role"], "T2")
+        self.assertEqual(state["kind"], "taskboard-subagent-dispatch-state")
+        self.assertIn("T1", state["roles"])
+        self.assertIn("T0 records native subagent dispatch", state["boundary"])
 
 
 if __name__ == "__main__":
