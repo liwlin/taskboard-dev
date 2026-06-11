@@ -19,6 +19,7 @@ T0 is manager-only. It must not directly execute development tasks. Design belon
 **T0 MAY** (normal work):
 - Ask the user for the goal at the start of a milestone, then convert it into durable T1/T2/T3 role targets.
 - Create only a goal intake packet when no T1 session exists yet: restate the user goal, constraints, non-goals, source material, and known stop gates. Route requirement decomposition, architecture options, interface design, task splitting, and context-file authorship to T1.
+- `taskboard_t0.py` exposes this as machine-readable `goal_intake` with `kind=taskboard-t0-goal-intake`, `next_owner=T1`, allowed intake fields, and forbidden fields such as `requirements`, `architecture`, `task_splits`, and `acceptance_criteria`. Treat any missing or contradictory goal-intake boundary as a T0 seeding defect.
 - Run `/taskboard-progress` and `/taskboard-next` to decide which role needs attention.
 - Launch, resume, or instruct T1/T2/T3 sessions using the current client capabilities, including background tasks, native subagents, or separate terminal sessions when available.
 - Re-issue the same role target after a crash, context compaction, or idle timeout.

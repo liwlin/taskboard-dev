@@ -183,6 +183,8 @@ class T0ContractTest(unittest.TestCase):
 
         self.assertNotIn("Create or refresh the initial `PROJECT.md`, `REQUIREMENTS.md`, `MAP.md`, and `STATE.md`", role_t0)
         self.assertIn("Create only a goal intake packet", role_t0)
+        self.assertIn("taskboard-t0-goal-intake", role_t0)
+        self.assertIn("forbidden fields", role_t0)
         self.assertIn("T0 must not decompose requirements", role_t0)
         self.assertIn("T1 hasn't started, so I will write requirements first", role_t0)
 

@@ -125,6 +125,35 @@ def write_runtime_goal(root: Path, goal: Optional[str]) -> str:
     return normalized
 
 
+def build_goal_intake(goal: str, reason: str) -> dict[str, object]:
+    return {
+        "kind": "taskboard-t0-goal-intake",
+        "version": 1,
+        "created_by": "T0",
+        "next_owner": "T1",
+        "user_goal": goal,
+        "reason": reason,
+        "allowed_fields": [
+            "user_goal",
+            "user_constraints",
+            "non_goals",
+            "source_material",
+            "known_stop_gates",
+        ],
+        "forbidden_fields": [
+            "requirements",
+            "architecture",
+            "interface_specs",
+            "task_splits",
+            "acceptance_criteria",
+        ],
+        "boundary": (
+            "T0 goal intake only; T1 owns requirement decomposition, context files, "
+            "TASK creation, architecture options, and acceptance criteria."
+        ),
+    }
+
+
 def read_goal(root: Path, explicit_goal: Optional[str]) -> str:
     if explicit_goal and explicit_goal.strip():
         return explicit_goal.strip()
@@ -519,6 +548,7 @@ def dispatch(
     goal = read_goal(root, goal_arg)
 
     if not goal:
+        reason = "missing-user-goal"
         return {
             "state": "needs-goal",
             "mode": mode,
@@ -527,15 +557,16 @@ def dispatch(
             "role_label": ROLE_LABELS["T0"],
             "status": "needs-goal",
             "task": "none",
-            "reason": "missing-user-goal",
+            "reason": reason,
             "command": "/taskboard-dev T0",
-            "target": build_target("T0", "needs-goal", "none", goal, "missing-user-goal"),
+            "target": build_target("T0", "needs-goal", "none", goal, reason),
             "boundary": T0_BOUNDARY,
+            "goal_intake": build_goal_intake(goal, reason),
             "managed_sessions": [],
             "subagent_prompts": [],
             "launch_commands": [],
             "session_manifest": build_session_manifest(
-                "needs-goal", "T0", "needs-goal", "none", "missing-user-goal", []
+                "needs-goal", "T0", "needs-goal", "none", reason, []
             ),
         }
 
@@ -593,6 +624,7 @@ def dispatch(
         "command": command,
         "target": target,
         "boundary": T0_BOUNDARY,
+        "goal_intake": build_goal_intake(goal, reason),
         "managed_sessions": sessions,
         "subagent_prompts": subagent_prompts,
         "launch_commands": launch_commands,
@@ -616,6 +648,10 @@ def format_text(payload: dict[str, str]) -> str:
         "target:",
         payload["target"],
     ]
+    goal_intake = payload.get("goal_intake")
+    if goal_intake:
+        lines.append("goal_intake:")
+        lines.append(json.dumps(goal_intake, ensure_ascii=False, sort_keys=True))
     sessions = payload.get("managed_sessions", [])
     if sessions:
         lines.append("managed_sessions:")

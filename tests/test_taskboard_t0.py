@@ -101,6 +101,26 @@ class TaskboardT0Test(unittest.TestCase):
         self.assertIn("taskboard_sessions.py --root . heartbeat --role T1", output["target"])
         self.assertIn("创建或修订", output["target"])
 
+    def test_t0_output_includes_goal_intake_packet_not_requirements(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            output = self.run_t0(root, "--goal", "Ship demo")
+            text = self.run_t0_text(root, "--goal", "Ship demo")
+
+        intake = output["goal_intake"]
+        self.assertEqual(intake["kind"], "taskboard-t0-goal-intake")
+        self.assertEqual(intake["created_by"], "T0")
+        self.assertEqual(intake["next_owner"], "T1")
+        self.assertEqual(intake["user_goal"], "Ship demo")
+        self.assertIn("requirements", intake["forbidden_fields"])
+        self.assertIn("architecture", intake["forbidden_fields"])
+        self.assertIn("task_splits", intake["forbidden_fields"])
+        self.assertIn("acceptance_criteria", intake["forbidden_fields"])
+        self.assertIn("goal_intake:", text)
+        self.assertIn("taskboard-t0-goal-intake", text)
+
     def test_empty_board_without_goal_requests_t0_goal(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
