@@ -437,6 +437,67 @@ def build_queue_metrics(
     }
 
 
+def build_subagent_control(
+    root: Path,
+    fallback_available: bool,
+    prompt_roles: list[str],
+    pending_roles: list[str],
+    active_roles: list[str],
+    completed_roles: list[str],
+    failed_roles: list[str],
+) -> dict[str, object]:
+    if not fallback_available:
+        state = "unavailable"
+        next_role = ""
+    elif failed_roles:
+        state = "retry-or-escalate"
+        next_role = failed_roles[0]
+    elif pending_roles:
+        state = "dispatch-next"
+        next_role = pending_roles[0]
+    elif active_roles:
+        state = "await-results"
+        next_role = active_roles[0]
+    elif prompt_roles and set(completed_roles) >= set(prompt_roles):
+        state = "complete"
+        next_role = ""
+    else:
+        state = "idle"
+        next_role = ""
+
+    root_arg = quote_cli_value(root)
+    base = f"python scripts/taskboard.py --root {root_arg} subagent"
+    can_record_result = state in {"dispatch-next", "await-results"}
+    return {
+        "subagent_control_state": state,
+        "subagent_control_next_role": next_role,
+        "subagent_next_command": f"{base} next" if state == "dispatch-next" else "",
+        "subagent_ack_command": (
+            f'{base} ack --role {next_role} --agent-id "<agent id>"'
+            if state == "dispatch-next"
+            else ""
+        ),
+        "subagent_done_command": (
+            f'{base} done --role {next_role} --summary "<result>"'
+            if can_record_result
+            else ""
+        ),
+        "subagent_fail_command": (
+            f'{base} fail --role {next_role} --summary "<failure>"'
+            if can_record_result
+            else ""
+        ),
+        "subagent_retry_commands": [
+            f'{base} retry --role {role} --note "<retry reason>"'
+            for role in failed_roles
+        ],
+        "subagent_control_boundary": (
+            "T0-native-subagent control action; commands record dispatch ownership only "
+            "and do not replace TASKBOARD filenames or worker evidence."
+        ),
+    }
+
+
 def report_progress(root: Path) -> dict[str, object]:
     event_summary = read_event_log_summary(root)
     subagent_packet = read_subagent_fallback_packet(root)
@@ -456,6 +517,15 @@ def report_progress(root: Path) -> dict[str, object]:
     subagent_failed_roles = [
         str(item) for item in subagent_dispatch.get("failed_roles", []) if str(item)
     ]
+    subagent_control = build_subagent_control(
+        root,
+        bool(subagent_packet.get("available") or subagent_dispatch.get("packet_available")),
+        [str(item) for item in subagent_dispatch.get("prompt_roles", []) if str(item)],
+        subagent_pending_roles,
+        subagent_active_roles,
+        subagent_completed_roles,
+        subagent_failed_roles,
+    )
     subagent_dispatch_records = subagent_dispatch.get("records", {})
     if not isinstance(subagent_dispatch_records, dict):
         subagent_dispatch_records = {}
@@ -663,6 +733,7 @@ def report_progress(root: Path) -> dict[str, object]:
             "subagent_completed_roles": subagent_completed_roles,
             "subagent_failed_roles": subagent_failed_roles,
             "subagent_dispatch_records": subagent_dispatch_records,
+            **subagent_control,
             "stalled_recoveries": latest_event_stalled_recoveries,
             "stalled_recovery_count": latest_event_stalled_recovery_count,
             "stop_gates": stop_gate_list,
@@ -870,6 +941,7 @@ def report_progress(root: Path) -> dict[str, object]:
         "subagent_completed_roles": subagent_completed_roles,
         "subagent_failed_roles": subagent_failed_roles,
         "subagent_dispatch_records": subagent_dispatch_records,
+        **subagent_control,
         "suppressed_launches": suppressed_launch_list,
         "suppressed_launch_count": len(suppressed_launch_list),
         "stalled_recoveries": stalled_recoveries,
@@ -1003,6 +1075,14 @@ def format_text(payload: dict[str, object]) -> str:
         + ",".join(str(item) for item in payload.get("subagent_completed_roles", []) if item),
         "subagent_failed_roles="
         + ",".join(str(item) for item in payload.get("subagent_failed_roles", []) if item),
+        f"subagent_control_state={payload.get('subagent_control_state', '')}",
+        f"subagent_control_next_role={payload.get('subagent_control_next_role', '')}",
+        f"subagent_next_command={payload.get('subagent_next_command', '')}",
+        f"subagent_ack_command={payload.get('subagent_ack_command', '')}",
+        f"subagent_done_command={payload.get('subagent_done_command', '')}",
+        f"subagent_fail_command={payload.get('subagent_fail_command', '')}",
+        "subagent_retry_commands="
+        + " ; ".join(str(item) for item in payload.get("subagent_retry_commands", []) if item),
         f"latest_event_subagent_fallback_available={latest_event_payload.get('subagent_fallback_available', False)}",
         f"stalled_recovery_count={payload.get('stalled_recovery_count', 0)}",
         f"latest_event_completion_ready={latest_event_payload.get('completion_ready', '')}",
