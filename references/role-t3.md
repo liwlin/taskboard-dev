@@ -61,6 +61,14 @@ destructive/shared-state operations. In those cases, stay solo and record the re
 T3 remains responsible for integration, final verification, and commit even
 when subagents perform implementation slices.
 
+### Required Skills Evidence
+
+Before source edits or handoff to T2, T3 must record the split/solo decision,
+the subagent or multi-agent tool used when work was split, verification results,
+and any fallback reason in the TASK file, history entry, implementation notes,
+or dev-log. A solo implementation with no recorded split assessment is
+incomplete.
+
 ### External Tool Boundaries
 
 - Use GitHub tooling for repository, PR, issue, release, and CI-check work when that evidence is needed for implementation, CI triage, or release handoff within the task scope.

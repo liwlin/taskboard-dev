@@ -1343,6 +1343,56 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertEqual(events[0]["stalled_recovery_count"], 1)
         self.assertEqual(events[0]["stalled_recoveries"][0]["role"], "T3")
 
+    def test_spawn_refused_launch_failure_writes_user_owned_windows_scripts(self):
+        def fake_execute(commands):
+            return [
+                {
+                    "command": commands[0],
+                    "returncode": 1,
+                    "output": "Failed to authenticate. API Error: 403 Request not allowed",
+                }
+            ]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+            with patch("taskboard_loop.execute_commands", fake_execute):
+                output = loop_module.run_loop(
+                    root,
+                    "Ship demo",
+                    30,
+                    300,
+                    "powershell",
+                    f'"{sys.executable}" -c "print(123)" --prompt-file "{{target_file}}"',
+                    True,
+                    1,
+                    0,
+                    300,
+                    True,
+                    root / ".taskboard" / "t0" / "latest.json",
+                    root / ".taskboard" / "targets",
+                    300,
+                    root / ".taskboard" / "t0" / "events.jsonl",
+                )
+            payload = output[0]
+            manual_files = payload["manual_launch_files"]
+            open_tabs = Path(manual_files["open_tabs"])
+            launch_role = Path(manual_files["launch_role"])
+            open_tabs_exists = open_tabs.exists()
+            launch_role_exists = launch_role.exists()
+            open_tabs_text = open_tabs.read_text(encoding="utf-8")
+            launch_role_text = launch_role.read_text(encoding="utf-8")
+
+        self.assertTrue(open_tabs_exists)
+        self.assertTrue(launch_role_exists)
+        open_tabs_text.encode("ascii")
+        launch_role_text.encode("ascii")
+        self.assertIn("taskboard-T1", open_tabs_text)
+        self.assertIn("taskboard-T2", open_tabs_text)
+        self.assertIn("taskboard-T3", open_tabs_text)
+        self.assertIn("Invoke-Expression", launch_role_text)
+        self.assertIn("Run the generated user-owned Windows Terminal script", " ".join(payload["actions"]))
+
 
 if __name__ == "__main__":
     unittest.main()

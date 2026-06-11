@@ -19,6 +19,7 @@ from taskboard_t0 import (
     build_launch_commands,
     default_target_dir,
     dispatch,
+    write_manual_windows_launch_scripts,
     read_goal,
     write_role_target_files,
     write_runtime_goal,
@@ -337,6 +338,7 @@ def build_actions(
     executed_commands: Optional[list[dict[str, object]]] = None,
     fallback_launch_attempts: Optional[list[dict[str, object]]] = None,
     stalled_recovery_items: Optional[list[dict[str, object]]] = None,
+    manual_launch_files: Optional[dict[str, object]] = None,
 ) -> list[str]:
     actions: list[str] = []
     launch_failure_count = 0
@@ -410,6 +412,13 @@ def build_actions(
         task = item.get("task")
         actions.append(f"recover taskboard-{role} for stalled TASK {task}")
 
+    if manual_launch_files:
+        user_command = str(manual_launch_files.get("user_command") or "")
+        actions.append(
+            "Run the generated user-owned Windows Terminal script for managed worker launch; "
+            f"this is one T0-directed startup action, not manual T1/T2/T3 management: {user_command}"
+        )
+
     deduped: list[str] = []
     for action in actions:
         if action not in deduped:
@@ -466,6 +475,22 @@ def command_failed(item: dict[str, object]) -> bool:
         return int(item.get("returncode", 0)) != 0
     except (TypeError, ValueError):
         return True
+
+
+def launch_failure_is_spawn_refusal(item: dict[str, object]) -> bool:
+    if not command_failed(item):
+        return False
+    output = str(item.get("output") or "").lower()
+    return any(
+        marker in output
+        for marker in (
+            "403 request not allowed",
+            "api error: 403",
+            "failed to authenticate",
+            "request not allowed",
+            "spawn refused",
+        )
+    )
 
 
 def extract_agent_command(agent_template: Optional[str]) -> str:
@@ -749,6 +774,16 @@ def run_once(
         )
         executed_commands.extend(fallback_executed)
         suppressed_launches.extend(fallback_suppressed)
+    manual_launch_files: dict[str, object] = {}
+    if execute_launches and any(launch_failure_is_spawn_refusal(item) for item in executed_commands):
+        source_sessions = assignment_recovery_session_list or stalled_recovery_session_list or fallback_source_sessions(
+            session_probe, dispatch_plan, used_recovery_commands
+        )
+        manual_launch_files = write_manual_windows_launch_scripts(
+            root,
+            source_sessions,
+            agent_template,
+        )
     if execute_launches and executed_commands:
         record_launch_successes(launch_state_payload, executed_commands, current_time)
         write_launch_state(root, launch_state_payload, launch_lease_seconds)
@@ -798,8 +833,10 @@ def run_once(
             executed_commands,
             fallback_attempts,
             stalled_recovery_list,
+            manual_launch_files,
         ),
         "fallback_launch_attempts": fallback_attempts,
+        "manual_launch_files": manual_launch_files,
         "assignment_watch": json.loads(json.dumps(assignment_watch_payload, ensure_ascii=False)),
         "agent_preflight": agent_preflight or {},
     }

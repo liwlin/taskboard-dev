@@ -69,6 +69,8 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("stay solo and record the reason", role_t3)
 
         for role_text in (role_t1, role_t2, role_t3):
+            self.assertIn("### Required Skills Evidence", role_text)
+            self.assertIn("fallback reason", role_text)
             self.assertIn("### External Tool Boundaries", role_text)
             self.assertIn("Use GitHub tooling for repository, PR, issue, release, and CI-check work", role_text)
             self.assertIn("Use Chrome/Browser tooling for web UI inspection", role_text)
@@ -174,6 +176,14 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("must not directly execute development tasks", role_t0)
         self.assertIn("T0 是管理员，不是开发执行者", manual)
         self.assertIn("T0 不直接执行开发任务", manual)
+
+    def test_t0_initial_seeding_cannot_be_requirements_or_design_work(self):
+        role_t0 = (ROOT / "references" / "role-t0.md").read_text(encoding="utf-8")
+
+        self.assertNotIn("Create or refresh the initial `PROJECT.md`, `REQUIREMENTS.md`, `MAP.md`, and `STATE.md`", role_t0)
+        self.assertIn("Create only a goal intake packet", role_t0)
+        self.assertIn("T0 must not decompose requirements", role_t0)
+        self.assertIn("T1 hasn't started, so I will write requirements first", role_t0)
 
     def test_terminal_launcher_contract_is_documented(self):
         role_t0 = (ROOT / "references" / "role-t0.md").read_text(encoding="utf-8")

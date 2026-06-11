@@ -51,6 +51,13 @@ Use manual planning only when planning skills/tools are unavailable or clearly
 inapplicable to the current client. If T1 falls back to manual planning, record
 the fallback reason in the spec, plan, or task's Current Instruction.
 
+### Required Skills Evidence
+
+Before handing a task to T2, T1 must record the planning tool or skill used, the
+resulting artifact or decision, and any fallback reason in the spec, plan, task
+Current Instruction, history entry, or dev-log. A task with no planning-skill
+evidence is incomplete unless the fallback reason is explicit.
+
 ### External Tool Boundaries
 
 - Use GitHub tooling for repository, PR, issue, release, and CI-check work when that evidence is needed for T1 planning or task creation.

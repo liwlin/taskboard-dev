@@ -2,7 +2,7 @@
 
 `taskboard-dev` 是一个给 Claude Code / OpenAI Codex 等 agent CLI 使用的 **TASKBOARD 全自动流程开发 skill**。用户把目标交给 T0，T0 自动管理 T1 架构调度、T2 审核验证、T3 执行提交三个长期运行角色，通过文件名状态机驱动任务流转，适合 5–20 个任务规模的 milestone / feature batch。
 
-当前版本：**v4.4.3**
+当前版本：**v4.4.4**
 
 ## 核心优势
 
@@ -92,6 +92,8 @@ python scripts/taskboard_start.py --goal "<user goal>"
 默认使用 Windows Terminal 创建/恢复 `taskboard-T1/T2/T3`，并用 `codex --prompt-file "{target_file}"` 让每个 worker 读取自己的 `.taskboard/targets/taskboard-T*.md`。只传 `--goal` 就会进入一键自动模式：执行 T0 管理面的启动/恢复命令，并持续运行到目标完成或触发停止门。可以追加 `--fallback-launcher powershell` 或重复追加多个 fallback launcher；当主 launcher 失败时，T0 会自动按顺序重试备用 launcher，而不是立刻要求用户接管 T1/T2/T3。如果没有传入目标且没有保存的目标，T0 会在第一轮 `needs-goal` 后停下并要求用户给 T0 一个目标，不会无意义空转。只做调度检查时显式加 `--dry-run --iterations 1 --launcher none`。
 
 执行 worker launcher 前，T0 默认会从 `--agent-template` 解析首个 agent command 并检查它是否在 PATH 中；如果命令不存在，会在启动 T1/T2/T3 前进入 `config-error`，持久化错误并要求修正 T0 配置。需要更深的 CLI/auth 检查时，使用 `--agent-preflight-command "<safe check command>"`，例如按当前客户端选择一个不会修改仓库的登录/版本/健康检查命令；该命令返回非零时错误文本会包含 `agent preflight command failed`。高级用户可以用 `--no-agent-preflight` 关闭这一步，但默认建议保留，避免 Claude/Codex 等 agent CLI 未安装、未登录或命令模板写错时把失败留在子终端里。
+
+如果 launcher 执行失败输出包含托管子进程认证/权限拒绝线索（例如 `API Error: 403`、`Request not allowed`、`Failed to authenticate`），T0 会写出用户自有终端启动脚本：`.taskboard/open-tabs.ps1` 和 `.taskboard/launch-role.ps1`。此时用户只执行一次 `powershell -ExecutionPolicy Bypass -File ".taskboard/open-tabs.ps1"` 来打开受控的 `taskboard-T1/T2/T3` 终端；这仍是 T0 指挥的启动动作，不是让用户分别管理 T1/T2/T3。
 
 首次传入 `--goal` 后，T0 会把用户目标保存到 `.taskboard/t0/goal.json`。T0 重启或恢复时可以不再重复输入目标；这个 `taskboard-t0-goal` 文件只是 T0 控制面恢复状态，不是 TASKBOARD 任务状态。
 
@@ -207,7 +209,7 @@ If an executed launcher command fails, the loop action reports `T0 launch/recove
 
 Each loop iteration writes isolated per-role targets to `.taskboard/targets/taskboard-T1.md`, `.taskboard/targets/taskboard-T2.md`, and `.taskboard/targets/taskboard-T3.md` by default. These files are runtime inboxes from T0 to each managed role, so workers can read only their own target without sharing hidden chat context. They are not task state or shared memory. Use `--target-dir <path>` to choose another target directory, or `--no-target-files` for no-write dry checks. Do not combine `--no-target-files` with an `--agent-template` that references `{target_file}` unless `--launcher none` suppresses worker launches; otherwise T0 rejects the configuration before it can emit an empty prompt-file command.
 Each generated target includes a `Role runtime contract` with `assigned_role`, `managed_by: T0`, a "do not execute other role responsibilities" rule, and a "do not rely on another role's chat context" rule. It also includes a `Worker loop contract` telling the managed role to keep cycling its own queue, refresh heartbeat each cycle, re-read TASKBOARD filenames/docs, and not stop after one action when more role work is available. This keeps role isolation and sustained execution explicit in both inline prompts and `{target_file}` launches.
-Each generated target also includes a `Default tooling contract`: T1 defaults to available planning/brainstorming skills such as `superpowers:brainstorming` and `superpowers:writing-plans`, T2 L2/L3 reviews default to independent review tooling such as Codex code review or `superpowers:requesting-code-review`, and T3 must assess Codex native subagents or available multi-agent tools before source edits when the work can be safely split.
+Each generated target also includes a `Default tooling contract` and `Required skills evidence`: T1 defaults to available planning/brainstorming skills such as `superpowers:brainstorming` and `superpowers:writing-plans`, T2 L2/L3 reviews default to independent review tooling such as Codex code review or `superpowers:requesting-code-review`, and T3 must assess Codex native subagents or available multi-agent tools before source edits when the work can be safely split. Each worker must record the tool or skill used, the result, and any fallback reason in the TASK file, history, review note, or dev-log before handoff.
 Each generated target also includes an `External tool contract`: use GitHub tooling for repository, PR, issue, release, and CI-check work; use Chrome/Browser tooling for web UI inspection and rendered frontend verification; use Computer Use only for local desktop or GUI workflows that cannot be verified through shell, browser, or repository tools. These tools are used inside the assigned role boundary, not by asking the user to manage routine T1/T2/T3 work.
 
 Each loop iteration writes the latest T0 supervisor runtime snapshot to `.taskboard/t0/latest.json` by default. This `taskboard-t0-supervisor-state` file records T0's management view and `resume_config` for recovery after interruption; it is not task state, not worker memory, and not a replacement for TASKBOARD filenames, history, dev-log, HANDOFF, or the completion sentinel. Use `--state-file <path>` to choose another snapshot path, or `--no-state-file` for dry checks that should leave no runtime snapshot.

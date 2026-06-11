@@ -32,21 +32,27 @@ ROLE_TOOLING_CONTRACTS = {
         "- T1 MUST use available planning/brainstorming skills before creating or revising non-trivial active TASK files.\n"
         "- Preferred defaults: superpowers:brainstorming for requirement shaping and superpowers:writing-plans for implementation plans.\n"
         "- Use equivalent native planning tools when they are the active client's best fit.\n"
-        "- If no planning tool is available or applicable, proceed manually and record the fallback reason in the spec, plan, or task."
+        "- If no planning tool is available or applicable, proceed manually and record the fallback reason in the spec, plan, or task.\n"
+        "Required skills evidence:\n"
+        "- Record the tool or skill used, the result, and any fallback reason in the TASK file, history entry, plan, or dev-log before handoff."
     ),
     "T2": (
         "Default tooling contract:\n"
         "- T2 L2 code reviews default to an independent review tool when available.\n"
         "- Preferred defaults: Codex code review, a review subagent, superpowers:requesting-code-review, or an equivalent domain review skill.\n"
         "- L3 code reviews MUST run dual-pass review: T2's own review plus one independent or specialized review pass.\n"
-        "- If no independent review tool is available, run the manual checklist and record the fallback reason."
+        "- If no independent review tool is available, run the manual checklist and record the fallback reason.\n"
+        "Required skills evidence:\n"
+        "- Record the tool or skill used, the result, and any fallback reason in the TASK file, history entry, review note, or dev-log before handoff."
     ),
     "T3": (
         "Default tooling contract:\n"
         "- T3 MUST assess whether the implementation can be split before editing source.\n"
         "- Use Codex native subagents or available multi-agent tools when slices have independent files or interfaces and clear acceptance checks.\n"
         "- Stay solo when work is tightly coupled, touches the same files, requires one continuous design decision, or involves destructive/shared-state operations.\n"
-        "- T3 remains responsible for integration, final verification, and commit even when subagents perform implementation slices."
+        "- T3 remains responsible for integration, final verification, and commit even when subagents perform implementation slices.\n"
+        "Required skills evidence:\n"
+        "- Record the tool or skill used, the split/solo decision, verification result, and any fallback reason in the TASK file, history entry, or dev-log before handoff."
     ),
 }
 
@@ -248,6 +254,10 @@ def powershell_quote(value: str) -> str:
     return f'"{escaped}"'
 
 
+def powershell_single_quote(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
 def render_agent_command(session: dict[str, str], agent_template: Optional[str]) -> str:
     if not agent_template:
         target = session["target"].replace("\n", "`n")
@@ -266,6 +276,74 @@ def render_agent_command(session: dict[str, str], agent_template: Optional[str])
         target=compact_target,
         target_file=session.get("target_file", ""),
     )
+
+
+def write_manual_windows_launch_scripts(
+    root: Path,
+    sessions: list[dict[str, str]],
+    agent_template: Optional[str],
+    script_dir: Optional[Path] = None,
+) -> dict[str, object]:
+    if not sessions:
+        return {}
+
+    output_dir = script_dir or root / ".taskboard"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    launch_role = output_dir / "launch-role.ps1"
+    open_tabs = output_dir / "open-tabs.ps1"
+    role_commands = []
+    roles = []
+    for session in sessions:
+        role = str(session.get("role") or "")
+        if role not in {"T1", "T2", "T3"}:
+            continue
+        command = render_agent_command(session, agent_template)
+        roles.append(role)
+        role_commands.append(f"  {powershell_single_quote(role)} = {powershell_single_quote(command)}")
+
+    if not role_commands:
+        return {}
+
+    launch_role_body = "\n".join(
+        [
+            "param(",
+            "  [Parameter(Mandatory=$true)]",
+            "  [ValidateSet('T1','T2','T3')]",
+            "  [string]$Role",
+            ")",
+            "$ErrorActionPreference = 'Stop'",
+            "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8",
+            f"Set-Location -LiteralPath {powershell_single_quote(str(root))}",
+            "$commands = @{",
+            *role_commands,
+            "}",
+            "Write-Host \"Starting taskboard-$Role\"",
+            "Invoke-Expression $commands[$Role]",
+            "",
+        ]
+    )
+    launch_role.write_text(launch_role_body, encoding="utf-8")
+
+    open_tab_lines = [
+        "$ErrorActionPreference = 'Stop'",
+        "$script = Join-Path $PSScriptRoot 'launch-role.ps1'",
+    ]
+    for role in roles:
+        open_tab_lines.append(
+            "wt -w taskboard new-tab "
+            f"--title taskboard-{role} "
+            f"-d {powershell_single_quote(str(root))} "
+            "powershell -NoExit -ExecutionPolicy Bypass -File $script "
+            f"-Role {role}"
+        )
+    open_tabs.write_text("\n".join(open_tab_lines) + "\n", encoding="utf-8")
+    return {
+        "kind": "taskboard-user-owned-windows-launch-scripts",
+        "open_tabs": str(open_tabs),
+        "launch_role": str(launch_role),
+        "roles": roles,
+        "user_command": f'powershell -ExecutionPolicy Bypass -File "{open_tabs}"',
+    }
 
 
 def build_launch_commands(

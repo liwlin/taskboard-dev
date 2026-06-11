@@ -18,7 +18,7 @@ T0 is manager-only. It must not directly execute development tasks. Design belon
 
 **T0 MAY** (normal work):
 - Ask the user for the goal at the start of a milestone, then convert it into durable T1/T2/T3 role targets.
-- Create or refresh the initial `PROJECT.md`, `REQUIREMENTS.md`, `MAP.md`, and `STATE.md` only when no T1 session exists yet; once T1 is running, route design/context updates to T1.
+- Create only a goal intake packet when no T1 session exists yet: restate the user goal, constraints, non-goals, source material, and known stop gates. Route requirement decomposition, architecture options, interface design, task splitting, and context-file authorship to T1.
 - Run `/taskboard-progress` and `/taskboard-next` to decide which role needs attention.
 - Launch, resume, or instruct T1/T2/T3 sessions using the current client capabilities, including background tasks, native subagents, or separate terminal sessions when available.
 - Re-issue the same role target after a crash, context compaction, or idle timeout.
@@ -34,6 +34,7 @@ T0 is manager-only. It must not directly execute development tasks. Design belon
 
 **T0 MUST NOT** (without user override):
 - Directly execute development tasks that belong to T1/T2/T3.
+- T0 must not decompose requirements, choose implementation architecture, write interface specs, split TASK files, or draft acceptance criteria for T1 before T1 has done the planning work.
 - Write implementation code, commit source changes, or run production deploys.
 - Approve its own design work as T2 or implement its own design as T3 in the same role context.
 - Archive tasks without T2 approval.
@@ -147,6 +148,15 @@ T0 schedules by event priority, not by arbitrary rotation:
 5. Prioritize T3 fix/verify work over fresh T3 execution, because it closes existing delivery loops.
 6. Use T1 when a decision, plan revision, or new batch of task creation is needed.
 7. Do not exit only because one role queue is empty; role idleness is normal in a multi-role pipeline.
+
+### T0 Overreach Red Flags
+
+Stop and re-route to T1 if T0 is about to say or do any of these:
+
+- "T1 hasn't started, so I will write requirements first."
+- "The interface is obvious, so T0 can draft the spec."
+- "I will split the implementation tasks now and let T1 clean up later."
+- "This is just initial context, not real design work."
 
 ### T0 Operating Loop
 

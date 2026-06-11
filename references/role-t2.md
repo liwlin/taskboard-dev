@@ -54,6 +54,13 @@ L3 code reviews MUST run dual-pass review: T2's own review plus one independent
 or specialized review pass. T2 remains the final decision owner and must
 reconcile conflicting findings before renaming the task.
 
+### Required Skills Evidence
+
+Before PASS/REJECT handoff, T2 must record the review tool or skill used, the
+review result, the reconciliation decision for L3 dual-pass reviews, and any
+fallback reason in the TASK file, review report, history entry, or dev-log. A
+manual-only review with no fallback reason is incomplete.
+
 ### External Tool Boundaries
 
 - Use GitHub tooling for repository, PR, issue, release, and CI-check work when that evidence is needed for review or verification.

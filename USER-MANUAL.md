@@ -1,4 +1,4 @@
-# taskboard-dev v4.4.3 用户手册
+# taskboard-dev v4.4.4 用户手册
 
 T0 管理的 TASKBOARD 驱动开发工作流 — 用户只对 T0 下达目标，T0 负责管理 T1 架构师、T2 审核者、T3 执行者，基于文件名即状态的零轮询开销设计。v4.3 面向 Claude Code / Codex 的现代长任务能力：loop、目标/target、后台执行、resume 和工具检查点。默认原则是“能自动做就自动做”，只有真正的停止门才需要人确认。
 
@@ -73,6 +73,8 @@ python scripts/taskboard_start.py --goal "<user goal>"
 默认使用 Windows Terminal 创建/恢复 `taskboard-T1/T2/T3`，并用 `codex --prompt-file "{target_file}"` 让每个 worker 读取自己的 `.taskboard/targets/taskboard-T*.md`。只传 `--goal` 就会进入一键自动模式：执行 T0 管理面的启动/恢复命令，并持续运行到目标完成或触发停止门。可以追加 `--fallback-launcher powershell` 或重复追加多个 fallback launcher；当主 launcher 失败时，T0 会自动按顺序重试备用 launcher，而不是立刻要求用户接管 T1/T2/T3。如果没有传入目标且没有保存的目标，T0 会在第一轮 `needs-goal` 后停下并要求用户给 T0 一个目标，不会无意义空转。只做调度检查时显式加 `--dry-run --iterations 1 --launcher none`。
 
 执行 worker launcher 前，T0 默认会从 `--agent-template` 解析首个 agent command，并检查它是否在 PATH 中；如果命令不存在，会在启动 T1/T2/T3 前进入 `config-error`，持久化错误并要求修正 T0 配置。需要更深的 CLI/auth 检查时，使用 `--agent-preflight-command "<safe check command>"`，例如按当前客户端选择不会修改仓库的登录/版本/健康检查命令；该命令返回非零时，错误文本会包含 `agent preflight command failed`。高级用户可以用 `--no-agent-preflight` 关闭这一步，但默认建议保留，避免 Claude/Codex 等 agent CLI 未安装、未登录或命令模板写错时把失败留在子终端里。
+
+如果 launcher 执行失败输出包含托管子进程认证/权限拒绝线索（例如 `API Error: 403`、`Request not allowed`、`Failed to authenticate`），T0 会生成 `.taskboard/open-tabs.ps1` 和 `.taskboard/launch-role.ps1`。用户只需要执行一次 `powershell -ExecutionPolicy Bypass -File ".taskboard/open-tabs.ps1"`，由该脚本打开受控的 `taskboard-T1/T2/T3` 终端；这仍然是 T0 指挥的启动动作，不是让用户分别管理三个 worker。
 
 首次传入 `--goal` 后，T0 会把用户目标保存到 `.taskboard/t0/goal.json`。T0 重启或恢复时可以不再重复输入目标；这个 `taskboard-t0-goal` 文件只是 T0 控制面恢复状态，不是 TASKBOARD 任务状态。
 
@@ -202,7 +204,7 @@ python scripts/taskboard_loop.py --root . --goal "完成 <你的开发目标>" -
 
 每轮 loop 默认会把隔离的角色目标写入 `.taskboard/targets/taskboard-T1.md`、`.taskboard/targets/taskboard-T2.md`、`.taskboard/targets/taskboard-T3.md`。这些文件是 T0 发给每个受控角色的运行态 inbox，让 worker 只读取自己的目标文件，不共享隐藏 chat context；它不是任务状态，也不是共享记忆。需要自定义目录时使用 `--target-dir <path>`；只想 dry check 且不写角色目标时使用 `--no-target-files`。不要把 `--no-target-files` 和引用 `{target_file}` 的 `--agent-template` 一起用于实际 launcher；除非 `--launcher none` 抑制 worker 启动，否则 T0 会先拒绝配置，避免生成空 prompt-file 命令。
 每个生成的目标都会包含 `Role runtime contract`，写明 `assigned_role`、`managed_by: T0`、不要执行其他角色职责，以及不要依赖另一个角色的 chat context；同时包含 `Worker loop contract`，要求受控角色持续循环自己的队列、每轮刷新 heartbeat、重新读取 TASKBOARD 文件名/稳定文档，并且当该角色仍有可执行工作时不要只做一次动作就停止。无论是 inline prompt 还是 `{target_file}` 启动，都保持同一份角色隔离和持续执行契约。
-每个生成的目标还会包含 `Default tooling contract`：T1 默认优先使用 `superpowers:brainstorming` / `superpowers:writing-plans` 等规划工具；T2 的 L2/L3 审核默认优先使用 Codex code review、review subagent 或 `superpowers:requesting-code-review` 等独立审核工具；T3 在改源码前必须评估能否用 Codex native subagents 或可用 multi-agent 工具安全切分并行开发。
+每个生成的目标还会包含 `Default tooling contract` 和 `Required skills evidence`：T1 默认优先使用 `superpowers:brainstorming` / `superpowers:writing-plans` 等规划工具；T2 的 L2/L3 审核默认优先使用 Codex code review、review subagent 或 `superpowers:requesting-code-review` 等独立审核工具；T3 在改源码前必须评估能否用 Codex native subagents 或可用 multi-agent 工具安全切分并行开发。每个 worker 在交接前都必须把使用的 tool/skill、结果，以及 fallback reason 记录到 TASK、history、review note 或 dev-log 中。
 每个生成的目标还会包含 `External tool contract`：需要仓库、PR、issue、release 或 CI 证据时使用 GitHub tooling；需要网页 UI 检查、浏览器调试、截图或前端渲染验证时使用 Chrome/Browser tooling；只有 shell、浏览器、仓库工具无法覆盖的本地桌面/GUI 流程才使用 Computer Use。工具调用仍然必须遵守当前角色边界，不把日常 T1/T2/T3 操作转交给用户。
 
 每轮 loop 默认会把最新 T0 supervisor 运行态快照写入 `.taskboard/t0/latest.json`。这个 `taskboard-t0-supervisor-state` 文件只记录 T0 的管理视图，方便中断后恢复判断；它不是任务状态、不是 worker 记忆，也不能替代 TASKBOARD 文件名、history、dev-log、HANDOFF 或完成 sentinel。需要自定义路径时使用 `--state-file <path>`；只想 dry check 且不留下运行态快照时使用 `--no-state-file`。
