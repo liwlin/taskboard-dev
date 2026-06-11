@@ -102,6 +102,26 @@ class TaskboardCliTest(unittest.TestCase):
         self.assertGreater(second_mtime, first_mtime)
         self.assertIn(".taskboard", first["path"])
 
+    def test_cycle_keeps_empty_worker_queue_alive_for_idle_recheck(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            _, stdout = self.run_cli(root, "cycle", "T3", "--sleep-seconds", "120")
+            payload = json.loads(stdout)
+            alive_path = Path(payload["liveness"]["path"])
+            alive_exists = alive_path.exists()
+
+        self.assertEqual(payload["kind"], "taskboard-worker-cycle")
+        self.assertEqual(payload["role"], "T3")
+        self.assertTrue(alive_exists)
+        self.assertEqual(payload["next"]["status"], "idle")
+        self.assertEqual(payload["action"], "idle-recheck")
+        self.assertFalse(payload["should_exit"])
+        self.assertEqual(payload["recheck_after_seconds"], 120)
+        self.assertIn("taskboard.py --root . cycle T3 --sleep-seconds 120", payload["next_cycle_command"])
+        self.assertIn("empty queue is not completion", payload["boundary"])
+
     def test_stall_reports_old_task_without_writing_state(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

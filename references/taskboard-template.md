@@ -55,6 +55,7 @@ python scripts/taskboard.py --root . status
 python scripts/taskboard.py --root . next T0
 python scripts/taskboard.py --root . move TASK-001.v1.T3-待执行.md T3-待验证 --note "verified locally"
 python scripts/taskboard.py --root . alive T2
+python scripts/taskboard.py --root . cycle T2 --sleep-seconds 120
 python scripts/taskboard.py --root . stall --minutes 30
 python scripts/taskboard.py --root . decide TASK-001.v1.T1-待决策.md --answer "<user answer>"
 python scripts/taskboard.py --root . subagent status
@@ -77,9 +78,11 @@ python scripts/taskboard_sessions.py --root . probe --stale-seconds 300
 `taskboard.py` is the preferred v4.5 compact CLI. The older scripts remain
 available for compatibility and for the T0 supervisor loop internals.
 
-Worker liveness uses `.taskboard/alive/T{N}` mtime through
-`python scripts/taskboard.py --root . alive T{N}`. Assignment acknowledgement
-remains in `.taskboard/sessions/taskboard-T{N}.json` through
+Worker liveness and idle recheck use `.taskboard/alive/T{N}` mtime through
+`python scripts/taskboard.py --root . cycle T{N} --sleep-seconds 120`.
+`taskboard cycle` touches liveness, reports role-local next work, and returns
+`action=idle-recheck` instead of treating an empty queue as exit. Assignment
+acknowledgement remains in `.taskboard/sessions/taskboard-T{N}.json` through
 `taskboard_sessions.py heartbeat --task ... --assignment-id ...`.
 
 T0 runtime files:

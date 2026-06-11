@@ -16,7 +16,7 @@ from typing import Optional
 from taskboard_completion import report_completion
 from taskboard_decide import record_decision
 from taskboard_health import report_health
-from taskboard_next import ROLE_PRIORITY, STATUS_RE, select_task
+from taskboard_next import ROLE_PRIORITY, STATUS_RE, has_goal_complete_sentinel, select_task
 from taskboard_stopgates import report_stop_gates
 from taskboard_subagents import (
     subagent_ack_payload,
@@ -105,6 +105,40 @@ def alive_payload(root: Path, role: str) -> dict[str, object]:
     }
 
 
+def cycle_payload(root: Path, role: str, sleep_seconds: int) -> dict[str, object]:
+    normalized_role = role.upper()
+    if normalized_role not in {"T1", "T2", "T3"}:
+        raise ValueError(f"invalid worker role: {role}")
+    liveness = alive_payload(root, normalized_role)
+    next_item = next_payload(root, normalized_role)
+    if has_goal_complete_sentinel(root) and next_item.get("task") == "none":
+        action = "exit-goal-complete"
+        should_exit = True
+    elif next_item.get("status") == "idle" and next_item.get("task") == "none":
+        action = "idle-recheck"
+        should_exit = False
+    else:
+        action = "work"
+        should_exit = False
+    return {
+        "kind": "taskboard-worker-cycle",
+        "role": normalized_role,
+        "liveness": liveness,
+        "next": next_item,
+        "action": action,
+        "should_exit": should_exit,
+        "recheck_after_seconds": max(0, sleep_seconds),
+        "next_cycle_command": (
+            f"python scripts/taskboard.py --root . cycle {normalized_role} "
+            f"--sleep-seconds {max(0, sleep_seconds)}"
+        ),
+        "boundary": (
+            "worker cycle is role-local; empty queue is not completion unless "
+            "the goal-complete sentinel is present."
+        ),
+    }
+
+
 def parse_task_name(task_name: str) -> tuple[str, str, str]:
     match = STATUS_RE.match(task_name)
     if not match:
@@ -189,6 +223,10 @@ def build_parser() -> ArgumentParser:
     alive_parser = subparsers.add_parser("alive", help="Touch a role liveness marker")
     alive_parser.add_argument("role")
 
+    cycle_parser = subparsers.add_parser("cycle", help="Touch liveness and choose the worker's next loop action")
+    cycle_parser.add_argument("role", choices=("T1", "T2", "T3"))
+    cycle_parser.add_argument("--sleep-seconds", type=int, default=120)
+
     decide_parser = subparsers.add_parser("decide", help="Record a T0 stop-gate decision")
     decide_parser.add_argument("task")
     decide_parser.add_argument("--answer", required=True)
@@ -229,6 +267,8 @@ def run(args) -> dict[str, object]:
         return stall_payload(root, args.minutes, args.goal)
     if args.command == "alive":
         return alive_payload(root, args.role)
+    if args.command == "cycle":
+        return cycle_payload(root, args.role, args.sleep_seconds)
     if args.command == "decide":
         return record_decision(root, args.answer, args.task, args.resume_status)
     if args.command == "move":

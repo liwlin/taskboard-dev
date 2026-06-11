@@ -214,10 +214,12 @@ def build_session(
     target_reason = reason if role == next_role else "t0-managed-background-role"
     target = build_target(role, target_status, target_task, goal, target_reason)
     alive_command = f"python scripts/taskboard.py --root . alive {role}"
+    cycle_command = f"python scripts/taskboard.py --root . cycle {role} --sleep-seconds 120"
     heartbeat_command = f"python scripts/taskboard_sessions.py --root . heartbeat --role {role}"
     if role == next_role and task_name != "none":
         heartbeat_command += f" --task {task_name} --assignment-id {role}:{task_name}"
     heartbeat = (
+        f"Worker cycle command: run `{cycle_command}` at the start of each worker cycle and follow its `action` field.\n"
         f"Liveness marker: run `{alive_command}` at the start of each worker cycle.\n"
         f"Assignment heartbeat: run `{heartbeat_command}` when handling a concrete TASK and after each TASKBOARD handoff."
     )
@@ -233,6 +235,7 @@ def build_session(
     )
     loop_contract = (
         "Worker loop contract:\n"
+        f"- Start every loop with `{cycle_command}`; if it returns `idle-recheck`, do not exit.\n"
         f"- Continue cycling this role while unblocked {role} work is available; after each TASKBOARD handoff, check again before yielding.\n"
         "- At each cycle, re-read TASKBOARD filenames and stable docs instead of relying on prior chat context.\n"
         "- Always refresh your heartbeat at the start of each cycle: liveness marker first, then assignment heartbeat after each TASKBOARD handoff.\n"

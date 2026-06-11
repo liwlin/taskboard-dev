@@ -237,6 +237,8 @@ class TaskboardT0Test(unittest.TestCase):
 
         for text in target_texts:
             self.assertIn("Idle recheck contract", text)
+            self.assertIn("taskboard.py --root . cycle", text)
+            self.assertIn("idle-recheck", text)
             self.assertIn("Do not terminate just because this role queue is empty", text)
             self.assertIn("sleep/yield for the configured interval", text)
             self.assertIn("goal completion, stop gate, explicit user pause, or context-limit restart", text)
