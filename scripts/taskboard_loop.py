@@ -293,11 +293,14 @@ def stalled_recoveries(
             continue
         if str(item.get("role") or "") != role or str(item.get("task") or "") != task:
             continue
+        if str(item.get("action_kind") or "") != "recover-worker":
+            continue
         recoveries.append(
             {
                 "role": role,
                 "task": task,
                 "age_minutes": int(item.get("age_minutes") or 0),
+                "role_liveness_state": str(item.get("role_liveness_state") or "missing"),
                 "reason": "stalled-task",
             }
         )
@@ -1414,6 +1417,7 @@ def append_event_log(
                 "role": str(item.get("role") or ""),
                 "task": str(item.get("task") or "none"),
                 "age_minutes": int(item.get("age_minutes") or 0),
+                "role_liveness_state": str(item.get("role_liveness_state") or ""),
                 "reason": str(item.get("reason") or ""),
             }
             for item in stalled_recovery_list

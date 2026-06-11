@@ -27,6 +27,36 @@ def task_age_minutes(task: Task, now: float) -> int:
     return int(age_seconds // 60)
 
 
+def alive_path(root: Path, role: str) -> Path:
+    return root / ".taskboard" / "alive" / role
+
+
+def classify_liveness(root: Path, role: str, stale_minutes: int, now: float) -> dict[str, object]:
+    path = alive_path(root, role)
+    if not path.exists():
+        return {
+            "role": role,
+            "state": "missing",
+            "age_minutes": None,
+            "path": str(path),
+            "boundary": "role liveness is inferred only from .taskboard/alive mtime.",
+        }
+    age = int(max(0, now - path.stat().st_mtime) // 60)
+    return {
+        "role": role,
+        "state": "stale" if age >= stale_minutes else "alive",
+        "age_minutes": age,
+        "path": str(path),
+        "boundary": "role liveness is inferred only from .taskboard/alive mtime.",
+    }
+
+
+def build_liveness(root: Path, stale_minutes: int, now: float) -> dict[str, dict[str, object]]:
+    if stale_minutes < 0:
+        raise ValueError("--stale-minutes must be >= 0")
+    return {role: classify_liveness(root, role, stale_minutes, now) for role in ROLES}
+
+
 def build_queues(tasks: list[Task]) -> dict[str, dict[str, dict[str, object]]]:
     queues: dict[str, dict[str, dict[str, object]]] = {role: {} for role in ROLES}
     for task in sorted(tasks, key=task_sort_key):
@@ -51,7 +81,27 @@ def build_next(root: Path, explicit_goal: Optional[str]) -> dict[str, str]:
     }
 
 
-def build_stalled_tasks(tasks: list[Task], stale_minutes: int, now: float) -> list[dict[str, object]]:
+def stalled_action(task: Task, liveness: dict[str, object]) -> tuple[str, str]:
+    state = str(liveness.get("state") or "missing")
+    if state == "alive":
+        return (
+            "reissue-target",
+            f"reissue target to taskboard-{task.role}; worker liveness is alive; "
+            "do not execute the development task in T0",
+        )
+    return (
+        "recover-worker",
+        f"recover taskboard-{task.role} managed worker via T0 backend; "
+        "do not ask the user to manage T1/T2/T3 directly",
+    )
+
+
+def build_stalled_tasks(
+    tasks: list[Task],
+    stale_minutes: int,
+    now: float,
+    liveness: dict[str, dict[str, object]],
+) -> list[dict[str, object]]:
     if stale_minutes < 0:
         raise ValueError("--stale-minutes must be >= 0")
 
@@ -59,16 +109,18 @@ def build_stalled_tasks(tasks: list[Task], stale_minutes: int, now: float) -> li
     for task in sorted(tasks, key=task_sort_key):
         age = task_age_minutes(task, now)
         if age >= stale_minutes:
+            role_liveness = liveness.get(task.role, {})
+            action_kind, action = stalled_action(task, role_liveness)
             stalled.append(
                 {
                     "task": task.path.name,
                     "role": task.role,
                     "status": task.status,
                     "age_minutes": age,
-                    "action": (
-                        f"reissue target to taskboard-{task.role}; "
-                        "do not execute the development task in T0"
-                    ),
+                    "role_liveness_state": role_liveness.get("state", "missing"),
+                    "role_liveness_age_minutes": role_liveness.get("age_minutes"),
+                    "action_kind": action_kind,
+                    "action": action,
                 }
             )
     return stalled
@@ -76,10 +128,7 @@ def build_stalled_tasks(tasks: list[Task], stale_minutes: int, now: float) -> li
 
 def build_actions(next_item: dict[str, str], stalled_tasks: list[dict[str, object]]) -> list[str]:
     if stalled_tasks:
-        return [
-            f"wake taskboard-{item['role']} for stalled {item['task']}"
-            for item in stalled_tasks
-        ]
+        return [str(item["action"]) for item in stalled_tasks]
 
     role = next_item["role"]
     status = next_item["status"]
@@ -111,12 +160,14 @@ def report_health(root: Path, stale_minutes: int, explicit_goal: Optional[str] =
     tasks = discover_tasks(root)
     now = time.time()
     next_item = build_next(root, explicit_goal)
-    stalled_tasks = build_stalled_tasks(tasks, stale_minutes, now)
+    liveness = build_liveness(root, stale_minutes, now)
+    stalled_tasks = build_stalled_tasks(tasks, stale_minutes, now, liveness)
     active_count = len(tasks)
     return {
         "state": build_state(active_count, next_item, stalled_tasks, root),
         "active_count": active_count,
         "queues": build_queues(tasks),
+        "liveness": liveness,
         "stalled_tasks": stalled_tasks,
         "next": next_item,
         "actions": build_actions(next_item, stalled_tasks),
@@ -135,12 +186,18 @@ def format_text(payload: dict[str, object]) -> str:
     ]
     for action in payload["actions"]:
         lines.append(f"- {action}")
+    lines.append("liveness:")
+    liveness = payload["liveness"]
+    for role in ROLES:
+        item = liveness[role]
+        lines.append(f"- {role} state={item['state']} age_minutes={item['age_minutes']}")
     stalled_tasks = payload["stalled_tasks"]
     if stalled_tasks:
         lines.append("stalled_tasks:")
         for item in stalled_tasks:
             lines.append(
-                f"- {item['task']} role={item['role']} age_minutes={item['age_minutes']} action={item['action']}"
+                f"- {item['task']} role={item['role']} age_minutes={item['age_minutes']} "
+                f"liveness={item['role_liveness_state']} action={item['action']}"
             )
     return "\n".join(lines)
 

@@ -184,6 +184,8 @@ class TaskboardCliTest(unittest.TestCase):
         self.assertEqual(payload["kind"], "taskboard-stall")
         self.assertEqual(payload["stalled_count"], 1)
         self.assertEqual(payload["stalled_tasks"][0]["task"], "TASK-001.v1.T3-待执行.md")
+        self.assertEqual(payload["stalled_tasks"][0]["role_liveness_state"], "missing")
+        self.assertEqual(payload["stalled_tasks"][0]["action_kind"], "recover-worker")
         self.assertFalse((root / ".taskboard" / "t0" / "latest.json").exists())
 
     def test_decide_wraps_stop_gate_decision(self):

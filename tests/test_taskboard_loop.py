@@ -1334,7 +1334,7 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertEqual(events[1]["assignment_state"], "pending-ack-expired")
         self.assertEqual(events[1]["assignment_pending_age_seconds"], 10)
 
-    def test_execute_launches_recovers_selected_role_for_stalled_task_even_when_heartbeat_is_alive(self):
+    def test_execute_launches_recovers_selected_role_for_stalled_task_when_liveness_is_missing(self):
         executed_batches = []
 
         def fake_execute(commands):
@@ -1405,6 +1405,81 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertIn("stalled TASK", " ".join(output[0]["actions"]))
         self.assertEqual(events[0]["stalled_recovery_count"], 1)
         self.assertEqual(events[0]["stalled_recoveries"][0]["role"], "T3")
+        self.assertEqual(events[0]["stalled_recoveries"][0]["role_liveness_state"], "missing")
+
+    def test_execute_launches_reissues_target_for_stalled_task_when_liveness_is_alive(self):
+        executed_batches = []
+
+        def fake_execute(commands):
+            executed_batches.append(list(commands))
+            return [
+                {
+                    "command": command,
+                    "returncode": 0,
+                    "output": "",
+                }
+                for command in commands
+            ]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            taskboard = root / "docs" / "taskboard"
+            taskboard.mkdir(parents=True)
+            task_name = f"TASK-004.v1.{ROLE_PRIORITY['T0'][5][1]}.md"
+            task_path = taskboard / task_name
+            task_path.write_text("# execute\n\n**Wave**: 1\n", encoding="utf-8")
+            old_time = task_path.stat().st_mtime - (45 * 60)
+            os.utime(task_path, (old_time, old_time))
+
+            alive = root / ".taskboard" / "alive" / "T3"
+            alive.parent.mkdir(parents=True)
+            alive.touch()
+            session_dir = root / ".taskboard" / "sessions"
+            session_dir.mkdir(parents=True)
+            for role in ("T1", "T2", "T3"):
+                payload = {
+                    "role": role,
+                    "title": f"taskboard-{role}",
+                    "status": "alive",
+                    "pid": 123,
+                    "last_seen": 4102444800,
+                }
+                if role == "T3":
+                    payload.update({"task": task_name, "assignment_id": f"T3:{task_name}"})
+                (session_dir / f"taskboard-{role}.json").write_text(json.dumps(payload), encoding="utf-8")
+
+            with patch("taskboard_loop.execute_commands", fake_execute):
+                output = loop_module.run_loop(
+                    root,
+                    "Ship demo",
+                    30,
+                    999999999,
+                    "powershell",
+                    'codex --prompt-file "{target_file}"',
+                    True,
+                    1,
+                    0,
+                    300,
+                    True,
+                    root / ".taskboard" / "t0" / "latest.json",
+                    root / ".taskboard" / "targets",
+                    300,
+                    root / ".taskboard" / "t0" / "events.jsonl",
+                )
+            events = [
+                json.loads(line)
+                for line in (root / ".taskboard" / "t0" / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        actions = " ".join(output[0]["actions"])
+        self.assertEqual(output[0]["state"], "attention")
+        self.assertEqual(output[0]["queue_health"]["stalled_tasks"][0]["action_kind"], "reissue-target")
+        self.assertEqual(output[0]["stalled_recovery_commands"], [])
+        self.assertEqual(output[0]["executed_commands"], [])
+        self.assertEqual(executed_batches, [])
+        self.assertIn("reissue target to taskboard-T3", actions)
+        self.assertEqual(events[0]["stalled_recovery_count"], 0)
 
     def test_spawn_refused_launch_failure_writes_user_owned_windows_scripts(self):
         def fake_execute(commands):

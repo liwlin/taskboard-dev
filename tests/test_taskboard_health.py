@@ -59,7 +59,7 @@ class TaskboardHealthTest(unittest.TestCase):
         self.assertIn("wake taskboard-T2", output["actions"][0])
         self.assertIn("T0 manager-only", output["boundary"])
 
-    def test_marks_old_tasks_as_stalled_without_executing_them(self):
+    def test_marks_old_tasks_as_stalled_and_recovers_missing_worker(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             taskboard = root / "docs" / "taskboard"
@@ -73,8 +73,31 @@ class TaskboardHealthTest(unittest.TestCase):
         stalled = output["stalled_tasks"][0]
         self.assertEqual(stalled["role"], "T3")
         self.assertGreaterEqual(stalled["age_minutes"], 44)
+        self.assertEqual(stalled["role_liveness_state"], "missing")
+        self.assertEqual(stalled["action_kind"], "recover-worker")
+        self.assertIn("recover taskboard-T3 managed worker", stalled["action"])
+        self.assertIn("do not ask the user to manage T1/T2/T3", stalled["action"])
+        self.assertEqual(output["liveness"]["T3"]["state"], "missing")
+
+    def test_marks_old_tasks_as_reissue_when_worker_liveness_is_alive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            taskboard = root / "docs" / "taskboard"
+            taskboard.mkdir(parents=True)
+            self.write_task(taskboard, f"TASK-010.v1.{T3_EXECUTE}.md", age_minutes=45)
+            alive = root / ".taskboard" / "alive" / "T3"
+            alive.parent.mkdir(parents=True)
+            alive.touch()
+
+            output = self.run_health(root, "--stale-minutes", "30")
+
+        stalled = output["stalled_tasks"][0]
+        self.assertEqual(stalled["role_liveness_state"], "alive")
+        self.assertEqual(stalled["role_liveness_age_minutes"], 0)
+        self.assertEqual(stalled["action_kind"], "reissue-target")
         self.assertIn("reissue target to taskboard-T3", stalled["action"])
-        self.assertIn("do not execute", stalled["action"])
+        self.assertIn("worker liveness is alive", stalled["action"])
+        self.assertEqual(output["liveness"]["T3"]["state"], "alive")
 
     def test_empty_goal_context_requests_t1_creation(self):
         with tempfile.TemporaryDirectory() as tmp:

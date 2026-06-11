@@ -202,7 +202,7 @@ T0 健康检查入口：
 python scripts/taskboard_health.py --root . --stale-minutes 30
 ```
 
-该检查只汇报 active queues、stalled tasks、next role/task 和 wake/recover actions。它不允许 T0 直接做设计、审核、实现、验证或提交；T0 只能据此唤醒或恢复对应的 T1/T2/T3。
+该检查只汇报 active queues、`.taskboard/alive` liveness、stalled tasks、next role/task 和 wake/recover actions。对于 stalled TASK，worker 仍 alive 时 T0 重发 target；worker missing/stale 时 T0 恢复 terminal 或 native subagent 后端。它不允许 T0 直接做设计、审核、实现、验证或提交；T0 只能据此唤醒或恢复对应的 T1/T2/T3。
 如果用户目标还没写入 `docs/PROJECT.md`，T0 应传入 `--goal "<user goal>"`；空队列加显式目标时，健康检查会建议唤醒 T1 创建或修订 TASK 文件。
 
 T0 受控角色 heartbeat 检查入口：
@@ -222,7 +222,7 @@ python scripts/taskboard.py --root . alive T2
 python scripts/taskboard_sessions.py --root . heartbeat --role T2 --task TASK-003.v1.T2-review.md --assignment-id T2:TASK-003.v1.T2-review.md
 ```
 
-Liveness marker 位于 `.taskboard/alive/`，只用文件 mtime 表示角色循环还活着。Assignment heartbeat 文件位于 `.taskboard/sessions/`，可携带具体 TASK 的 `--task` 和 `--assignment-id`，让 T0 区分“已调度但未认领”和“已认领正在处理”。它不是任务状态、不是共享记忆，也不能替代 TASKBOARD 文件名、history、dev-log 或 HANDOFF。
+Liveness marker 位于 `.taskboard/alive/`，只用文件 mtime 表示角色循环还活着。`taskboard.py status` 和 `taskboard.py stall` 会读取这些 marker，让 T0 区分“worker loop 仍 alive，应重发 target”和“worker loop missing/stale，应恢复 terminal 或 native subagent 后端”。Assignment heartbeat 文件位于 `.taskboard/sessions/`，可携带具体 TASK 的 `--task` 和 `--assignment-id`，让 T0 区分“已调度但未认领”和“已认领正在处理”。它不是任务状态、不是共享记忆，也不能替代 TASKBOARD 文件名、history、dev-log 或 HANDOFF。
 
 T0 supervisor loop 入口：
 
@@ -232,7 +232,7 @@ python scripts/taskboard_loop.py --root . --goal "完成 <你的开发目标>" -
 
 默认只输出恢复/启动命令，不执行。只有 T0 明确需要实际创建或恢复受控角色终端时才加 `--execute-launches`。执行模式下，T0 只执行 missing/stale 角色的恢复命令；如果某个角色 heartbeat healthy，即使 dispatch plan 中仍有完整 starter plan，T0 也不会重新打开该角色终端。`--assignment-lease-seconds` 控制 T0 在任务已认领后等待多久；超过该租约仍没有新的 assignment heartbeat 时，T0 标记 `lease-expired` 并重新下发角色目标。`--launch-lease-seconds 300` 控制 T0 成功启动/恢复某个 `taskboard-T1/T2/T3` 后等待 worker heartbeat 的时间；lease 生效期间 T0 不会重复打开同一个角色终端。该选项只执行 manager launch/reissue commands；T0 仍不能做 T1/T2/T3 的开发任务。
 如果某个受控角色仍在 heartbeat，但一直停留在旧任务/旧 assignment，没有在 `--assignment-lease-seconds` 内认领 T0 当前 assignment，T0 会记录 `pending-ack-expired` 和 `assignment_pending_age_seconds`。在 `--execute-launches` 模式下，T0 只恢复这个被选中的角色终端；progress 仍显示 `No user action required`，用户不需要接管 T1/T2/T3。
-如果当前被选中的 TASK 文件本身超过 `--stale-minutes`，T0 会记录 `stalled_recoveries` / `stalled_recovery_count`，并在 `--execute-launches` 模式下恢复对应的受控角色终端，即使这个角色 heartbeat 仍然 alive。这样卡住的执行恢复仍由 T0 处理，不需要用户手动管理 worker。
+如果当前被选中的 TASK 文件本身超过 `--stale-minutes`，T0 会先检查 `.taskboard/alive`：角色仍 alive 时只重发 durable target；角色 missing/stale 时才记录 `stalled_recoveries` / `stalled_recovery_count`，并在 `--execute-launches` 模式下恢复对应的 terminal 或 native subagent 后端。这样卡住的执行恢复仍由 T0 处理，不需要用户手动管理 worker。
 如果执行 launcher 命令失败，loop action 会报告 `T0 launch/recovery failed`，要求修正 T0 launcher 配置或换 launcher 重试，而不是让用户直接管理 T1/T2/T3。执行 launcher 前，T0 会先运行 agent preflight；默认检查 agent command 是否在 PATH 中，也可以用 `--agent-preflight-command` 指定更严格的 CLI/auth 检查。同一轮里 T0 会在第一个 launcher failure 后停止继续启动后续 worker commands，避免一个错误的 launcher/template 配置同时扩散到 T1/T2/T3。配置 `--fallback-launcher <launcher>` 后，T0 会用备用 launcher 重新生成同一批受控角色命令，并优先重试尚未成功启动的角色。
 
 每轮 loop 默认会把隔离的角色目标写入 `.taskboard/targets/taskboard-T1.md`、`.taskboard/targets/taskboard-T2.md`、`.taskboard/targets/taskboard-T3.md`。这些文件是 T0 发给每个受控角色的运行态 inbox，让 worker 只读取自己的目标文件，不共享隐藏 chat context；它不是任务状态，也不是共享记忆。需要自定义目录时使用 `--target-dir <path>`；只想 dry check 且不写角色目标时使用 `--no-target-files`。不要把 `--no-target-files` 和引用 `{target_file}` 的 `--agent-template` 一起用于实际 launcher；除非 `--launcher none` 抑制 worker 启动，否则 T0 会先拒绝配置，避免生成空 prompt-file 命令。
@@ -244,7 +244,7 @@ python scripts/taskboard_loop.py --root . --goal "完成 <你的开发目标>" -
 
 每轮 loop 默认会把最新 T0 supervisor 运行态快照写入 `.taskboard/t0/latest.json`。这个 `taskboard-t0-supervisor-state` 文件只记录 T0 的管理视图，方便中断后恢复判断；它不是任务状态、不是 worker 记忆，也不能替代 TASKBOARD 文件名、history、dev-log、HANDOFF 或完成 sentinel。需要自定义路径时使用 `--state-file <path>`；只想 dry check 且不留下运行态快照时使用 `--no-state-file`。
 
-每轮 loop 还会默认向 `.taskboard/t0/events.jsonl` 追加一条 compact supervisor event。这个 append-only `taskboard-t0-supervisor-event` 日志保留 T0 每轮 dispatch、queue、session、assignment、action 摘要、`assignment_role`、`assignment_task`、`assignment_reason`、`assignment_expected_id`、`launch_probe_state`、`launch_probe_recommended_backend`、`launch_probe_reason`、`launch_failure_count`、compact `launch_failures` command/returncode/output 详情、`fallback_launch_count`、`fallback_launchers`、`fallback_launch_recovered`、`subagent_fallback_available`、`subagent_fallback_kind`、`subagent_fallback_reason`、`subagent_fallback_packet_file`、`subagent_prompt_count`、`subagent_prompt_roles`、`resume_config`、`suppressed_launch_count`、`stalled_recovery_count`、`executed_command_count`、stop-gate count、completion readiness、`completion_missing_evidence`、`completion_user_action` 和 `error`，方便审计 T0 是否持续运行、自动调度，以及是否发生过控制面启动/恢复失败；当 T0 通过 `taskboard_start.py` 启动时，`events.jsonl` 也会记录 `auto_mode` 和 `starter_mode`，用于恢复后区分一键自动模式和 dry check。assignment 字段用于解释 T0 当时等待哪个受控 worker 认领或重发哪个 target；launch probe、launch failure、fallback launch、subagent fallback、stalled recovery、config-error 和 resume 字段用于在 `latest.json` 不可用时解释最近一次 T0 控制面恢复路径；completion 字段用于解释 T0 为什么在完成 sentinel 后仍继续唤醒 T1 补齐证据，而不是直接向用户汇报完成。它不是 TASKBOARD 状态，也不是 worker 记忆。需要自定义路径时使用 `--event-log-file <path>`；只想 dry check 且不留下事件轨迹时使用 `--dry-run --no-event-log`。
+每轮 loop 还会默认向 `.taskboard/t0/events.jsonl` 追加一条 compact supervisor event。这个 append-only `taskboard-t0-supervisor-event` 日志保留 T0 每轮 dispatch、queue、session、assignment、action 摘要、`assignment_role`、`assignment_task`、`assignment_reason`、`assignment_expected_id`、`launch_probe_state`、`launch_probe_recommended_backend`、`launch_probe_reason`、`launch_failure_count`、compact `launch_failures` command/returncode/output 详情、`fallback_launch_count`、`fallback_launchers`、`fallback_launch_recovered`、`subagent_fallback_available`、`subagent_fallback_kind`、`subagent_fallback_reason`、`subagent_fallback_packet_file`、`subagent_prompt_count`、`subagent_prompt_roles`、`resume_config`、`suppressed_launch_count`、`stalled_recovery_count`、stalled recovery `role_liveness_state`、`executed_command_count`、stop-gate count、completion readiness、`completion_missing_evidence`、`completion_user_action` 和 `error`，方便审计 T0 是否持续运行、自动调度，以及是否发生过控制面启动/恢复失败；当 T0 通过 `taskboard_start.py` 启动时，`events.jsonl` 也会记录 `auto_mode` 和 `starter_mode`，用于恢复后区分一键自动模式和 dry check。assignment 字段用于解释 T0 当时等待哪个受控 worker 认领或重发哪个 target；launch probe、launch failure、fallback launch、subagent fallback、stalled recovery、config-error 和 resume 字段用于在 `latest.json` 不可用时解释最近一次 T0 控制面恢复路径；completion 字段用于解释 T0 为什么在完成 sentinel 后仍继续唤醒 T1 补齐证据，而不是直接向用户汇报完成。它不是 TASKBOARD 状态，也不是 worker 记忆。需要自定义路径时使用 `--event-log-file <path>`；只想 dry check 且不留下事件轨迹时使用 `--dry-run --no-event-log`。
 
 启用 `--execute-launches` 时，T0 还会把最近成功的角色启动/恢复尝试写入 `.taskboard/t0/launches.json`，类型为 `taskboard-t0-launch-state`。它只用于 launch lease 去重，避免重复创建同一角色终端；它不是 worker 状态，也不是任务状态。
 
