@@ -161,6 +161,8 @@ def build_user_summary(
     error: str = "",
     fallback_launch_recovered: bool = False,
     fallback_launchers: Optional[list[str]] = None,
+    subagent_fallback_available: bool = False,
+    subagent_prompt_roles: Optional[list[str]] = None,
 ) -> str:
     if state == "config-error":
         return f"T0 configuration error for goal '{goal}': {error}"
@@ -168,6 +170,12 @@ def build_user_summary(
         return (
             f"T0 has {stop_gate_count} stop gate(s) for goal '{goal}'. "
             f"First question: {stop_gate_question}"
+        )
+    if subagent_fallback_available:
+        roles = ", ".join(subagent_prompt_roles or [])
+        return (
+            f"T0 has native subagent fallback prompts for goal '{goal}'"
+            f"{f' ({roles})' if roles else ''}. No T1/T2/T3 user management is required."
         )
     if launch_failure_count:
         if fallback_launch_recovered:
@@ -233,6 +241,8 @@ def build_user_action(
     fallback_launch_recovered: bool = False,
     fallback_launchers: Optional[list[str]] = None,
     stalled_recovery_count: int = 0,
+    subagent_fallback_available: bool = False,
+    subagent_prompt_roles: Optional[list[str]] = None,
 ) -> str:
     if state == "config-error":
         return (
@@ -241,6 +251,12 @@ def build_user_action(
         )
     if stop_gate_count:
         return "T0 stop gate requires user decision; answer T0's summarized question, not T1/T2/T3."
+    if subagent_fallback_available:
+        roles = ", ".join(subagent_prompt_roles or [])
+        return (
+            f"No user action required; T0 can dispatch native subagent fallback prompts"
+            f"{f' for {roles}' if roles else ''}. If native subagents are unavailable, use the generated one-shot worker startup script."
+        )
     if launch_failure_count:
         if fallback_launch_recovered:
             launchers = ", ".join(fallback_launchers or [])
@@ -293,6 +309,24 @@ def safe_int(value: object, default: int = 0) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def summarize_subagent_fallback(raw_value: object) -> dict[str, object]:
+    payload = raw_value if isinstance(raw_value, dict) else {}
+    prompts = payload.get("subagent_prompts", [])
+    prompt_list = prompts if isinstance(prompts, list) else []
+    roles = [
+        str(item.get("role") or "")
+        for item in prompt_list
+        if isinstance(item, dict) and item.get("role")
+    ]
+    return {
+        "available": bool(payload),
+        "kind": str(payload.get("kind") or ""),
+        "reason": str(payload.get("reason") or ""),
+        "prompt_count": len(prompt_list),
+        "prompt_roles": roles,
+    }
 
 
 def parse_iso_timestamp(raw_value: object) -> Optional[datetime]:
@@ -494,6 +528,21 @@ def report_progress(root: Path) -> dict[str, object]:
             if latest_event_stalled_recoveries
             else safe_int(latest_event_payload.get("stalled_recovery_count"), 0)
         )
+        latest_event_subagent_prompt_roles_raw = latest_event_payload.get("subagent_prompt_roles", [])
+        latest_event_subagent_prompt_roles = (
+            [str(item) for item in latest_event_subagent_prompt_roles_raw if str(item)]
+            if isinstance(latest_event_subagent_prompt_roles_raw, list)
+            else []
+        )
+        latest_event_subagent_fallback_available = bool(
+            latest_event_payload.get("subagent_fallback_available")
+        )
+        latest_event_subagent_fallback_kind = str(latest_event_payload.get("subagent_fallback_kind") or "")
+        latest_event_subagent_fallback_reason = str(latest_event_payload.get("subagent_fallback_reason") or "")
+        latest_event_subagent_prompt_count = safe_int(
+            latest_event_payload.get("subagent_prompt_count"),
+            len(latest_event_subagent_prompt_roles),
+        )
         if (
             fallback_state == "needs-supervisor-run"
             and latest_event_state == "attention"
@@ -553,6 +602,11 @@ def report_progress(root: Path) -> dict[str, object]:
             "fallback_launch_recovered": latest_event_fallback_launch_recovered,
             "suppressed_launches": latest_event_suppressed_list,
             "suppressed_launch_count": latest_event_suppressed_count,
+            "subagent_fallback_available": latest_event_subagent_fallback_available,
+            "subagent_fallback_kind": latest_event_subagent_fallback_kind,
+            "subagent_fallback_reason": latest_event_subagent_fallback_reason,
+            "subagent_prompt_count": latest_event_subagent_prompt_count,
+            "subagent_prompt_roles": latest_event_subagent_prompt_roles,
             "stalled_recoveries": latest_event_stalled_recoveries,
             "stalled_recovery_count": latest_event_stalled_recovery_count,
             "stop_gates": stop_gate_list,
@@ -584,6 +638,8 @@ def report_progress(root: Path) -> dict[str, object]:
                 latest_event_error,
                 latest_event_fallback_launch_recovered,
                 latest_event_fallback_launchers,
+                latest_event_subagent_fallback_available,
+                latest_event_subagent_prompt_roles,
             ),
             "user_action": build_user_action(
                 fallback_state,
@@ -599,6 +655,8 @@ def report_progress(root: Path) -> dict[str, object]:
                 latest_event_fallback_launch_recovered,
                 latest_event_fallback_launchers,
                 latest_event_stalled_recovery_count,
+                latest_event_subagent_fallback_available,
+                latest_event_subagent_prompt_roles,
             ),
             "boundary": T0_PROGRESS_BOUNDARY,
         }
@@ -664,6 +722,17 @@ def report_progress(root: Path) -> dict[str, object]:
         for item in fallback_attempt_list
         if isinstance(item, dict) and item.get("launcher")
     ]
+    subagent_fallback_summary = summarize_subagent_fallback(latest_payload.get("subagent_fallback", {}))
+    subagent_fallback_available = bool(subagent_fallback_summary.get("available"))
+    subagent_fallback_kind = str(subagent_fallback_summary.get("kind") or "")
+    subagent_fallback_reason = str(subagent_fallback_summary.get("reason") or "")
+    subagent_prompt_count = safe_int(subagent_fallback_summary.get("prompt_count"), 0)
+    subagent_prompt_roles_raw = subagent_fallback_summary.get("prompt_roles", [])
+    subagent_prompt_roles = (
+        [str(item) for item in subagent_prompt_roles_raw if str(item)]
+        if isinstance(subagent_prompt_roles_raw, list)
+        else []
+    )
 
     goal = str(snapshot.get("goal") or latest_payload.get("goal") or read_goal(root, ""))
     state = str(latest_payload.get("state") or dispatch_payload.get("state") or "unknown")
@@ -725,6 +794,11 @@ def report_progress(root: Path) -> dict[str, object]:
         "launch_failure_count": len(launch_failures),
         "fallback_launchers": fallback_launchers,
         "fallback_launch_recovered": fallback_launch_recovered,
+        "subagent_fallback_available": subagent_fallback_available,
+        "subagent_fallback_kind": subagent_fallback_kind,
+        "subagent_fallback_reason": subagent_fallback_reason,
+        "subagent_prompt_count": subagent_prompt_count,
+        "subagent_prompt_roles": subagent_prompt_roles,
         "suppressed_launches": suppressed_launch_list,
         "suppressed_launch_count": len(suppressed_launch_list),
         "stalled_recoveries": stalled_recoveries,
@@ -758,6 +832,8 @@ def report_progress(root: Path) -> dict[str, object]:
             error,
             fallback_launch_recovered,
             fallback_launchers,
+            subagent_fallback_available,
+            subagent_prompt_roles,
         ),
         "user_action": build_user_action(
             state,
@@ -773,6 +849,8 @@ def report_progress(root: Path) -> dict[str, object]:
             fallback_launch_recovered,
             fallback_launchers,
             stalled_recovery_count,
+            subagent_fallback_available,
+            subagent_prompt_roles,
         ),
         "actions": action_list,
         "boundary": T0_PROGRESS_BOUNDARY,
@@ -835,6 +913,13 @@ def format_text(payload: dict[str, object]) -> str:
         f"fallback_launch_recovered={payload.get('fallback_launch_recovered', False)}",
         "fallback_launchers="
         + ",".join(str(item) for item in payload.get("fallback_launchers", []) if item),
+        f"subagent_fallback_available={payload.get('subagent_fallback_available', False)}",
+        f"subagent_fallback_kind={payload.get('subagent_fallback_kind', '')}",
+        f"subagent_fallback_reason={payload.get('subagent_fallback_reason', '')}",
+        f"subagent_prompt_count={payload.get('subagent_prompt_count', 0)}",
+        "subagent_prompt_roles="
+        + ",".join(str(item) for item in payload.get("subagent_prompt_roles", []) if item),
+        f"latest_event_subagent_fallback_available={latest_event_payload.get('subagent_fallback_available', False)}",
         f"stalled_recovery_count={payload.get('stalled_recovery_count', 0)}",
         f"latest_event_completion_ready={latest_event_payload.get('completion_ready', '')}",
         f"completion_ready={payload.get('completion_ready')}",

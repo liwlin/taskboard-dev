@@ -1166,6 +1166,50 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("waiting for recent T0 launch", progress["user_summary"])
         self.assertIn("No user action required", progress["user_action"])
 
+    def test_progress_recovers_subagent_fallback_from_real_event_without_snapshot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+            event_log = root / ".taskboard" / "t0" / "events.jsonl"
+
+            loop_module.run_loop(
+                root,
+                "Ship demo",
+                30,
+                300,
+                "powershell",
+                f'"{sys.executable}" -c "print(123)" --prompt-file "{{target_file}}"',
+                True,
+                1,
+                0,
+                300,
+                True,
+                None,
+                root / ".taskboard" / "targets",
+                300,
+                event_log,
+                True,
+                None,
+                None,
+                True,
+                (
+                    f'"{sys.executable}" -c '
+                    '"import sys; print(\'Failed to authenticate. API Error: 403 Request not allowed\'); sys.exit(7)"'
+                ),
+            )
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertFalse((root / ".taskboard" / "t0" / "latest.json").exists())
+        self.assertTrue(progress["subagent_fallback_available"])
+        self.assertEqual(progress["subagent_fallback_kind"], "taskboard-subagent-fallback")
+        self.assertEqual(progress["subagent_fallback_reason"], "agent-preflight-spawn-refused")
+        self.assertEqual(progress["subagent_prompt_count"], 3)
+        self.assertEqual(progress["subagent_prompt_roles"], ["T1", "T2", "T3"])
+        self.assertIn("native subagent fallback", progress["user_action"])
+        self.assertIn("subagent_prompt_roles=T1,T2,T3", text)
+        self.assertIn("latest_event_subagent_fallback_available=True", text)
+
     def test_progress_recovers_acknowledged_assignment_from_real_event_without_snapshot(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

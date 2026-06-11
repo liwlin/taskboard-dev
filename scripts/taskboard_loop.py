@@ -1254,6 +1254,10 @@ def append_event_log(
                 "command": str(item.get("command") or "")[:2000],
             }
         )
+    subagent_fallback = payload.get("subagent_fallback", {})
+    subagent_fallback_payload = subagent_fallback if isinstance(subagent_fallback, dict) else {}
+    subagent_prompts = subagent_fallback_payload.get("subagent_prompts", [])
+    subagent_prompt_list = subagent_prompts if isinstance(subagent_prompts, list) else []
     event = {
         "kind": "taskboard-t0-supervisor-event",
         "version": 1,
@@ -1290,6 +1294,15 @@ def append_event_log(
         ),
         "suppressed_launch_count": len(suppressed_launch_list),
         "suppressed_launches": suppressed_launch_events,
+        "subagent_fallback_available": bool(subagent_fallback_payload),
+        "subagent_fallback_kind": str(subagent_fallback_payload.get("kind") or ""),
+        "subagent_fallback_reason": str(subagent_fallback_payload.get("reason") or ""),
+        "subagent_prompt_count": len(subagent_prompt_list),
+        "subagent_prompt_roles": [
+            str(item.get("role") or "")
+            for item in subagent_prompt_list
+            if isinstance(item, dict) and item.get("role")
+        ],
         "stalled_recovery_count": len(stalled_recovery_list),
         "stalled_recoveries": [
             {
