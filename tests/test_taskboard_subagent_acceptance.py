@@ -72,6 +72,10 @@ class TaskboardSubagentAcceptanceTest(unittest.TestCase):
                 role,
                 "--summary",
                 f"{role} completed via native receipt",
+                "--result-tool",
+                "multi_agent_v1.wait_agent",
+                "--result-status",
+                "completed",
             )
 
     def test_acceptance_passes_completed_subagent_dispatch_records(self):
@@ -133,6 +137,62 @@ class TaskboardSubagentAcceptanceTest(unittest.TestCase):
         self.assertEqual(returncode, 0, payload)
         self.assertEqual(payload["state"], "passed")
         self.assertTrue(payload["require_spawn_evidence"])
+
+    def test_result_evidence_mode_requires_native_result_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write_real_spawn_records(root)
+            state_file = root / ".taskboard" / "t0" / "subagents.json"
+            state = json.loads(state_file.read_text(encoding="utf-8"))
+            del state["roles"]["T2"]["result_receipt"]
+            state_file.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+
+            returncode, payload = self.run_acceptance(
+                root,
+                "--require-real-agent-ids",
+                "--require-spawn-evidence",
+                "--require-result-evidence",
+            )
+
+        self.assertEqual(returncode, 1)
+        self.assertEqual(payload["state"], "failed")
+        self.assertTrue(any("T2: result_receipt missing" in item for item in payload["failures"]), payload)
+
+    def test_result_evidence_mode_passes_with_native_result_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write_real_spawn_records(root)
+
+            returncode, payload = self.run_acceptance(
+                root,
+                "--require-real-agent-ids",
+                "--require-spawn-evidence",
+                "--require-result-evidence",
+            )
+
+        self.assertEqual(returncode, 0, payload)
+        self.assertEqual(payload["state"], "passed")
+        self.assertTrue(payload["require_result_evidence"])
+
+    def test_result_evidence_mode_rejects_summary_hash_mismatch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write_real_spawn_records(root)
+            state_file = root / ".taskboard" / "t0" / "subagents.json"
+            state = json.loads(state_file.read_text(encoding="utf-8"))
+            state["roles"]["T1"]["result_receipt"]["summary_hash"] = "sha256:" + ("0" * 64)
+            state_file.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+
+            returncode, payload = self.run_acceptance(
+                root,
+                "--require-real-agent-ids",
+                "--require-spawn-evidence",
+                "--require-result-evidence",
+            )
+
+        self.assertEqual(returncode, 1)
+        self.assertEqual(payload["state"], "failed")
+        self.assertTrue(any("T1: result summary_hash mismatch" in item for item in payload["failures"]), payload)
 
     def test_spawn_evidence_mode_rejects_prompt_hash_mismatch(self):
         with tempfile.TemporaryDirectory() as tmp:

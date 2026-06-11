@@ -12,6 +12,7 @@ from taskboard_subagents import (
     prompt_hash,
     read_subagent_fallback_packet,
     subagent_status_payload,
+    text_hash,
 )
 
 
@@ -58,6 +59,7 @@ def collect_acceptance(
     required_roles: list[str],
     require_real_agent_ids: bool,
     require_spawn_evidence: bool,
+    require_result_evidence: bool,
 ) -> dict[str, object]:
     packet = read_subagent_fallback_packet(root)
     status = subagent_status_payload(root)
@@ -149,6 +151,26 @@ def collect_acceptance(
                     failures.append(f"{role}: completion_receipt native_status is not completed")
                 if not str(completion_receipt.get("recorded_at") or "").strip():
                     failures.append(f"{role}: completion_receipt recorded_at missing")
+        if require_result_evidence:
+            result_receipt = record.get("result_receipt")
+            summary = str(record.get("summary") or "")
+            if not isinstance(result_receipt, dict):
+                failures.append(f"{role}: result_receipt missing")
+            else:
+                if str(result_receipt.get("role") or "") != role:
+                    failures.append(f"{role}: result_receipt role mismatch")
+                if str(result_receipt.get("agent_id") or "") != agent_id:
+                    failures.append(f"{role}: result_receipt agent_id mismatch")
+                if not str(result_receipt.get("result_tool") or "").strip():
+                    failures.append(f"{role}: result_tool missing")
+                if not str(result_receipt.get("result_status") or "").strip():
+                    failures.append(f"{role}: result_status missing")
+                if str(result_receipt.get("native_status") or "") != "completed":
+                    failures.append(f"{role}: result_receipt native_status is not completed")
+                if str(result_receipt.get("summary_hash") or "") != text_hash(summary.strip()):
+                    failures.append(f"{role}: result summary_hash mismatch")
+                if not str(result_receipt.get("recorded_at") or "").strip():
+                    failures.append(f"{role}: result_receipt recorded_at missing")
         summary = str(record.get("summary") or "")
         if not summary.strip():
             failures.append(f"{role}: completion summary missing")
@@ -166,6 +188,7 @@ def collect_acceptance(
         "required_roles": required_roles,
         "require_real_agent_ids": require_real_agent_ids,
         "require_spawn_evidence": require_spawn_evidence,
+        "require_result_evidence": require_result_evidence,
         "packet_file": str(packet.get("path") or ""),
         "state_file": str(status.get("state_file") or ""),
         "prompt_roles": prompt_roles,
@@ -206,6 +229,11 @@ def build_parser() -> ArgumentParser:
         action="store_true",
         help="Require native spawn tool metadata recorded by subagent ack",
     )
+    parser.add_argument(
+        "--require-result-evidence",
+        action="store_true",
+        help="Require native wait/result metadata recorded by subagent done",
+    )
     parser.add_argument("--format", choices=("text", "json"), default="text")
     return parser
 
@@ -224,6 +252,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         required_roles,
         args.require_real_agent_ids,
         args.require_spawn_evidence,
+        args.require_result_evidence,
     )
     if args.format == "json":
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))

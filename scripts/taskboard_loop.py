@@ -17,7 +17,7 @@ from typing import Optional
 from taskboard_health import report_health
 from taskboard_sessions import probe_sessions
 from taskboard_stopgates import report_stop_gates
-from taskboard_subagents import subagent_ack_payload, subagent_plan_payload
+from taskboard_subagents import subagent_ack_payload, subagent_plan_payload, subagent_result_payload
 from taskboard_t0 import (
     build_backend,
     build_launch_commands,
@@ -878,6 +878,7 @@ def run_once(
     checkout_owner_id: Optional[str] = None,
     checkout_owner_lease_seconds: int = 1800,
     native_spawn_result: Optional[dict[str, object]] = None,
+    native_result_receipt: Optional[dict[str, object]] = None,
 ) -> dict[str, object]:
     launch_probe = build_launch_probe(launcher, agent_preflight)
     session_probe = probe_sessions(
@@ -1105,7 +1106,11 @@ def run_once(
     }
     if subagent_fallback:
         payload["subagent_fallback_packet"] = write_subagent_fallback_packet(root, goal, subagent_fallback)
-    payload["subagent_control"] = build_subagent_loop_control(root, native_spawn_result)
+    payload["subagent_control"] = build_subagent_loop_control(
+        root,
+        native_spawn_result,
+        native_result_receipt,
+    )
     if completion_audit_payload is not None:
         payload["completion_audit"] = completion_audit_payload
     return payload
@@ -1126,7 +1131,38 @@ def default_subagent_fallback_file(root: Path) -> Path:
 def build_subagent_loop_control(
     root: Path,
     native_spawn_result: Optional[dict[str, object]] = None,
+    native_result_receipt: Optional[dict[str, object]] = None,
 ) -> dict[str, object]:
+    if isinstance(native_result_receipt, dict) and native_result_receipt:
+        role = str(native_result_receipt.get("role") or "").upper()
+        native_status = str(native_result_receipt.get("native_status") or native_result_receipt.get("result_status") or "")
+        status = "failed" if native_status.lower() in {"failed", "failure", "error"} else "completed"
+        result = subagent_result_payload(
+            root,
+            role,
+            status,
+            str(native_result_receipt.get("summary") or ""),
+            str(native_result_receipt.get("result_tool") or ""),
+            str(native_result_receipt.get("result_status") or native_status),
+        )
+        next_plan = subagent_plan_payload(root)
+        return {
+            "kind": "taskboard-subagent-loop-control",
+            "state": "result-recorded",
+            "action": "recorded-native-result",
+            "role": role,
+            "prompt_hash": "",
+            "native_spawn": {},
+            "subagent_plan": {},
+            "subagent_ack": {},
+            "subagent_result": result,
+            "subagent_next_plan": next_plan,
+            "boundary": (
+                "T0 loop recorded a native-subagent result receipt from the outer "
+                "runtime; this is control-plane evidence, not worker memory."
+            ),
+        }
+
     plan = subagent_plan_payload(root)
     control = {
         "kind": "taskboard-subagent-loop-control",
@@ -1137,6 +1173,7 @@ def build_subagent_loop_control(
         "native_spawn": plan.get("native_spawn", {}),
         "subagent_plan": plan,
         "subagent_ack": {},
+        "subagent_result": {},
         "subagent_next_plan": {},
         "boundary": (
             "T0 loop owns native-subagent dispatch control. It may emit a spawn "

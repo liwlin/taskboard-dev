@@ -1284,6 +1284,63 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertEqual(state["roles"]["T1"]["status"], "dispatched")
         self.assertEqual(state["roles"]["T1"]["agent_id"], "019eb760-native-t1")
 
+    def test_loop_records_injected_native_result_receipt_and_advances_subagent_plan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+            loop_module.run_once(
+                root,
+                "Ship demo",
+                30,
+                300,
+                "powershell",
+                f'"{sys.executable}" -c "print(123)" --prompt-file "{{target_file}}"',
+                True,
+                300,
+                loop_module.default_target_dir(root),
+                agent_preflight={
+                    "kind": "taskboard-agent-preflight",
+                    "state": "spawn-refused",
+                    "output": "Failed to authenticate. API Error: 403 Request not allowed",
+                },
+                native_spawn_result={
+                    "role": "T1",
+                    "agent_id": "019eb760-native-t1",
+                    "agent_nickname": "T1 architect child",
+                    "spawn_tool": "multi_agent_v1.spawn_agent",
+                },
+            )
+
+            payload = loop_module.run_once(
+                root,
+                "Ship demo",
+                30,
+                300,
+                "none",
+                None,
+                False,
+                300,
+                None,
+                native_result_receipt={
+                    "role": "T1",
+                    "summary": "T1 created the taskboard requirements",
+                    "result_tool": "multi_agent_v1.wait_agent",
+                    "result_status": "completed",
+                    "native_status": "completed",
+                },
+            )
+            state = json.loads((root / ".taskboard" / "t0" / "subagents.json").read_text(encoding="utf-8"))
+
+        control = payload["subagent_control"]
+        self.assertEqual(control["state"], "result-recorded")
+        self.assertEqual(control["action"], "recorded-native-result")
+        self.assertEqual(control["role"], "T1")
+        self.assertEqual(control["subagent_result"]["record"]["result_receipt"]["result_tool"], "multi_agent_v1.wait_agent")
+        self.assertEqual(control["subagent_next_plan"]["state"], "dispatch-next")
+        self.assertEqual(control["subagent_next_plan"]["role"], "T2")
+        self.assertEqual(state["roles"]["T1"]["status"], "completed")
+        self.assertEqual(state["roles"]["T1"]["result_receipt"]["result_status"], "completed")
+
     def test_loop_persists_interruption_recovery_state(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

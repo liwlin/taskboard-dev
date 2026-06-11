@@ -1,4 +1,4 @@
-# TASKBOARD v4.5.10 Templates
+# TASKBOARD v4.5.11 Templates
 
 ## Directory Structure (auto-generated on first run)
 
@@ -62,8 +62,8 @@ python scripts/taskboard.py --root . decide TASK-001.v1.T1-待决策.md --answer
 python scripts/taskboard.py --root . subagent status
 python scripts/taskboard.py --root . subagent next
 python scripts/taskboard.py --root . subagent ack --role T1 --agent-id "<agent id>" --spawn-tool "<native spawn tool>" --agent-nickname "<agent nickname>"
-python scripts/taskboard.py --root . subagent done --role T1 --summary "<result>"
-python scripts/taskboard.py --root . subagent fail --role T1 --summary "<failure>"
+python scripts/taskboard.py --root . subagent done --role T1 --summary "<result>" --result-tool "<native wait tool>" --result-status "<native final status>"
+python scripts/taskboard.py --root . subagent fail --role T1 --summary "<failure>" --result-tool "<native wait tool>" --result-status "<native final status>"
 python scripts/taskboard.py --root . subagent retry --role T1 --note "<retry reason>"
 python scripts/taskboard_start.py --goal "<user goal>"
 python scripts/taskboard_start.py --goal "<user goal>" --dry-run --iterations 1 --launcher none
@@ -109,8 +109,8 @@ Current v4.4 recovery rules:
 - Completion is gated by empty active queues, `STATE.md` goal-complete sentinel, archived TASK evidence, and dev-log completion evidence.
 - Assignment lease expiry, pending-ack timeout, stalled TASK detection, launch lease suppression, checkout-owner conflicts, launcher failures, and fallback launchers are handled inside T0; user action should remain T0-level.
 - T0 manager-boundary claims must pass `python scripts/taskboard_t0_boundary_smoke.py`; the smoke fails if T0 dry-start creates worker-owned context, TASK/archive, source, git, or executed-launch artifacts.
-- Native subagent fallback is also handled inside T0: T0 uses `taskboard.py subagent plan` to get one machine-readable control action, dispatches the returned prompt through the current client's native subagent tool when `action=spawn-native-subagent`, records the returned agent id with the plan's `ack_command`, records final results with `done_command` / `fail_command`, and uses `retry_command` to archive a failed attempt before requeueing that role. `taskboard_loop.py` emits `subagent_control` after writing a fallback packet and can record an injected native spawn receipt as `subagent_ack`; `taskboard_progress.py` exposes `subagent_control_state`, `subagent_control_next_role`, `subagent_plan_command`, `subagent_next_command`, `subagent_ack_command`, `subagent_done_command`, `subagent_fail_command`, and `subagent_retry_commands` so T0 can resume the correct native subagent control action after restart. Restarts continue pending/active/failed roles instead of asking the user to manage T1/T2/T3.
-- Real native-subagent backend claims must pass `python scripts/taskboard_subagent_acceptance.py --root . --require-real-agent-ids --require-spawn-evidence`; the check requires `spawn_receipt`, `completion_receipt`, and prompt_hash consistency, while the smoke script alone proves bookkeeping, not live native-subagent execution.
+- Native subagent fallback is also handled inside T0: T0 uses `taskboard.py subagent plan` to get one machine-readable control action, dispatches the returned prompt through the current client's native subagent tool when `action=spawn-native-subagent`, records the returned agent id with the plan's `ack_command`, records final results with `done_command` / `fail_command` plus native wait/result metadata, and uses `retry_command` to archive a failed attempt before requeueing that role. `taskboard_loop.py` emits `subagent_control` after writing a fallback packet and can record injected native spawn/result receipts as `subagent_ack` / `subagent_result`; `taskboard_progress.py` exposes `subagent_control_state`, `subagent_control_next_role`, `subagent_plan_command`, `subagent_next_command`, `subagent_ack_command`, `subagent_done_command`, `subagent_fail_command`, and `subagent_retry_commands` so T0 can resume the correct native subagent control action after restart. Restarts continue pending/active/failed roles instead of asking the user to manage T1/T2/T3.
+- Real native-subagent backend claims must pass `python scripts/taskboard_subagent_acceptance.py --root . --require-real-agent-ids --require-spawn-evidence --require-result-evidence`; the check requires `spawn_receipt`, `result_receipt`, `completion_receipt`, prompt_hash consistency, and summary_hash consistency, while the smoke script alone proves bookkeeping, not live native-subagent execution.
 - Real T0-managed milestone completion claims must pass `python scripts/taskboard_live_milestone_acceptance.py --root .`; this field-run gate rejects smoke/test/manual placeholder evidence and checkout-owner conflicts.
 
 ---

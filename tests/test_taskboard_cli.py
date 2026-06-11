@@ -339,8 +339,12 @@ class TaskboardCliTest(unittest.TestCase):
         self.assertIn("--spawn-tool", plan["ack_command"])
         self.assertIn("--agent-nickname", plan["ack_command"])
         self.assertIn("subagent done --role T1", plan["done_command"])
+        self.assertIn("--result-tool", plan["done_command"])
+        self.assertIn("--result-status", plan["done_command"])
         self.assertIn("subagent fail --role T1", plan["fail_command"])
+        self.assertIn("--result-tool", plan["fail_command"])
         self.assertIn("--require-spawn-evidence", plan["acceptance_command"])
+        self.assertIn("--require-result-evidence", plan["acceptance_command"])
 
     def test_subagent_plan_surfaces_active_failed_and_complete_actions(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -394,6 +398,10 @@ class TaskboardCliTest(unittest.TestCase):
                 "T1",
                 "--summary",
                 "T1 created TASK files",
+                "--result-tool",
+                "multi_agent_v1.wait_agent",
+                "--result-status",
+                "completed",
             )
             done = json.loads(stdout)
             _, stdout = self.run_cli(
@@ -415,6 +423,11 @@ class TaskboardCliTest(unittest.TestCase):
         self.assertEqual(done["record"]["completion_receipt"]["role"], "T1")
         self.assertEqual(done["record"]["completion_receipt"]["agent_id"], "agent-t1")
         self.assertEqual(done["record"]["completion_receipt"]["native_status"], "completed")
+        self.assertEqual(done["record"]["result_receipt"]["role"], "T1")
+        self.assertEqual(done["record"]["result_receipt"]["agent_id"], "agent-t1")
+        self.assertEqual(done["record"]["result_receipt"]["result_tool"], "multi_agent_v1.wait_agent")
+        self.assertEqual(done["record"]["result_receipt"]["result_status"], "completed")
+        self.assertRegex(done["record"]["result_receipt"]["summary_hash"], r"^sha256:[0-9a-f]{64}$")
         self.assertEqual(failed["record"]["status"], "failed")
         self.assertEqual(failed["record"]["summary"], "review tool unavailable")
         self.assertEqual(status["completed_roles"], ["T1"])

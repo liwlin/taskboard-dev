@@ -1,4 +1,4 @@
-# taskboard-dev v4.5.10 用户手册
+# taskboard-dev v4.5.11 用户手册
 
 T0 管理的 TASKBOARD 驱动开发工作流 — 用户只对 T0 下达目标，T0 负责管理 T1 架构师、T2 审核者、T3 执行者，基于文件名即状态的零轮询开销设计。v4.5 面向 Claude Code / Codex 的现代长任务能力：loop、目标/target、后台执行、resume、工具检查点，以及紧凑 `taskboard.py` 控制面入口。默认原则是“能自动做就自动做”，只有真正的停止门才需要人确认。
 
@@ -78,8 +78,8 @@ python scripts/taskboard_start.py --goal "<user goal>"
 
 完整的原生子代理后备调度包会写入 `.taskboard/t0/subagent-fallback.json`，其 `kind` 为 `taskboard-subagent-fallback-packet`，包含可恢复派发的 `subagent_prompts`。`taskboard_progress.py` 会从 `.taskboard/t0/latest.json`、append-only event log 和这个 packet 文件恢复 `subagent_fallback_available`、`subagent_fallback_packet_available`、`subagent_fallback_packet_file`、`subagent_prompt_count` 和 `subagent_prompt_roles`。因此 T0 重启或 latest snapshot 丢失后，仍能拿回完整子代理派发材料，不会退回让用户分别管理 T1/T2/T3。
 
-T0 使用原生子代理后备调度时，先运行 `python scripts/taskboard.py --root . subagent plan` 获取单一机器可读控制动作。当 `action=spawn-native-subagent` 时，T0 用返回的 `prompt` 调用当前客户端的原生子代理工具，并用返回的 `ack_command` 记录 agent id、spawn tool、agent nickname 和 prompt hash。子代理返回最终结果后，T0 用 `done_command` 或 `fail_command` 记录完成/失败；需要重试失败角色时，用 `retry_command` 把旧记录归入 `attempts` 并重新进入 pending 队列。`python scripts/taskboard.py --root . subagent status` 会汇总 `.taskboard/t0/subagent-fallback.json` 和 `.taskboard/t0/subagents.json`，显示哪些角色 pending / active / completed / failed。这个状态仍是 T0 控制面恢复信息，不是 TASKBOARD 任务状态。`taskboard_loop.py` 在生成 native-subagent fallback packet 后也会输出 `subagent_control`；如果外层集成注入真实 native spawn receipt，loop 会自动写入 `subagent_ack` 并推进到下一角色计划。
-真实 native-subagent 后端跑完后，用 `python scripts/taskboard_subagent_acceptance.py --root . --require-real-agent-ids --require-spawn-evidence` 验收证据。该脚本检查 fallback packet、T1/T2/T3 prompt 隔离契约、ack/result 记录、完成摘要、真实 agent id、`spawn_receipt`、`completion_receipt`、spawn tool、agent nickname 和 prompt_hash 一致性；smoke/test/manual 占位 id 会被拒绝，避免把脚本模拟误报为实战通过。
+T0 使用原生子代理后备调度时，先运行 `python scripts/taskboard.py --root . subagent plan` 获取单一机器可读控制动作。当 `action=spawn-native-subagent` 时，T0 用返回的 `prompt` 调用当前客户端的原生子代理工具，并用返回的 `ack_command` 记录 agent id、spawn tool、agent nickname 和 prompt hash。子代理返回最终结果后，T0 用 `done_command` 或 `fail_command` 记录完成/失败，并附带 native wait/result metadata；需要重试失败角色时，用 `retry_command` 把旧记录归入 `attempts` 并重新进入 pending 队列。`python scripts/taskboard.py --root . subagent status` 会汇总 `.taskboard/t0/subagent-fallback.json` 和 `.taskboard/t0/subagents.json`，显示哪些角色 pending / active / completed / failed。这个状态仍是 T0 控制面恢复信息，不是 TASKBOARD 任务状态。`taskboard_loop.py` 在生成 native-subagent fallback packet 后也会输出 `subagent_control`；如果外层集成注入真实 native spawn/result receipt，loop 会自动写入 `subagent_ack` / `subagent_result` 并推进到下一角色计划。
+真实 native-subagent 后端跑完后，用 `python scripts/taskboard_subagent_acceptance.py --root . --require-real-agent-ids --require-spawn-evidence --require-result-evidence` 验收证据。该脚本检查 fallback packet、T1/T2/T3 prompt 隔离契约、ack/result 记录、完成摘要、真实 agent id、`spawn_receipt`、`result_receipt`、`completion_receipt`、spawn tool、agent nickname、prompt_hash 和 summary_hash 一致性；smoke/test/manual 占位 id 会被拒绝，避免把脚本模拟误报为实战通过。
 
 如果当前客户端支持原生隔离子代理，但不适合由 T0 创建终端，可用 `python scripts/taskboard_t0.py --goal "<user goal>" --mode subagent --format json` 生成 `taskboard-subagent-backend`。该输出包含 `subagent_prompts`，分别给 T1/T2/T3 子代理使用；每个 prompt 都要求读取 `SKILL.md` 和对应 `references/role-t*.md`，并把嵌入 target 当作 T0 发出的角色 inbox。Subagent 模式不会生成 shell `launch_commands`，也不会继承 T0 私有推理或其他 worker 的 chat context。
 
@@ -98,8 +98,8 @@ python scripts/taskboard.py --root . subagent status
 python scripts/taskboard.py --root . subagent plan
 python scripts/taskboard.py --root . subagent next
 python scripts/taskboard.py --root . subagent ack --role T1 --agent-id "<agent id>" --spawn-tool "<native spawn tool>" --agent-nickname "<agent nickname>"
-python scripts/taskboard.py --root . subagent done --role T1 --summary "<result>"
-python scripts/taskboard.py --root . subagent fail --role T1 --summary "<failure>"
+python scripts/taskboard.py --root . subagent done --role T1 --summary "<result>" --result-tool "<native wait tool>" --result-status "<native final status>"
+python scripts/taskboard.py --root . subagent fail --role T1 --summary "<failure>" --result-tool "<native wait tool>" --result-status "<native final status>"
 python scripts/taskboard.py --root . subagent retry --role T1 --note "<retry reason>"
 ```
 

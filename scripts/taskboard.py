@@ -311,9 +311,13 @@ def build_parser() -> ArgumentParser:
     subagent_done = subagent_subparsers.add_parser("done", help="Record a completed native subagent")
     subagent_done.add_argument("--role", required=True)
     subagent_done.add_argument("--summary", default="")
+    subagent_done.add_argument("--result-tool", default="")
+    subagent_done.add_argument("--result-status", default="")
     subagent_fail = subagent_subparsers.add_parser("fail", help="Record a failed native subagent")
     subagent_fail.add_argument("--role", required=True)
     subagent_fail.add_argument("--summary", default="")
+    subagent_fail.add_argument("--result-tool", default="")
+    subagent_fail.add_argument("--result-status", default="")
     subagent_retry = subagent_subparsers.add_parser("retry", help="Return a failed native subagent role to pending")
     subagent_retry.add_argument("--role", required=True)
     subagent_retry.add_argument("--note", default="")
@@ -361,9 +365,23 @@ def run(args) -> dict[str, object]:
                 args.agent_nickname,
             )
         if args.subagent_command == "done":
-            return subagent_result_payload(root, args.role, "completed", args.summary)
+            return subagent_result_payload(
+                root,
+                args.role,
+                "completed",
+                args.summary,
+                args.result_tool,
+                args.result_status,
+            )
         if args.subagent_command == "fail":
-            return subagent_result_payload(root, args.role, "failed", args.summary)
+            return subagent_result_payload(
+                root,
+                args.role,
+                "failed",
+                args.summary,
+                args.result_tool,
+                args.result_status,
+            )
         if args.subagent_command == "retry":
             return subagent_retry_payload(root, args.role, args.note)
     raise ValueError(f"unknown command: {args.command}")
