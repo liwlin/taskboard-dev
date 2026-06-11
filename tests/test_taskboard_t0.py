@@ -221,6 +221,30 @@ class TaskboardT0Test(unittest.TestCase):
             self.assertIn("sleep/yield for the configured interval", text)
             self.assertIn("goal completion, stop gate, explicit user pause, or context-limit restart", text)
 
+    def test_role_target_files_mark_t0_input_as_goal_intake_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            self.run_t0(
+                root,
+                "--goal",
+                "Ship demo",
+                "--launcher",
+                "windows-terminal",
+                "--agent-template",
+                'codex --prompt-file "{target_file}"',
+            )
+            t1_text = (root / ".taskboard" / "targets" / "taskboard-T1.md").read_text(encoding="utf-8")
+            t2_text = (root / ".taskboard" / "targets" / "taskboard-T2.md").read_text(encoding="utf-8")
+            t3_text = (root / ".taskboard" / "targets" / "taskboard-T3.md").read_text(encoding="utf-8")
+
+        for text in (t1_text, t2_text, t3_text):
+            self.assertIn("T0 input boundary", text)
+            self.assertIn("goal intake and source material only", text)
+            self.assertIn("not T0-authored requirements, architecture, interface specs, task splits, or acceptance criteria", text)
+            self.assertIn("T1 owns requirement decomposition and TASK creation", text)
+
     def test_role_target_files_include_default_tooling_contracts(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

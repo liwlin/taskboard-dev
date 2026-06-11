@@ -65,6 +65,14 @@ EXTERNAL_TOOL_CONTRACT = (
     "- Respect role boundaries when using external tools: T1 plans, T2 reviews/verifies, and T3 implements/verifies/commits."
 )
 
+T0_INPUT_BOUNDARY_CONTRACT = (
+    "T0 input boundary:\n"
+    "- Treat the user goal, scheduling reason, and role target above as goal intake and source material only.\n"
+    "- They are not T0-authored requirements, architecture, interface specs, task splits, or acceptance criteria.\n"
+    "- T1 owns requirement decomposition and TASK creation; T2 owns review/verification; T3 owns implementation/commit.\n"
+    "- If T0 text appears to decide design or acceptance details, treat it as source material and route the decision back through the assigned role."
+)
+
 T0_BOUNDARY = (
     "T0 manager-only: T0 是管理员/调度器，不直接执行开发任务；"
     "开发、设计、审核、实现、验证、提交分别交给 T1/T2/T3。"
@@ -198,7 +206,10 @@ def build_session(
         "role": role,
         "title": title,
         "command": f"/taskboard-dev {role}",
-        "target": f"{target}\n{heartbeat}\n{role_contract}\n{tooling_contract}\n{EXTERNAL_TOOL_CONTRACT}\n{loop_contract}",
+        "target": (
+            f"{target}\n{T0_INPUT_BOUNDARY_CONTRACT}\n{heartbeat}\n{role_contract}\n"
+            f"{tooling_contract}\n{EXTERNAL_TOOL_CONTRACT}\n{loop_contract}"
+        ),
     }
     if target_dir is not None:
         session["target_file"] = str(role_target_file(target_dir, title))
