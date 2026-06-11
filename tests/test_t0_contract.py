@@ -209,7 +209,13 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("Create only a goal intake packet", role_t0)
         self.assertIn("taskboard-t0-goal-intake", role_t0)
         self.assertIn("forbidden fields", role_t0)
+        self.assertIn("forbidden seed patterns", role_t0)
+        self.assertIn("REQ counts", role_t0)
+        self.assertIn("priority labels", role_t0)
+        self.assertIn("interface signatures", role_t0)
+        self.assertIn("MAP risk sections", role_t0)
         self.assertIn("T0 must not decompose requirements", role_t0)
+        self.assertIn("T0 must not pre-fill REQ counts", role_t0)
         self.assertIn("T1 hasn't started, so I will write requirements first", role_t0)
 
     def test_terminal_launcher_contract_is_documented(self):

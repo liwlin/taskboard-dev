@@ -116,8 +116,14 @@ class TaskboardT0Test(unittest.TestCase):
         self.assertEqual(intake["user_goal"], "Ship demo")
         self.assertIn("requirements", intake["forbidden_fields"])
         self.assertIn("architecture", intake["forbidden_fields"])
+        self.assertIn("interface_specs", intake["forbidden_fields"])
         self.assertIn("task_splits", intake["forbidden_fields"])
         self.assertIn("acceptance_criteria", intake["forbidden_fields"])
+        forbidden_patterns = " ".join(intake["forbidden_seed_patterns"])
+        self.assertIn("REQ IDs", forbidden_patterns)
+        self.assertIn("priority labels", forbidden_patterns)
+        self.assertIn("interface signatures", forbidden_patterns)
+        self.assertIn("MAP risk areas", forbidden_patterns)
         self.assertIn("goal_intake:", text)
         self.assertIn("taskboard-t0-goal-intake", text)
 
@@ -265,6 +271,7 @@ class TaskboardT0Test(unittest.TestCase):
             self.assertIn("T0 input boundary", text)
             self.assertIn("goal intake and source material only", text)
             self.assertIn("not T0-authored requirements, architecture, interface specs, task splits, or acceptance criteria", text)
+            self.assertIn("Do not pre-fill REQ counts, priorities, interface signatures, task IDs, acceptance rows, or MAP risk sections", text)
             self.assertIn("T1 owns requirement decomposition and TASK creation", text)
 
     def test_role_target_files_include_default_tooling_contracts(self):

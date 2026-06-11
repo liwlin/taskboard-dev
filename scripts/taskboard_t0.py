@@ -69,10 +69,18 @@ EXTERNAL_TOOL_CONTRACT = (
     "- Respect role boundaries when using external tools: T1 plans, T2 reviews/verifies, and T3 implements/verifies/commits."
 )
 
+T0_FORBIDDEN_SEED_PATTERNS = [
+    "REQ IDs, REQ counts, priority labels, or requirement skeleton rows",
+    "architecture options, interface signatures, data contracts, or API names",
+    "task breakdowns, task IDs, acceptance criteria, or verify checklists",
+    "MAP risk areas, implementation file lists, or design-specific context content",
+]
+
 T0_INPUT_BOUNDARY_CONTRACT = (
     "T0 input boundary:\n"
     "- Treat the user goal, scheduling reason, and role target above as goal intake and source material only.\n"
     "- They are not T0-authored requirements, architecture, interface specs, task splits, or acceptance criteria.\n"
+    "- Do not pre-fill REQ counts, priorities, interface signatures, task IDs, acceptance rows, or MAP risk sections; T1 must author those from the intake.\n"
     "- T1 owns requirement decomposition and TASK creation; T2 owns review/verification; T3 owns implementation/commit.\n"
     "- If T0 text appears to decide design or acceptance details, treat it as source material and route the decision back through the assigned role."
 )
@@ -147,9 +155,11 @@ def build_goal_intake(goal: str, reason: str) -> dict[str, object]:
             "task_splits",
             "acceptance_criteria",
         ],
+        "forbidden_seed_patterns": T0_FORBIDDEN_SEED_PATTERNS,
         "boundary": (
             "T0 goal intake only; T1 owns requirement decomposition, context files, "
-            "TASK creation, architecture options, and acceptance criteria."
+            "TASK creation, architecture options, acceptance criteria, REQ skeletons, "
+            "priority labels, interface signatures, task IDs, verify checklists, and MAP risk sections."
         ),
     }
 

@@ -2,7 +2,7 @@
 
 `taskboard-dev` 是一个给 Claude Code / OpenAI Codex 等 agent CLI 使用的 **TASKBOARD 全自动流程开发 skill**。用户把目标交给 T0，T0 自动管理 T1 架构调度、T2 审核验证、T3 执行提交三个长期运行角色，通过文件名状态机驱动任务流转，适合 5–20 个任务规模的 milestone / feature batch。
 
-当前版本：**v4.5.2**
+当前版本：**v4.5.3**
 
 ## 核心优势
 
@@ -73,8 +73,8 @@ git clone <YOUR_GITHUB_REPO_URL> ~/.claude/skills/taskboard-dev
 脚本会生成：
 
 ```text
-dist/taskboard-dev-v4.5.2.tar.gz
-dist/taskboard-dev-v4.5.2.zip
+dist/taskboard-dev-v4.5.3.tar.gz
+dist/taskboard-dev-v4.5.3.zip
 ```
 
 解压后把 `taskboard-dev/` 目录复制到你的 agent CLI skills 目录即可。
@@ -243,9 +243,9 @@ If the selected TASK file itself is older than `--stale-minutes`, T0 checks `.ta
 If an executed launcher command fails, the loop action reports `T0 launch/recovery failed` and tells the user to fix T0 launcher configuration or retry another launcher, not to manage T1/T2/T3 directly. T0 stops launching further worker commands after the first launcher failure in that loop iteration, so one bad launcher/template configuration does not fan out across T1/T2/T3. When `--fallback-launcher <launcher>` is configured, T0 regenerates the same managed role commands for the fallback launcher and retries unlaunched roles before surfacing the failure to the user.
 
 Each loop iteration writes isolated per-role targets to `.taskboard/targets/taskboard-T1.md`, `.taskboard/targets/taskboard-T2.md`, and `.taskboard/targets/taskboard-T3.md` by default. These files are runtime inboxes from T0 to each managed role, so workers can read only their own target without sharing hidden chat context. They are not task state or shared memory. Use `--target-dir <path>` to choose another target directory, or `--no-target-files` for no-write dry checks. Do not combine `--no-target-files` with an `--agent-template` that references `{target_file}` unless `--launcher none` suppresses worker launches; otherwise T0 rejects the configuration before it can emit an empty prompt-file command.
-Each generated target includes a `T0 input boundary`: the user goal, scheduling reason, and role target are goal intake and source material only, not T0-authored requirements, architecture, interface specs, task splits, or acceptance criteria. T1 owns requirement decomposition and TASK creation, T2 owns review/verification, and T3 owns implementation/commit. Each target also includes a `Startup skill gate`, requiring the worker to load `/taskboard-dev T{N}` before any TASKBOARD action and then invoke the required role tools/skills before planning, reviewing, implementing, or handing off. Each target also includes a `Role runtime contract` with `assigned_role`, `managed_by: T0`, a "do not execute other role responsibilities" rule, and a "do not rely on another role's chat context" rule. It also includes a `Worker loop contract` plus `Idle recheck contract`: start each loop with `python scripts/taskboard.py --root . cycle T{N} --sleep-seconds 120`, keep cycling while role work is available, refresh heartbeat each cycle, re-read TASKBOARD filenames/docs, and do not terminate just because this role queue is empty. When no unblocked role work is visible, `taskboard cycle` returns `action=idle-recheck`; the worker sleep/yields for the configured interval, then re-runs the same cycle command and re-reads its target file plus TASKBOARD filenames. This keeps role isolation and sustained execution explicit in both inline prompts and `{target_file}` launches.
+Each generated target includes a `T0 input boundary`: the user goal, scheduling reason, and role target are goal intake and source material only, not T0-authored requirements, architecture, interface specs, task splits, or acceptance criteria. It also forbids T0 from pre-filling REQ counts, priorities, interface signatures, task IDs, acceptance rows, or MAP risk sections. T1 owns requirement decomposition and TASK creation, T2 owns review/verification, and T3 owns implementation/commit. Each target also includes a `Startup skill gate`, requiring the worker to load `/taskboard-dev T{N}` before any TASKBOARD action and then invoke the required role tools/skills before planning, reviewing, implementing, or handing off. Each target also includes a `Role runtime contract` with `assigned_role`, `managed_by: T0`, a "do not execute other role responsibilities" rule, and a "do not rely on another role's chat context" rule. It also includes a `Worker loop contract` plus `Idle recheck contract`: start each loop with `python scripts/taskboard.py --root . cycle T{N} --sleep-seconds 120`, keep cycling while role work is available, refresh heartbeat each cycle, re-read TASKBOARD filenames/docs, and do not terminate just because this role queue is empty. When no unblocked role work is visible, `taskboard cycle` returns `action=idle-recheck`; the worker sleep/yields for the configured interval, then re-runs the same cycle command and re-reads its target file plus TASKBOARD filenames. This keeps role isolation and sustained execution explicit in both inline prompts and `{target_file}` launches.
 
-`taskboard_t0.py` also returns a machine-readable `goal_intake` packet with `kind=taskboard-t0-goal-intake`, `next_owner=T1`, allowed intake fields, and forbidden fields including `requirements`, `architecture`, `task_splits`, and `acceptance_criteria`. This packet is T0's seeding limit: T0 may carry the user's goal and source material, but T1 must own decomposition, context files, TASK creation, and acceptance criteria.
+`taskboard_t0.py` also returns a machine-readable `goal_intake` packet with `kind=taskboard-t0-goal-intake`, `next_owner=T1`, allowed intake fields, forbidden fields including `requirements`, `architecture`, `interface_specs`, `task_splits`, and `acceptance_criteria`, plus forbidden seed patterns for REQ skeletons, priorities, interface signatures, task IDs, verify checklists, and MAP risk sections. This packet is T0's seeding limit: T0 may carry the user's goal and source material, but T1 must own decomposition, context files, TASK creation, and acceptance criteria.
 Each generated target also includes a `Default tooling contract` and `Required skills evidence`: T1 defaults to available planning/brainstorming skills such as `superpowers:brainstorming` and `superpowers:writing-plans`, T2 L2/L3 reviews default to independent review tooling such as Codex code review or `superpowers:requesting-code-review`, and T3 must assess Codex native subagents or available multi-agent tools before source edits when the work can be safely split. Each worker must record the tool or skill used, the result, and any fallback reason in the TASK file, history, review note, or dev-log before handoff. T2 also has an `Evidence enforcement gate`: missing Required skills evidence is a review failure and returns the task to the producing role unless a user override explicitly waives the evidence requirement.
 
 When two top-level agents such as ClaudeCode and Codex collaborate on this
@@ -340,7 +340,7 @@ agent 应自动执行常规开发动作，只在以下情况停下来请求用�
 可选指定版本：
 
 ```bash
-VERSION=v4.5.2 ./scripts/package.sh
+VERSION=v4.5.3 ./scripts/package.sh
 ```
 
 生成产物位于 `dist/`，该目录默认不提交。
