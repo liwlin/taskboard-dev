@@ -78,7 +78,7 @@ python scripts/taskboard_start.py --goal "<user goal>"
 
 完整的原生子代理后备调度包会写入 `.taskboard/t0/subagent-fallback.json`，其 `kind` 为 `taskboard-subagent-fallback-packet`，包含可恢复派发的 `subagent_prompts`。`taskboard_progress.py` 会从 `.taskboard/t0/latest.json`、append-only event log 和这个 packet 文件恢复 `subagent_fallback_available`、`subagent_fallback_packet_available`、`subagent_fallback_packet_file`、`subagent_prompt_count` 和 `subagent_prompt_roles`。因此 T0 重启或 latest snapshot 丢失后，仍能拿回完整子代理派发材料，不会退回让用户分别管理 T1/T2/T3。
 
-T0 使用原生子代理后备调度时，先运行 `python scripts/taskboard.py --root . subagent next` 取得下一个待派发角色和 prompt，调用当前客户端的原生子代理工具后，再运行 `python scripts/taskboard.py --root . subagent ack --role T1 --agent-id "<agent id>"` 记录派发事实。子代理返回最终结果后，T0 用 `python scripts/taskboard.py --root . subagent done --role T1 --summary "<result>"` 或 `python scripts/taskboard.py --root . subagent fail --role T1 --summary "<failure>"` 记录完成/失败。`python scripts/taskboard.py --root . subagent status` 会汇总 `.taskboard/t0/subagent-fallback.json` 和 `.taskboard/t0/subagents.json`，显示哪些角色 pending / active / completed / failed。这个状态仍是 T0 控制面恢复信息，不是 TASKBOARD 任务状态。
+T0 使用原生子代理后备调度时，先运行 `python scripts/taskboard.py --root . subagent next` 取得下一个待派发角色和 prompt，调用当前客户端的原生子代理工具后，再运行 `python scripts/taskboard.py --root . subagent ack --role T1 --agent-id "<agent id>"` 记录派发事实。子代理返回最终结果后，T0 用 `python scripts/taskboard.py --root . subagent done --role T1 --summary "<result>"` 或 `python scripts/taskboard.py --root . subagent fail --role T1 --summary "<failure>"` 记录完成/失败；需要重试失败角色时，用 `python scripts/taskboard.py --root . subagent retry --role T1 --note "<retry reason>"` 把旧记录归入 `attempts` 并重新进入 pending 队列。`python scripts/taskboard.py --root . subagent status` 会汇总 `.taskboard/t0/subagent-fallback.json` 和 `.taskboard/t0/subagents.json`，显示哪些角色 pending / active / completed / failed。这个状态仍是 T0 控制面恢复信息，不是 TASKBOARD 任务状态。
 
 如果当前客户端支持原生隔离子代理，但不适合由 T0 创建终端，可用 `python scripts/taskboard_t0.py --goal "<user goal>" --mode subagent --format json` 生成 `taskboard-subagent-backend`。该输出包含 `subagent_prompts`，分别给 T1/T2/T3 子代理使用；每个 prompt 都要求读取 `SKILL.md` 和对应 `references/role-t*.md`，并把嵌入 target 当作 T0 发出的角色 inbox。Subagent 模式不会生成 shell `launch_commands`，也不会继承 T0 私有推理或其他 worker 的 chat context。
 
@@ -96,6 +96,7 @@ python scripts/taskboard.py --root . subagent next
 python scripts/taskboard.py --root . subagent ack --role T1 --agent-id "<agent id>"
 python scripts/taskboard.py --root . subagent done --role T1 --summary "<result>"
 python scripts/taskboard.py --root . subagent fail --role T1 --summary "<failure>"
+python scripts/taskboard.py --root . subagent retry --role T1 --note "<retry reason>"
 ```
 
 `move` 会校验状态名、rename、写入 `docs/taskboard/history/TASK-NNN.history.md` 并刷新 mtime；非法状态（例如编造的 `T3-待合并-L2`）会被拒绝且不改文件。

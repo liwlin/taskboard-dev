@@ -1343,6 +1343,68 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("subagent_failed_roles=T2", text)
         self.assertIn("subagent_active_roles=T3", text)
 
+    def test_progress_treats_retry_pending_subagent_as_pending_work(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            t0_dir = root / ".taskboard" / "t0"
+            t0_dir.mkdir(parents=True)
+            (t0_dir / "subagent-fallback.json").write_text(
+                json.dumps(
+                    {
+                        "kind": "taskboard-subagent-fallback-packet",
+                        "version": 1,
+                        "subagent_prompt_count": 3,
+                        "subagent_prompt_roles": ["T1", "T2", "T3"],
+                        "subagent_fallback": {
+                            "kind": "taskboard-subagent-fallback",
+                            "subagent_prompts": [
+                                {"role": "T1", "prompt": "T1 prompt"},
+                                {"role": "T2", "prompt": "T2 prompt"},
+                                {"role": "T3", "prompt": "T3 prompt"},
+                            ],
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (t0_dir / "subagents.json").write_text(
+                json.dumps(
+                    {
+                        "kind": "taskboard-subagent-dispatch-state",
+                        "version": 1,
+                        "roles": {
+                            "T1": {"role": "T1", "agent_id": "agent-t1", "status": "completed"},
+                            "T2": {
+                                "role": "T2",
+                                "agent_id": "",
+                                "status": "retry-pending",
+                                "retry_note": "retry with smaller scope",
+                                "attempts": [
+                                    {
+                                        "role": "T2",
+                                        "agent_id": "agent-t2",
+                                        "status": "failed",
+                                        "summary": "review timeout",
+                                    }
+                                ],
+                            },
+                        },
+                        "boundary": "T0 records native subagent dispatch ownership.",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        self.assertEqual(progress["subagent_completed_roles"], ["T1"])
+        self.assertEqual(progress["subagent_failed_roles"], [])
+        self.assertEqual(progress["subagent_pending_roles"], ["T2", "T3"])
+        self.assertEqual(progress["subagent_dispatch_records"]["T2"]["attempts"][0]["summary"], "review timeout")
+        self.assertIn("subagent_pending_roles=T2,T3", text)
+        self.assertIn("subagent_failed_roles=", text)
+
     def test_progress_recovers_acknowledged_assignment_from_real_event_without_snapshot(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

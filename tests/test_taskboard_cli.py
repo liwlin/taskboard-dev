@@ -257,6 +257,34 @@ class TaskboardCliTest(unittest.TestCase):
         self.assertIn("completed_at", status["records"]["T1"])
         self.assertIn("failed_at", status["records"]["T2"])
 
+    def test_subagent_retry_returns_failed_role_to_pending_without_losing_attempt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write_subagent_packet(root)
+            self.run_cli(root, "subagent", "ack", "--role", "T1", "--agent-id", "agent-t1")
+            self.run_cli(root, "subagent", "done", "--role", "T1", "--summary", "T1 done")
+            self.run_cli(root, "subagent", "ack", "--role", "T2", "--agent-id", "agent-t2")
+            self.run_cli(root, "subagent", "fail", "--role", "T2", "--summary", "review timeout")
+
+            _, stdout = self.run_cli(root, "subagent", "retry", "--role", "T2", "--note", "retry with smaller scope")
+            retry = json.loads(stdout)
+            _, stdout = self.run_cli(root, "subagent", "status")
+            status = json.loads(stdout)
+            _, stdout = self.run_cli(root, "subagent", "next")
+            next_item = json.loads(stdout)
+            t2_record = status["records"]["T2"]
+
+        self.assertEqual(retry["kind"], "taskboard-subagent-retry")
+        self.assertEqual(retry["record"]["status"], "retry-pending")
+        self.assertEqual(status["completed_roles"], ["T1"])
+        self.assertEqual(status["failed_roles"], [])
+        self.assertEqual(status["pending_roles"], ["T2", "T3"])
+        self.assertEqual(next_item["role"], "T2")
+        self.assertEqual(len(t2_record["attempts"]), 1)
+        self.assertEqual(t2_record["attempts"][0]["status"], "failed")
+        self.assertEqual(t2_record["attempts"][0]["summary"], "review timeout")
+        self.assertEqual(t2_record["retry_note"], "retry with smaller scope")
+
 
 if __name__ == "__main__":
     unittest.main()

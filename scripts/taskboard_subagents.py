@@ -122,7 +122,11 @@ def subagent_status_payload(root: Path) -> dict[str, object]:
     active = [role for role in dispatched if str(records[role].get("status") or "") == "dispatched"]
     completed = [role for role in dispatched if str(records[role].get("status") or "") == "completed"]
     failed = [role for role in dispatched if str(records[role].get("status") or "") == "failed"]
-    pending = [role for role in roles if role not in records]
+    pending = [
+        role
+        for role in roles
+        if role not in records or str(records[role].get("status") or "") == "retry-pending"
+    ]
     return {
         "kind": "taskboard-subagent-dispatch",
         "packet_available": bool(packet.get("available")),
@@ -238,6 +242,52 @@ def subagent_result_payload(root: Path, role: str, status: str, summary: str = "
     write_subagent_dispatch_state(root, state)
     return {
         "kind": "taskboard-subagent-result",
+        "record": record,
+        "state_file": str(default_subagent_dispatch_file(root)),
+        "boundary": DISPATCH_BOUNDARY,
+    }
+
+
+def subagent_retry_payload(root: Path, role: str, note: str = "") -> dict[str, object]:
+    normalized_role = role.upper()
+    if normalized_role not in SUBAGENT_ROLES:
+        raise ValueError(f"invalid subagent role: {role}")
+
+    packet = read_subagent_fallback_packet(root)
+    valid_roles = prompt_roles(packet)
+    if valid_roles and normalized_role not in valid_roles:
+        raise ValueError(f"role not present in subagent fallback packet: {normalized_role}")
+
+    state = read_subagent_dispatch_state(root)
+    roles = state.get("roles", {})
+    role_records = roles if isinstance(roles, dict) else {}
+    existing = role_records.get(normalized_role)
+    if not isinstance(existing, dict):
+        raise ValueError(f"subagent dispatch record not found for role: {normalized_role}")
+
+    previous_attempts = existing.get("attempts", [])
+    attempts = [item for item in previous_attempts if isinstance(item, dict)] if isinstance(previous_attempts, list) else []
+    archived = {
+        key: value
+        for key, value in existing.items()
+        if key not in {"attempts", "retry_note", "status", "retried_at"}
+    }
+    archived["status"] = str(existing.get("status") or "")
+    attempts.append(archived)
+    record = {
+        "role": normalized_role,
+        "agent_id": "",
+        "status": "retry-pending",
+        "retry_note": note.strip(),
+        "retried_at": utc_now(),
+        "packet_file": str(packet.get("path") or default_subagent_fallback_file(root)),
+        "attempts": attempts,
+    }
+    role_records[normalized_role] = record
+    state["roles"] = role_records
+    write_subagent_dispatch_state(root, state)
+    return {
+        "kind": "taskboard-subagent-retry",
         "record": record,
         "state_file": str(default_subagent_dispatch_file(root)),
         "boundary": DISPATCH_BOUNDARY,

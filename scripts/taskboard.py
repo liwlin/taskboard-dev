@@ -22,6 +22,7 @@ from taskboard_subagents import (
     subagent_ack_payload,
     subagent_next_payload,
     subagent_result_payload,
+    subagent_retry_payload,
     subagent_status_payload,
 )
 
@@ -212,6 +213,9 @@ def build_parser() -> ArgumentParser:
     subagent_fail = subagent_subparsers.add_parser("fail", help="Record a failed native subagent")
     subagent_fail.add_argument("--role", required=True)
     subagent_fail.add_argument("--summary", default="")
+    subagent_retry = subagent_subparsers.add_parser("retry", help="Return a failed native subagent role to pending")
+    subagent_retry.add_argument("--role", required=True)
+    subagent_retry.add_argument("--note", default="")
     return parser
 
 
@@ -240,6 +244,8 @@ def run(args) -> dict[str, object]:
             return subagent_result_payload(root, args.role, "completed", args.summary)
         if args.subagent_command == "fail":
             return subagent_result_payload(root, args.role, "failed", args.summary)
+        if args.subagent_command == "retry":
+            return subagent_retry_payload(root, args.role, args.note)
     raise ValueError(f"unknown command: {args.command}")
 
 

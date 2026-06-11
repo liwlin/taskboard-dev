@@ -62,6 +62,7 @@ python scripts/taskboard.py --root . subagent next
 python scripts/taskboard.py --root . subagent ack --role T1 --agent-id "<agent id>"
 python scripts/taskboard.py --root . subagent done --role T1 --summary "<result>"
 python scripts/taskboard.py --root . subagent fail --role T1 --summary "<failure>"
+python scripts/taskboard.py --root . subagent retry --role T1 --note "<retry reason>"
 python scripts/taskboard_start.py --goal "<user goal>"
 python scripts/taskboard_start.py --goal "<user goal>" --dry-run --iterations 1 --launcher none
 python scripts/taskboard_progress.py --root .
@@ -99,7 +100,7 @@ Current v4.4 recovery rules:
 - Stop gates are aggregated through T0: progress exposes `decision_command`, and `taskboard_decide.py` records the user's answer before T1 continues.
 - Completion is gated by empty active queues, `STATE.md` goal-complete sentinel, archived TASK evidence, and dev-log completion evidence.
 - Assignment lease expiry, pending-ack timeout, stalled TASK detection, launch lease suppression, launcher failures, and fallback launchers are handled inside T0; user action should remain T0-level.
-- Native subagent fallback is also handled inside T0: T0 uses `taskboard.py subagent next`, dispatches the returned prompt through the current client's native subagent tool, records the agent id with `taskboard.py subagent ack`, and records final results with `taskboard.py subagent done` / `taskboard.py subagent fail` so restarts continue pending/active/failed roles instead of asking the user to manage T1/T2/T3.
+- Native subagent fallback is also handled inside T0: T0 uses `taskboard.py subagent next`, dispatches the returned prompt through the current client's native subagent tool, records the agent id with `taskboard.py subagent ack`, records final results with `taskboard.py subagent done` / `taskboard.py subagent fail`, and uses `taskboard.py subagent retry` to archive a failed attempt before requeueing that role. Restarts continue pending/active/failed roles instead of asking the user to manage T1/T2/T3.
 
 ---
 
