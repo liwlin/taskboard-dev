@@ -198,6 +198,11 @@ def subagent_ack_payload(root: Path, role: str, agent_id: str, note: str = "") -
     state = read_subagent_dispatch_state(root)
     roles = state.get("roles", {})
     role_records = roles if isinstance(roles, dict) else {}
+    existing = role_records.get(normalized_role)
+    attempts = []
+    if isinstance(existing, dict):
+        previous_attempts = existing.get("attempts", [])
+        attempts = [item for item in previous_attempts if isinstance(item, dict)] if isinstance(previous_attempts, list) else []
     record = {
         "role": normalized_role,
         "agent_id": agent_id.strip(),
@@ -206,6 +211,8 @@ def subagent_ack_payload(root: Path, role: str, agent_id: str, note: str = "") -
         "note": note.strip(),
         "packet_file": str(packet.get("path") or default_subagent_fallback_file(root)),
     }
+    if attempts:
+        record["attempts"] = attempts
     role_records[normalized_role] = record
     state["roles"] = role_records
     write_subagent_dispatch_state(root, state)

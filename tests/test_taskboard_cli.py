@@ -366,6 +366,8 @@ class TaskboardCliTest(unittest.TestCase):
             _, stdout = self.run_cli(root, "subagent", "next")
             next_item = json.loads(stdout)
             t2_record = status["records"]["T2"]
+            _, stdout = self.run_cli(root, "subagent", "ack", "--role", "T2", "--agent-id", "agent-t2-retry")
+            retry_ack = json.loads(stdout)
 
         self.assertEqual(retry["kind"], "taskboard-subagent-retry")
         self.assertEqual(retry["record"]["status"], "retry-pending")
@@ -377,6 +379,10 @@ class TaskboardCliTest(unittest.TestCase):
         self.assertEqual(t2_record["attempts"][0]["status"], "failed")
         self.assertEqual(t2_record["attempts"][0]["summary"], "review timeout")
         self.assertEqual(t2_record["retry_note"], "retry with smaller scope")
+        self.assertEqual(retry_ack["record"]["status"], "dispatched")
+        self.assertEqual(retry_ack["record"]["agent_id"], "agent-t2-retry")
+        self.assertEqual(len(retry_ack["record"]["attempts"]), 1)
+        self.assertEqual(retry_ack["record"]["attempts"][0]["summary"], "review timeout")
 
 
 if __name__ == "__main__":
