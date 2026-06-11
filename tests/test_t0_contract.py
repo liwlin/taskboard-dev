@@ -110,6 +110,29 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("自动创建或恢复 `taskboard-T1`", manual)
         self.assertIn("不需要手动开 4 个终端", manual)
 
+    def test_worker_idle_recheck_refreshes_liveness(self):
+        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        role_t0 = (ROOT / "references" / "role-t0.md").read_text(encoding="utf-8")
+        worker_loop = (ROOT / "tests" / "pressure" / "worker-loop.md").read_text(encoding="utf-8")
+
+        self.assertIn("first run the cheap role-cycle/liveness command", skill)
+        self.assertIn("do not skip liveness refreshes", skill)
+        self.assertIn("idle-but-running worker as dead", skill)
+        self.assertIn("taskboard.py --root . cycle T{N} --sleep-seconds 120", role_t0)
+        self.assertIn("Refreshes liveness (`taskboard alive T3` / heartbeat)", worker_loop)
+        self.assertNotIn("no tool calls, no context re-reads", skill)
+
+    def test_field_pressure_scenarios_are_recorded(self):
+        pressure_dir = ROOT / "tests" / "pressure"
+
+        for filename in ("T0-seeding.md", "managed-launch.md", "worker-loop.md"):
+            text = (pressure_dir / filename).read_text(encoding="utf-8")
+            self.assertIn("LeLamp field run 2026-06-10", text)
+            self.assertIn("## Prompt", text)
+            self.assertIn("## Expected behavior", text)
+            self.assertIn("## Violation indicators", text)
+            self.assertIn("## Run log", text)
+
     def test_t0_auto_is_the_default_one_command_entry(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
@@ -197,6 +220,7 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("### T0 Terminal Launcher", role_t0)
         self.assertIn("--launcher windows-terminal", role_t0)
         self.assertIn("--agent-template", role_t0)
+        self.assertIn('claude "{target}"', role_t0)
         self.assertIn("launch-probe", role_t0)
         self.assertIn("recommended_backend", role_t0)
         self.assertIn("launch_probe_recommended_backend", role_t0)
@@ -204,6 +228,8 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("Windows Terminal", manual)
         self.assertIn("tmux", manual)
         self.assertIn("--launcher windows-terminal", readme)
+        self.assertIn('claude "{target}"', readme)
+        self.assertIn("Codex 或其他客户端仍可通过", readme)
         self.assertIn("python scripts/taskboard_demo.py --root .taskboard-demo --with-heartbeats", readme)
         self.assertIn("python scripts/taskboard_start.py --goal", readme)
         self.assertIn("python scripts/taskboard.py --root . status", readme)
@@ -234,6 +260,7 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("taskboard-t0-watchdog", manual)
         self.assertIn("## Current T0 Control-Plane Entries", template)
         self.assertIn("python scripts/taskboard.py --root . launch-probe", template)
+        self.assertIn('claude \\"{target}\\"', template)
         self.assertIn("recommended_backend", template)
         self.assertIn("python scripts/taskboard_watchdog.py --root . --execute", template)
         self.assertIn("taskboard-t0-watchdog", template)

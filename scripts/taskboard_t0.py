@@ -702,6 +702,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
     parser.add_argument(
         "--agent-template",
+        default='claude "{target}"',
         help=(
             "Command template used inside each launched role terminal. Supports "
             "{role}, {title}, {command}, {target}, and {target_file}."

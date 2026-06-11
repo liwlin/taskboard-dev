@@ -383,7 +383,7 @@ Loop behavior:
 
 - **T0 active mode** (any queue or incomplete milestone exists): select the next managed role, launch/resume it with its durable target, re-check progress, and continue.
 - **Role active mode** (tasks found for this role): select `/taskboard-next`, execute, verify, transition, and continue.
-- **Idle mode** (no tasks found): for interval loops, output a single line `T{N} idle — next check in 3m` and stay in the loop — no tool calls, no context re-reads; in goal/target loops, sleep/yield according to client capability. T0 idles only when all role queues are empty and it is waiting for external progress or user resume.
+- **Idle mode** (no tasks found): for interval loops, first run the cheap role-cycle/liveness command (`python scripts/taskboard.py --root . cycle T{N} --sleep-seconds 120`, or at minimum `python scripts/taskboard.py --root . alive T{N}`), output a single line `T{N} idle — next check in 3m`, and stay in the loop. Avoid task-specific tool calls and heavy context re-reads while idle, but do not skip liveness refreshes; otherwise T0 may misclassify an idle-but-running worker as dead. In goal/target loops, sleep/yield according to client capability, then rerun the same cycle command. T0 idles only when all role queues are empty and it is waiting for external progress or user resume.
 - **Never auto-exit on an empty queue**: a role MUST NOT suggest leaving `/loop` just because its own queue is currently empty. An empty queue is normal — another role may hand off a task minutes later. The ONLY conditions for suggesting exit are: (1) the user explicitly says stop/pause; (2) the entire project is complete (all tasks archived, dev-log/HANDOFF written, milestone declared done); (3) the session is about to hit its context limit and needs a clean restart.
 - **Completion**: when the goal is complete and all queues are empty, summarize completed tasks and stop. Do not require the user to manually exit unless the client itself keeps the interval loop alive.
 
@@ -581,6 +581,7 @@ feedback or live agent testing):
 - "这个 spec mismatch 很小，可以直接绕过去" / "the mismatch is small, just patch around it"
 - "操作路径完全清晰，加载正文收益为零" / "the path is clear, reading the skill body adds nothing"
 - "我对这个流程已足够熟悉" / "I already know this workflow well enough"
+- "idle means no tool calls, so I should not touch alive" / "empty queue means I can stop refreshing liveness"
 
 | Excuse | Reality |
 |--------|---------|
@@ -588,6 +589,7 @@ feedback or live agent testing):
 | "明显 bug 不值得走流程" | Obvious bugs are where silent scope creep starts. The rename costs seconds. |
 | "spec 偏差很小，绕过去就行" | Unreviewed patches around the spec create drift. Rename to `T1-待决策`. |
 | "我已熟悉流程，不用再读边界" | Familiarity is exactly how the captured violations happened. Read your role file. |
+| "idle 不需要工具调用" | Idle workers still refresh liveness with `taskboard.py cycle`/`alive`; only task-specific work pauses. |
 
 All of these mean: stop, rename the task to the owning role, and continue inside your own lane.
 

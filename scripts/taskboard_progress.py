@@ -18,7 +18,7 @@ from taskboard_t0 import read_goal
 
 ROLES = ("T1", "T2", "T3")
 DEFAULT_RESUME_LAUNCHER = "windows-terminal"
-DEFAULT_RESUME_AGENT_TEMPLATE = 'codex --prompt-file "{target_file}"'
+DEFAULT_RESUME_AGENT_TEMPLATE = 'claude "{target}"'
 T0_PROGRESS_BOUNDARY = (
     "T0 manager-only progress: summarize goal, queue, session, and assignment state for the user; "
     "do not perform design, review, implementation, verification, or commit work."

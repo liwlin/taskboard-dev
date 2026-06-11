@@ -271,7 +271,7 @@ def build_parser() -> ArgumentParser:
 
     launch_probe_parser = subparsers.add_parser("launch-probe", help="Probe T0 worker backend readiness")
     launch_probe_parser.add_argument("--launcher", default="windows-terminal")
-    launch_probe_parser.add_argument("--agent-template", default='codex --prompt-file "{target_file}"')
+    launch_probe_parser.add_argument("--agent-template", default='claude "{target}"')
     launch_probe_parser.add_argument("--agent-preflight-command")
     launch_probe_parser.add_argument("--no-agent-preflight", action="store_true")
 

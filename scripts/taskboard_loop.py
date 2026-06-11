@@ -1120,7 +1120,7 @@ def build_t0_resume_command(
             if fallback_text:
                 parts.extend(["--fallback-launcher", fallback_text])
     agent_template = str(resume_config.get("agent_template") or "")
-    default_agent_template = 'codex --prompt-file "{target_file}"'
+    default_agent_template = 'claude "{target}"'
     if agent_template and agent_template != default_agent_template:
         parts.extend(["--agent-template", quote_cli_value(agent_template)])
     if resume_config.get("agent_preflight_enabled") is False:
@@ -1666,6 +1666,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
     parser.add_argument(
         "--agent-template",
+        default='claude "{target}"',
         help="Command template for generated role commands. Supports {role}, {title}, {command}, and {target}.",
     )
     parser.add_argument(

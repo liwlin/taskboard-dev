@@ -51,8 +51,8 @@ class TaskboardStartTest(unittest.TestCase):
         self.assertEqual(payload["dispatch"]["launcher"], "windows-terminal")
         self.assertEqual(len(payload["launch_commands"]), 3)
         self.assertEqual(payload["executed_commands"], [])
-        self.assertIn("codex --prompt-file", payload["launch_commands"][0])
-        self.assertIn("taskboard-T1.md", payload["launch_commands"][0])
+        self.assertIn("claude", payload["launch_commands"][0])
+        self.assertIn("Ship demo", payload["launch_commands"][0])
         self.assertTrue(t1_exists)
         self.assertEqual(events[0]["kind"], "taskboard-t0-supervisor-event")
         self.assertEqual(events[0]["goal"], "Ship demo")
@@ -108,6 +108,8 @@ class TaskboardStartTest(unittest.TestCase):
                     "--iterations",
                     "1",
                     "--no-target-files",
+                    "--agent-template",
+                    'codex --prompt-file "{target_file}"',
                 ],
                 cwd=ROOT,
                 text=True,

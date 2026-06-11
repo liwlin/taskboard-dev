@@ -32,6 +32,9 @@ section of SKILL.md.
 | `T3-spec-mismatch.md` | T3 must stop, never patch around spec | Codex review feedback |
 | `T1-trivial-fix.md` | T1 must write a TASK, never hot-fix source | Codex review feedback |
 | `T0-boundary.md` | T0 must orchestrate, never execute | v4.3 T0 contract |
+| `T0-seeding.md` | T0 intake packet only, even with pre-history knowledge | LeLamp field failure 2026-06-10 |
+| `worker-loop.md` | Worker never exits on empty queue mid-milestone | LeLamp field failure 2026-06-10 |
+| `managed-launch.md` | T0 probes spawn capability before choosing backend | LeLamp field failure 2026-06-10 |
 
 ## Pressure types
 

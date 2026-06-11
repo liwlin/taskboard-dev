@@ -300,6 +300,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
     probe.add_argument(
         "--agent-template",
+        default='claude "{target}"',
         help=(
             "Command template for generated recovery commands. Supports "
             "{role}, {title}, {command}, {target}, and {target_file}."

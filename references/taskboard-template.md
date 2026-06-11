@@ -56,7 +56,7 @@ python scripts/taskboard.py --root . next T0
 python scripts/taskboard.py --root . move TASK-001.v1.T3-待执行.md T3-待验证 --note "verified locally"
 python scripts/taskboard.py --root . alive T2
 python scripts/taskboard.py --root . cycle T2 --sleep-seconds 120
-python scripts/taskboard.py --root . launch-probe --launcher windows-terminal --agent-template "codex --prompt-file \"{target_file}\""
+python scripts/taskboard.py --root . launch-probe --launcher windows-terminal --agent-template "claude \"{target}\""
 python scripts/taskboard.py --root . stall --minutes 30
 python scripts/taskboard.py --root . decide TASK-001.v1.T1-待决策.md --answer "<user answer>"
 python scripts/taskboard.py --root . subagent status

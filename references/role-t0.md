@@ -68,10 +68,10 @@ Use `scripts/taskboard_t0.py` to generate managed role sessions and optional lau
 python scripts/taskboard_t0.py --goal "<user goal>" --root .
 python scripts/taskboard_demo.py --root .taskboard-demo --with-heartbeats
 python scripts/taskboard_start.py --goal "<user goal>"
-python scripts/taskboard_loop.py --root . --goal "<user goal>" --forever --assignment-lease-seconds 300 --launcher windows-terminal --agent-template 'codex --prompt "{target}"'
-python scripts/taskboard_t0.py --goal "<user goal>" --root . --launcher windows-terminal --agent-template 'codex --prompt "{target}"'
-python scripts/taskboard_t0.py --goal "<user goal>" --root . --launcher powershell --agent-template 'codex --prompt "{target}"'
-python scripts/taskboard_t0.py --goal "<user goal>" --root . --launcher tmux --agent-template 'codex --prompt "{target}"'
+python scripts/taskboard_loop.py --root . --goal "<user goal>" --forever --assignment-lease-seconds 300 --launcher windows-terminal --agent-template 'claude "{target}"'
+python scripts/taskboard_t0.py --goal "<user goal>" --root . --launcher windows-terminal --agent-template 'claude "{target}"'
+python scripts/taskboard_t0.py --goal "<user goal>" --root . --launcher powershell --agent-template 'claude "{target}"'
+python scripts/taskboard_t0.py --goal "<user goal>" --root . --launcher tmux --agent-template 'claude "{target}"'
 ```
 
 ### Compact Control-Plane CLI
@@ -85,7 +85,7 @@ python scripts/taskboard.py --root . next T0
 python scripts/taskboard.py --root . move TASK-001.v1.T3-待执行.md T3-待验证 --note "verified locally"
 python scripts/taskboard.py --root . alive T2
 python scripts/taskboard.py --root . cycle T2 --sleep-seconds 120
-python scripts/taskboard.py --root . launch-probe --launcher windows-terminal --agent-template "codex --prompt-file \"{target_file}\""
+python scripts/taskboard.py --root . launch-probe --launcher windows-terminal --agent-template "claude \"{target}\""
 python scripts/taskboard.py --root . stall --minutes 30
 python scripts/taskboard.py --root . decide TASK-001.v1.T1-待决策.md --answer "<user answer>"
 ```
@@ -97,7 +97,7 @@ T0 red flags.
 
 Launcher rules:
 
-- `scripts/taskboard_start.py --goal "<user goal>"` is the one-command T0 entry point and is the default user-facing entry for actual T0 supervision: it executes managed-role launch/recovery commands and keeps supervising until completion, a stop gate, a missing goal, a configuration error, or interruption. It defaults to `--launcher windows-terminal` and `codex --prompt-file "{target_file}"`. Use `--dry-run --iterations 1 --launcher none` only for short verification runs that must not open worker terminals.
+- `scripts/taskboard_start.py --goal "<user goal>"` is the one-command T0 entry point and is the default user-facing entry for actual T0 supervision: it executes managed-role launch/recovery commands and keeps supervising until completion, a stop gate, a missing goal, a configuration error, or interruption. It defaults to `--launcher windows-terminal` and `claude "{target}"`. Use `--dry-run --iterations 1 --launcher none` only for short verification runs that must not open worker terminals.
 - `--launcher windows-terminal` emits `wt` commands for managed `taskboard-T1/T2/T3` tabs.
 - `--launcher powershell` emits `Start-Process powershell` commands for separate managed windows.
 - `--launcher tmux` emits `tmux new-session/new-window` commands for Unix-like terminals.
@@ -117,7 +117,7 @@ Launcher rules:
 - If the selected role is still heartbeating a different task or assignment and does not acknowledge T0's current assignment within `--assignment-lease-seconds`, T0 reports `pending-ack-expired`, records `assignment_pending_age_seconds`, and in `--execute-launches` mode recovers only that selected role terminal. Progress must still report `No user action required`; the user does not manage T1/T2/T3.
 - If the selected TASK file is older than `--stale-minutes`, T0 first checks `.taskboard/alive`: alive roles get a durable target reissue, while missing/stale roles report `stalled_recoveries` / `stalled_recovery_count` and recover the selected terminal or native-subagent backend in `--execute-launches` mode. Progress must still report `No user action required`; stalled execution recovery stays inside T0.
 - Use `--launch-lease-seconds` to prevent duplicate managed terminals after a successful T0 launch/recovery command. T0 writes `.taskboard/t0/launches.json` as `taskboard-t0-launch-state`, waits for worker heartbeats while the launch lease is active, and reports suppressed launches without asking the user to manage T1/T2/T3.
-- Before choosing a worker backend, T0 may run `python scripts/taskboard.py --root . launch-probe --launcher windows-terminal --agent-template "codex --prompt-file \"{target_file}\""` with the same `--agent-preflight-command` it will use for the supervisor loop. The probe is read-only and returns `kind=taskboard-launch-probe`, `agent_preflight`, and `recommended_backend`. `terminal` means use the T0-managed terminal launcher, `subagent` means use native subagent fallback, and `fix-config` means repair T0 launcher/template configuration before starting workers. The probe never authorizes T0 to ask the user to manage T1/T2/T3.
+- Before choosing a worker backend, T0 may run `python scripts/taskboard.py --root . launch-probe --launcher windows-terminal --agent-template "claude \"{target}\""` with the same `--agent-preflight-command` it will use for the supervisor loop. The probe is read-only and returns `kind=taskboard-launch-probe`, `agent_preflight`, and `recommended_backend`. `terminal` means use the T0-managed terminal launcher, `subagent` means use native subagent fallback, and `fix-config` means repair T0 launcher/template configuration before starting workers. The probe never authorizes T0 to ask the user to manage T1/T2/T3.
 - If `--agent-preflight-command` or an executed launcher command reports managed child-process auth/permission refusal such as `API Error: 403`, `Request not allowed`, or `Failed to authenticate`, classify it as `agent_preflight.state=spawn-refused` or a spawn-refusal launch failure. Do not keep executing doomed launcher commands. Include `subagent_fallback.kind=taskboard-subagent-fallback` plus `subagent_prompts` in the loop payload so T0 can dispatch isolated native subagents when the client supports them. Also write `.taskboard/open-tabs.ps1` and `.taskboard/launch-role.ps1` as the user-owned terminal fallback, so the user performs at most one T0-directed startup action from their own authenticated terminal.
 - When native subagent fallback is available, T0 MUST use the deterministic dispatch surface instead of asking the user to manage workers: run `python scripts/taskboard.py --root . subagent next`, dispatch that prompt with the current client's native subagent tool, then record the returned agent id with `python scripts/taskboard.py --root . subagent ack --role T{N} --agent-id "<agent id>"`. When the native subagent returns, record the result with `python scripts/taskboard.py --root . subagent done --role T{N} --summary "<result>"` or `python scripts/taskboard.py --root . subagent fail --role T{N} --summary "<failure>"`. If a failed role should run again, T0 uses `python scripts/taskboard.py --root . subagent retry --role T{N} --note "<retry reason>"` to archive the failed attempt and return the role to pending before dispatching again. Use `python scripts/taskboard.py --root . subagent status` after restart to continue pending/active/failed roles from `.taskboard/t0/subagents.json`. This records T0 dispatch ownership only; it does not authorize T0 to perform T1/T2/T3 work inline.
 - If an executed launcher command fails for other reasons, loop actions report `T0 launch/recovery failed` and tell the user to fix T0 launcher configuration or retry another launcher; do not ask the user to manage T1/T2/T3 directly. Stop launching further worker commands after the first launcher failure in the loop iteration. If `--fallback-launcher <launcher>` is configured, T0 automatically regenerates the same managed role commands with that fallback launcher and retries unlaunched roles before surfacing the failure to the user.
