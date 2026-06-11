@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="${VERSION:-v4.5.4}"
+VERSION="${VERSION:-v4.5.5}"
 NAME="taskboard-dev"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
@@ -26,6 +26,7 @@ cp "$ROOT_DIR/scripts/taskboard_loop.py" "$STAGE_DIR/scripts/taskboard_loop.py"
 cp "$ROOT_DIR/scripts/taskboard_demo.py" "$STAGE_DIR/scripts/taskboard_demo.py"
 cp "$ROOT_DIR/scripts/taskboard_e2e_smoke.py" "$STAGE_DIR/scripts/taskboard_e2e_smoke.py"
 cp "$ROOT_DIR/scripts/taskboard_subagent_smoke.py" "$STAGE_DIR/scripts/taskboard_subagent_smoke.py"
+cp "$ROOT_DIR/scripts/taskboard_subagent_acceptance.py" "$STAGE_DIR/scripts/taskboard_subagent_acceptance.py"
 cp "$ROOT_DIR/scripts/taskboard_completion.py" "$STAGE_DIR/scripts/taskboard_completion.py"
 cp "$ROOT_DIR/scripts/taskboard_progress.py" "$STAGE_DIR/scripts/taskboard_progress.py"
 cp "$ROOT_DIR/scripts/taskboard_watchdog.py" "$STAGE_DIR/scripts/taskboard_watchdog.py"

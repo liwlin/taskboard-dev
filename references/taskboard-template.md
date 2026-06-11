@@ -1,4 +1,4 @@
-# TASKBOARD v4.5.4 Templates
+# TASKBOARD v4.5.5 Templates
 
 ## Directory Structure (auto-generated on first run)
 
@@ -108,6 +108,7 @@ Current v4.4 recovery rules:
 - Completion is gated by empty active queues, `STATE.md` goal-complete sentinel, archived TASK evidence, and dev-log completion evidence.
 - Assignment lease expiry, pending-ack timeout, stalled TASK detection, launch lease suppression, launcher failures, and fallback launchers are handled inside T0; user action should remain T0-level.
 - Native subagent fallback is also handled inside T0: T0 uses `taskboard.py subagent next`, dispatches the returned prompt through the current client's native subagent tool, records the agent id with `taskboard.py subagent ack`, records final results with `taskboard.py subagent done` / `taskboard.py subagent fail`, and uses `taskboard.py subagent retry` to archive a failed attempt before requeueing that role. `taskboard_progress.py` exposes `subagent_control_state`, `subagent_control_next_role`, `subagent_next_command`, `subagent_ack_command`, `subagent_done_command`, `subagent_fail_command`, and `subagent_retry_commands` so T0 can resume the correct native subagent control action after restart. Restarts continue pending/active/failed roles instead of asking the user to manage T1/T2/T3.
+- Real native-subagent backend claims must pass `python scripts/taskboard_subagent_acceptance.py --root . --require-real-agent-ids`; the smoke script alone proves bookkeeping, not live native-subagent execution.
 
 ---
 
