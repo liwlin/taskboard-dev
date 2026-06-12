@@ -19,6 +19,7 @@ from taskboard_sessions import probe_sessions
 from taskboard_stopgates import report_stop_gates
 from taskboard_subagents import subagent_ack_payload, subagent_plan_payload, subagent_result_payload
 from taskboard_t0 import (
+    DEFAULT_AGENT_TEMPLATE,
     build_backend,
     build_launch_commands,
     build_subagent_prompts,
@@ -1379,7 +1380,7 @@ def build_t0_resume_command(
             if fallback_text:
                 parts.extend(["--fallback-launcher", fallback_text])
     agent_template = str(resume_config.get("agent_template") or "")
-    default_agent_template = 'claude "{target}"'
+    default_agent_template = DEFAULT_AGENT_TEMPLATE
     if agent_template and agent_template != default_agent_template:
         parts.extend(["--agent-template", quote_cli_value(agent_template)])
     if resume_config.get("agent_preflight_enabled") is False:
@@ -1951,8 +1952,11 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
     parser.add_argument(
         "--agent-template",
-        default='claude "{target}"',
-        help="Command template for generated role commands. Supports {role}, {title}, {command}, and {target}.",
+        default=DEFAULT_AGENT_TEMPLATE,
+        help=(
+            "Command template for generated role commands. Supports {role}, {title}, "
+            "{command}, {target}, and {target_file}."
+        ),
     )
     parser.add_argument(
         "--execute-launches",

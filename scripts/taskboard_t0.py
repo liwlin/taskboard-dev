@@ -20,6 +20,8 @@ ROLE_LABELS = {
     "T3": "executor",
 }
 
+DEFAULT_AGENT_TEMPLATE = 'claude --taskboard-target-file "{target_file}"'
+
 ROLE_TARGETS = {
     "T1": "T1: 基于用户目标创建或修订 PROJECT/MAP/REQUIREMENTS/STATE 和 TASK 文件，保持任务队列可执行。",
     "T2": "T2: 审核待审核方案或代码，运行必要验证，通过则归档，失败则退回对应角色。",
@@ -352,6 +354,9 @@ def render_agent_command(session: dict[str, str], agent_template: Optional[str])
             "agent-template references {target_file}, but target files are disabled; "
             "enable target files or use {target}"
         )
+    if agent_template == DEFAULT_AGENT_TEMPLATE:
+        target_file = powershell_single_quote(str(session.get("target_file") or ""))
+        return f"$target = Get-Content -Raw -LiteralPath {target_file}; & claude $target"
 
     compact_target = " ".join(session["target"].splitlines())
     return agent_template.format(
@@ -723,7 +728,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
     parser.add_argument(
         "--agent-template",
-        default='claude "{target}"',
+        default=DEFAULT_AGENT_TEMPLATE,
         help=(
             "Command template used inside each launched role terminal. Supports "
             "{role}, {title}, {command}, {target}, and {target_file}."

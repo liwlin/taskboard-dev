@@ -18,10 +18,9 @@ from taskboard_loop import (
     write_state_snapshot,
 )
 from taskboard_progress import build_resume_command
-from taskboard_t0 import default_target_dir, read_goal, write_runtime_goal
+from taskboard_t0 import DEFAULT_AGENT_TEMPLATE, default_target_dir, read_goal, write_runtime_goal
 
 
-DEFAULT_AGENT_TEMPLATE = 'claude "{target}"'
 STARTER_AUTO_BOUNDARY = (
     "T0 one-command auto mode: run the supervisor as the user-facing manager, "
     "launch or recover T1/T2/T3 when needed, and keep T0 out of worker tasks."

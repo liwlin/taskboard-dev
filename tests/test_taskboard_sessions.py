@@ -213,17 +213,22 @@ class TaskboardSessionsTest(unittest.TestCase):
         self.assertIn("assigned_role: T1", target_text)
         self.assertIn("Ship demo", target_text)
 
-    def test_probe_default_dry_check_does_not_write_target_files(self):
+    def test_probe_default_dry_check_writes_file_backed_target_files(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
 
             probe = self.run_sessions(root, "probe", "--expected", "T1", "--goal", "Ship demo")
-            target_dir_exists = (root / ".taskboard" / "targets").exists()
+            target_file = root / ".taskboard" / "targets" / "taskboard-T1.md"
+            target_exists = target_file.exists()
+            target_text = target_file.read_text(encoding="utf-8") if target_exists else ""
 
         self.assertEqual(probe["missing_roles"], ["T1"])
         self.assertEqual(probe["recovery_commands"], [])
-        self.assertEqual(probe["target_files"], [])
-        self.assertFalse(target_dir_exists)
+        self.assertEqual(probe["target_files"][0]["role"], "T1")
+        self.assertTrue(target_exists)
+        self.assertIn("managed_by: T0", target_text)
+        self.assertIn("assigned_role: T1", target_text)
+        self.assertIn("Ship demo", target_text)
 
     def test_probe_inline_recovery_command_does_not_write_target_files(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -14,12 +14,12 @@ from taskboard_health import report_health
 from taskboard_loop import default_event_log_file, default_state_file, default_subagent_fallback_file
 from taskboard_stopgates import report_stop_gates
 from taskboard_subagents import subagent_status_payload
-from taskboard_t0 import read_goal
+from taskboard_t0 import DEFAULT_AGENT_TEMPLATE, read_goal
 
 
 ROLES = ("T1", "T2", "T3")
 DEFAULT_RESUME_LAUNCHER = "windows-terminal"
-DEFAULT_RESUME_AGENT_TEMPLATE = 'claude "{target}"'
+DEFAULT_RESUME_AGENT_TEMPLATE = DEFAULT_AGENT_TEMPLATE
 T0_PROGRESS_BOUNDARY = (
     "T0 manager-only progress: summarize goal, queue, session, and assignment state for the user; "
     "do not perform design, review, implementation, verification, or commit work."

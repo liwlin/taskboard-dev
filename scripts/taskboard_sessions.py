@@ -9,7 +9,13 @@ import sys
 import time
 from typing import Optional
 
-from taskboard_t0 import build_launch_commands, build_session, default_target_dir, write_role_target_files
+from taskboard_t0 import (
+    DEFAULT_AGENT_TEMPLATE,
+    build_launch_commands,
+    build_session,
+    default_target_dir,
+    write_role_target_files,
+)
 
 
 ROLES = ("T1", "T2", "T3")
@@ -300,7 +306,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
     probe.add_argument(
         "--agent-template",
-        default='claude "{target}"',
+        default=DEFAULT_AGENT_TEMPLATE,
         help=(
             "Command template for generated recovery commands. Supports "
             "{role}, {title}, {command}, {target}, and {target_file}."

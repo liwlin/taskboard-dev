@@ -27,6 +27,7 @@ from taskboard_subagents import (
     subagent_retry_payload,
     subagent_status_payload,
 )
+from taskboard_t0 import DEFAULT_AGENT_TEMPLATE
 
 
 VALID_ROLES = {"T0", "T1", "T2", "T3"}
@@ -283,7 +284,7 @@ def build_parser() -> ArgumentParser:
 
     launch_probe_parser = subparsers.add_parser("launch-probe", help="Probe T0 worker backend readiness")
     launch_probe_parser.add_argument("--launcher", default="windows-terminal")
-    launch_probe_parser.add_argument("--agent-template", default='claude "{target}"')
+    launch_probe_parser.add_argument("--agent-template", default=DEFAULT_AGENT_TEMPLATE)
     launch_probe_parser.add_argument("--agent-preflight-command")
     launch_probe_parser.add_argument("--no-agent-preflight", action="store_true")
 

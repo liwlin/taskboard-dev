@@ -193,6 +193,29 @@ class TaskboardT0Test(unittest.TestCase):
         self.assertIn("taskboard-T2", commands[1])
         self.assertIn("taskboard-T3", commands[2])
 
+    def test_default_claude_template_reads_target_file_instead_of_inline_prompt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            output = self.run_t0(
+                root,
+                "--goal",
+                "Ship demo",
+                "--launcher",
+                "windows-terminal",
+            )
+            t1_target = root / ".taskboard" / "targets" / "taskboard-T1.md"
+            t1_target_exists = t1_target.exists()
+
+        self.assertTrue(t1_target_exists)
+        self.assertEqual(output["managed_sessions"][0]["target_file"], str(t1_target))
+        self.assertIn("Get-Content -Raw -LiteralPath", output["launch_commands"][0])
+        self.assertIn("taskboard-T1.md", output["launch_commands"][0])
+        self.assertIn("& claude", output["launch_commands"][0])
+        self.assertIn("$target", output["launch_commands"][0])
+        self.assertNotIn("Ship demo", output["launch_commands"][0])
+
     def test_agent_template_can_reference_role_target_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

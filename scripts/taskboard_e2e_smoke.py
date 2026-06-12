@@ -15,10 +15,7 @@ from taskboard_demo import GOAL as DEMO_GOAL, create_demo
 from taskboard_loop import default_event_log_file, default_state_file, run_loop
 from taskboard_progress import report_progress
 from taskboard_sessions import write_heartbeat
-from taskboard_t0 import default_target_dir
-
-
-DEFAULT_AGENT_TEMPLATE = 'claude "{target}"'
+from taskboard_t0 import DEFAULT_AGENT_TEMPLATE, default_target_dir
 
 
 def supervisor_once(root: Path, goal: str) -> dict[str, object]:
