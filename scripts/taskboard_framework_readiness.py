@@ -76,6 +76,36 @@ def overnight_field_run_requirements(root: Path) -> list[tuple[str, bool]]:
     ]
 
 
+def native_subagent_field_run_requirements(root: Path) -> list[tuple[str, bool]]:
+    try:
+        from taskboard_subagent_acceptance import collect_acceptance
+    except ImportError:
+        return [
+            ("taskboard_subagent_acceptance.py exists", path_exists(root, "scripts/taskboard_subagent_acceptance.py")),
+            ("native subagent acceptance can be imported", False),
+            ("real native subagent acceptance passed", False),
+        ]
+
+    payload = collect_acceptance(
+        root,
+        ["T1", "T2", "T3"],
+        require_real_agent_ids=True,
+        require_spawn_evidence=True,
+        require_result_evidence=True,
+    )
+    completed_roles = payload.get("completed_roles", [])
+    completed = completed_roles if isinstance(completed_roles, list) else []
+    failures = payload.get("failures", [])
+    failure_list = failures if isinstance(failures, list) else []
+    return [
+        ("taskboard_subagent_acceptance.py exists", path_exists(root, "scripts/taskboard_subagent_acceptance.py")),
+        ("native subagent fallback packet exists", bool(read_json(root, ".taskboard/t0/subagent-fallback.json"))),
+        ("native subagent dispatch state exists", bool(read_json(root, ".taskboard/t0/subagents.json"))),
+        ("T1/T2/T3 completed by recorded subagents", set(completed) >= {"T1", "T2", "T3"}),
+        ("real native subagent acceptance passed", payload.get("state") == "passed" and not failure_list),
+    ]
+
+
 def collect_readiness(root: Path) -> dict[str, object]:
     root = root.resolve()
     checks = [
@@ -181,6 +211,21 @@ def collect_readiness(root: Path) -> dict[str, object]:
                 "the milestone and run taskboard_overnight_field_run.py verify."
             ),
         ),
+        build_check(
+            "real-native-subagent-field-run",
+            "Actual T0-managed native subagents complete T1/T2/T3 with recorded receipts",
+            native_subagent_field_run_requirements(root),
+            [
+                "taskboard_subagent_acceptance.py --require-real-agent-ids --require-spawn-evidence --require-result-evidence",
+                ".taskboard/t0/subagent-fallback.json",
+                ".taskboard/t0/subagents.json",
+            ],
+            (
+                "Run a real native-subagent backend field test: let T0 generate a current-goal fallback packet, "
+                "dispatch T1/T2/T3 through the client's native subagent tool, record ack/done receipts, then run "
+                "taskboard_subagent_acceptance.py with real-agent, spawn, and result evidence requirements."
+            ),
+        ),
     ]
     remaining_gaps = []
     for check in checks:
@@ -188,6 +233,9 @@ def collect_readiness(root: Path) -> dict[str, object]:
             continue
         if check.get("id") == "real-overnight-field-run":
             remaining_gaps.append("real overnight field run")
+            continue
+        if check.get("id") == "real-native-subagent-field-run":
+            remaining_gaps.append("real native-subagent field run")
             continue
         remaining_gaps.extend(str(missing) for missing in check.get("missing", []))
     passed_count = sum(1 for check in checks if check.get("state") == "passed")

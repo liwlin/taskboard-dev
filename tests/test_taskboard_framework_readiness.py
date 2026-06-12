@@ -1,4 +1,5 @@
 from pathlib import Path
+import hashlib
 import json
 import subprocess
 import sys
@@ -14,6 +15,97 @@ def write_file(root: Path, relative: str, text: str = "") -> None:
     path = root / relative
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
+
+
+def text_hash(text: str) -> str:
+    return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def role_prompt(role: str) -> str:
+    return "\n".join(
+        [
+            f"You are taskboard-{role}",
+            f"Read SKILL.md and references/role-{role.lower()}.md",
+            "Use this embedded target as the T0-managed role inbox.",
+            "Do not inherit T0 private reasoning",
+            "Return progress only through TASKBOARD",
+            "T0 input boundary:",
+            "Startup skill gate:",
+            "Worker loop contract:",
+            "Idle recheck contract:",
+        ]
+    )
+
+
+def write_real_native_subagent_evidence(root: Path) -> None:
+    t0_dir = root / ".taskboard" / "t0"
+    t0_dir.mkdir(parents=True, exist_ok=True)
+    prompts = [{"role": role, "prompt": role_prompt(role)} for role in ("T1", "T2", "T3")]
+    write_file(
+        root,
+        ".taskboard/t0/subagent-fallback.json",
+        json.dumps(
+            {
+                "kind": "taskboard-subagent-fallback-packet",
+                "subagent_prompt_count": 3,
+                "subagent_prompt_roles": ["T1", "T2", "T3"],
+                "subagent_fallback": {
+                    "kind": "taskboard-subagent-fallback",
+                    "subagent_prompts": prompts,
+                },
+            },
+            sort_keys=True,
+        ),
+    )
+    roles = {}
+    for role in ("T1", "T2", "T3"):
+        agent_id = f"019eb736-{role.lower()}-real-agent"
+        prompt = role_prompt(role)
+        summary = f"{role} completed through a real native subagent"
+        roles[role] = {
+            "role": role,
+            "status": "completed",
+            "agent_id": agent_id,
+            "summary": summary,
+            "completed_at": "2026-06-12T00:00:00Z",
+            "spawn_receipt": {
+                "role": role,
+                "agent_id": agent_id,
+                "spawn_tool": "multi_agent_v1.spawn_agent",
+                "agent_nickname": f"{role} managed child",
+                "prompt_hash": text_hash(prompt),
+                "native_status": "spawned",
+                "recorded_at": "2026-06-12T00:00:00Z",
+            },
+            "completion_receipt": {
+                "role": role,
+                "agent_id": agent_id,
+                "native_status": "completed",
+                "recorded_at": "2026-06-12T00:01:00Z",
+            },
+            "result_receipt": {
+                "role": role,
+                "agent_id": agent_id,
+                "result_tool": "multi_agent_v1.wait_agent",
+                "result_status": "completed",
+                "native_status": "completed",
+                "summary_hash": text_hash(summary),
+                "recorded_at": "2026-06-12T00:01:00Z",
+            },
+            "attempts": [],
+        }
+    write_file(
+        root,
+        ".taskboard/t0/subagents.json",
+        json.dumps(
+            {
+                "kind": "taskboard-subagent-dispatch-state",
+                "version": 1,
+                "roles": roles,
+            },
+            sort_keys=True,
+        ),
+    )
 
 
 def write_minimal_ready_repo(root: Path) -> None:
@@ -50,6 +142,7 @@ def write_minimal_ready_repo(root: Path) -> None:
     write_file(root, "scripts/sync-local-skill.ps1")
     write_file(root, "scripts/verify_release_consistency.py")
     write_file(root, "scripts/verify_t0_contract.py")
+    write_real_native_subagent_evidence(root)
     write_file(
         root,
         ".taskboard/t0/overnight-field-run.json",
@@ -96,6 +189,7 @@ class TaskboardFrameworkReadinessTest(unittest.TestCase):
         self.assertEqual(payload["state"], "field-verification-required")
         self.assertFalse(payload["goal_complete"])
         self.assertIn("real overnight field run", payload["remaining_gaps"])
+        self.assertIn("real native-subagent field run", payload["remaining_gaps"])
 
         checks = {item["id"]: item for item in payload["checks"]}
         for check_id in (
@@ -110,6 +204,7 @@ class TaskboardFrameworkReadinessTest(unittest.TestCase):
             self.assertEqual(checks[check_id]["state"], "passed", check_id)
 
         self.assertEqual(checks["real-overnight-field-run"]["state"], "missing")
+        self.assertEqual(checks["real-native-subagent-field-run"]["state"], "missing")
         self.assertIn("taskboard_start.py --goal", checks["one-command-t0-entry"]["evidence"])
         self.assertIn("taskboard_cold_resume_acceptance.py", checks["cross-day-cold-resume"]["evidence"])
         self.assertIn("taskboard_live_milestone_acceptance.py", checks["field-acceptance-gates"]["evidence"])
@@ -128,6 +223,21 @@ class TaskboardFrameworkReadinessTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertIn("state=field-verification-required", result.stdout)
         self.assertIn("gap=real overnight field run", result.stdout)
+        self.assertIn("gap=real native-subagent field run", result.stdout)
+
+    def test_readiness_requires_real_native_subagent_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_minimal_ready_repo(root)
+            (root / ".taskboard" / "t0" / "subagents.json").unlink()
+
+            returncode, payload = self.run_readiness("--root", str(root))
+
+        self.assertEqual(returncode, 0, payload)
+        self.assertEqual(payload["state"], "field-verification-required")
+        self.assertIn("real native-subagent field run", payload["remaining_gaps"])
+        checks = {item["id"]: item for item in payload["checks"]}
+        self.assertEqual(checks["real-native-subagent-field-run"]["state"], "missing")
 
     def test_readiness_accepts_verified_overnight_field_run_marker(self):
         with tempfile.TemporaryDirectory() as tmp:

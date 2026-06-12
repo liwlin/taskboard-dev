@@ -1,4 +1,4 @@
-# taskboard-dev v4.5.32 用户手册
+# taskboard-dev v4.5.33 用户手册
 
 T0 管理的 TASKBOARD 驱动开发工作流 — 用户只对 T0 下达目标，T0 负责管理 T1 架构师、T2 审核者、T3 执行者，基于文件名即状态的零轮询开销设计。v4.5 面向 Claude Code / Codex 的现代长任务能力：loop、目标/target、后台执行、resume、工具检查点，以及紧凑 `taskboard.py` 控制面入口。默认原则是“能自动做就自动做”，只有真正的停止门才需要人确认。
 
@@ -144,7 +144,7 @@ python scripts/taskboard_overnight_field_run.py --root . status
 python scripts/taskboard_framework_readiness.py --root .
 ```
 
-该 audit 只读检查一键 T0、T0 manager-only 边界、自动 worker 管理、terminal/subagent 后端、跨日冷恢复、真实 field acceptance gates、发布/安装一致性，并把尚未完成的真实隔夜 field run 显示为 `state=field-verification-required`。这个状态是目标剩余缺口，不是发布失败。
+该 audit 只读检查一键 T0、T0 manager-only 边界、自动 worker 管理、terminal/subagent 后端、跨日冷恢复、真实 field acceptance gates、发布/安装一致性，并把尚未完成的真实隔夜 field run 或真实 native-subagent T1/T2/T3 派发证据显示为 `state=field-verification-required`。这个状态是目标剩余缺口，不是发布失败。
 
 查看 T0 给用户的进度摘要：
 
