@@ -1,4 +1,4 @@
-# taskboard-dev v4.5.15 用户手册
+# taskboard-dev v4.5.16 用户手册
 
 T0 管理的 TASKBOARD 驱动开发工作流 — 用户只对 T0 下达目标，T0 负责管理 T1 架构师、T2 审核者、T3 执行者，基于文件名即状态的零轮询开销设计。v4.5 面向 Claude Code / Codex 的现代长任务能力：loop、目标/target、后台执行、resume、工具检查点，以及紧凑 `taskboard.py` 控制面入口。默认原则是“能自动做就自动做”，只有真正的停止门才需要人确认。
 
@@ -118,6 +118,14 @@ python scripts/taskboard_loop.py --root . --native-result-receipt-json '{"role":
 Cross-day cold resume: cold start is the default correctness path. 第二天重新打开项目时，T0 从 `.taskboard/t0/goal.json`、当前 TASKBOARD 文件名、最新 `.taskboard/targets/taskboard-T*.md`、stable docs、TASK history、unchecked Pending、`Current Instruction` 和 scoped `git status` 恢复主题；用户仍只恢复 T0，不需要分别管理 T1/T2/T3。`claude --resume` 只能作为同一角色、same role, same TASK, and same TASK version 的优化；如果恢复出来的聊天上下文与 TASKBOARD 状态冲突，以看板为准。Worker 在 pause、shutdown 或 context-limit restart 前，应把下一步写成一行 `Current Instruction`，降低隔夜恢复歧义。
 
 `taskboard_progress.py` 会输出 `cold_resume_readiness` / `cold_resume_state`，只读检查当前受控 TASK 是否包含 `Current Instruction`、unchecked Pending、History、Files，以及 Files 范围内的 scoped `git status`。这让第二天重新打开项目时，T0 和用户能直接看到 worker 是否具备冷启动恢复证据，而不用依赖旧聊天上下文。
+
+真实项目的隔夜恢复声明应再跑：
+
+```bash
+python scripts/taskboard_cold_resume_acceptance.py --root .
+```
+
+它只读调用 progress，拒绝 smoke/test/demo starter mode、缺失 T0 控制面证据、checkout-owner conflict、未选中 worker TASK、`cold_resume_readiness` 非 `ready`、缺失 `Current Instruction` / unchecked Pending / History / Files / scoped `git status` 等情况。通过它表示当前项目具备 fresh worker 冷启动恢复证据，不表示整个 milestone 已完成。
 
 查看 T0 给用户的进度摘要：
 
@@ -283,13 +291,14 @@ python scripts/taskboard_demo.py --root .taskboard-demo --with-heartbeats
 python scripts/taskboard_loop.py --root .taskboard-demo --goal "Ship demo" --iterations 1
 python scripts/taskboard_e2e_smoke.py
 python scripts/taskboard_cold_resume_smoke.py
+python scripts/taskboard_cold_resume_acceptance.py --root .
 python scripts/taskboard_t0_boundary_smoke.py
 python scripts/taskboard_subagent_smoke.py
 python scripts/taskboard_subagent_acceptance.py --root . --require-real-agent-ids --require-spawn-evidence
 python scripts/taskboard_live_milestone_acceptance.py --root .
 ```
 
-该 demo 生成一个独立 TASKBOARD 示例和可选 T1/T2/T3 heartbeat，用来证明 T0 能读取队列并选择下一角色。它默认拒绝覆盖已有 `docs/`，不会修改产品代码。`taskboard_e2e_smoke.py` 使用临时 TASKBOARD，跑一轮 T0 调度、模拟被选中的 worker `cycle` + heartbeat 认领任务，再归档 demo 任务、写 completion sentinel/dev-log，并确认 T0 completion audit 进入 `complete-ready` 且 progress 进入 `complete`；它用于验证“用户只给 T0 目标，T0 能把第一个 worker 管起来并收口完成证据”的控制面闭环，不会启动真实 Claude 或修改当前产品代码。`taskboard_cold_resume_smoke.py` 使用临时 git 仓库模拟隔夜 fresh worker：保存 T0 goal、活跃 T3 TASK、`Current Instruction`、unchecked Pending 和 scoped dirty file，然后验证 T0 从 TASKBOARD 状态恢复 T3，而不是要求用户管理 worker。`taskboard_subagent_smoke.py` 使用临时 TASKBOARD，验证 T0 生成 native-subagent fallback packet 后能通过 `subagent next/ack/done/fail/retry` 走完 T1/T2/T3 后备派发状态机，并保留失败 attempt 历史。`taskboard_live_milestone_acceptance.py` 用于真实 field run 收口：它只读 `.taskboard/t0/latest.json`、`.taskboard/t0/events.jsonl`、T1/T2/T3 session/alive 证据、archive、STATE completion sentinel 和 dev-log，拒绝 smoke/test/manual 占位证据和 checkout-owner conflict，防止把模拟控制面误报为真实 milestone 完成。
+该 demo 生成一个独立 TASKBOARD 示例和可选 T1/T2/T3 heartbeat，用来证明 T0 能读取队列并选择下一角色。它默认拒绝覆盖已有 `docs/`，不会修改产品代码。`taskboard_e2e_smoke.py` 使用临时 TASKBOARD，跑一轮 T0 调度、模拟被选中的 worker `cycle` + heartbeat 认领任务，再归档 demo 任务、写 completion sentinel/dev-log，并确认 T0 completion audit 进入 `complete-ready` 且 progress 进入 `complete`；它用于验证“用户只给 T0 目标，T0 能把第一个 worker 管起来并收口完成证据”的控制面闭环，不会启动真实 Claude 或修改当前产品代码。`taskboard_cold_resume_smoke.py` 使用临时 git 仓库模拟隔夜 fresh worker：保存 T0 goal、活跃 T3 TASK、`Current Instruction`、unchecked Pending 和 scoped dirty file，然后验证 T0 从 TASKBOARD 状态恢复 T3，而不是要求用户管理 worker。`taskboard_cold_resume_acceptance.py` 用于真实项目冷恢复验收：它只读 `taskboard_progress.py` 输出，拒绝 smoke/test/demo 占位、缺失控制面证据和不完整 TASK 恢复证据。`taskboard_subagent_smoke.py` 使用临时 TASKBOARD，验证 T0 生成 native-subagent fallback packet 后能通过 `subagent next/ack/done/fail/retry` 走完 T1/T2/T3 后备派发状态机，并保留失败 attempt 历史。`taskboard_live_milestone_acceptance.py` 用于真实 field run 收口：它只读 `.taskboard/t0/latest.json`、`.taskboard/t0/events.jsonl`、T1/T2/T3 session/alive 证据、archive、STATE completion sentinel 和 dev-log，拒绝 smoke/test/manual 占位证据和 checkout-owner conflict，防止把模拟控制面误报为真实 milestone 完成。
 `taskboard_t0_boundary_smoke.py` 使用临时 TASKBOARD，验证 T0 dry-run 只写 `.taskboard/t0` 和 `.taskboard/targets` 控制面文件，不创建 PROJECT/MAP/REQUIREMENTS/STATE、TASK/archive、source 或 git 文件，也不执行 worker launcher。
 
 #### 兼容：手动启动 T1/T2/T3
