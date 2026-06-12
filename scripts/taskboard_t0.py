@@ -69,6 +69,15 @@ EXTERNAL_TOOL_CONTRACT = (
     "- Respect role boundaries when using external tools: T1 plans, T2 reviews/verifies, and T3 implements/verifies/commits."
 )
 
+CROSS_DAY_COLD_RESUME_CONTRACT = (
+    "Cross-day cold resume contract:\n"
+    "- Treat a fresh terminal as normal; recover the topic from TASKBOARD state, not from yesterday's chat.\n"
+    "- At startup or resume, read this target file, TASKBOARD filenames, stable docs, the current TASK file, history, unchecked Pending items, Current Instruction, and scoped git status before acting.\n"
+    "- Do not rely on claude --resume for correctness; use it only as an optimization for the same role, same TASK, and same TASK version.\n"
+    "- If resumed chat context conflicts with TASKBOARD state, discard the stale chat context and follow the board.\n"
+    "- Before pause, shutdown, or context-limit restart, externalize the next concrete step as a one-line Current Instruction in the active TASK or HANDOFF so the next fresh terminal can continue."
+)
+
 T0_FORBIDDEN_SEED_PATTERNS = [
     "REQ IDs, REQ counts, priority labels, or requirement skeleton rows",
     "architecture options, interface signatures, data contracts, or API names",
@@ -263,7 +272,7 @@ def build_session(
         "command": f"/taskboard-dev {role}",
         "target": (
             f"{target}\n{T0_INPUT_BOUNDARY_CONTRACT}\n{startup_skill_gate(role)}\n{heartbeat}\n{role_contract}\n"
-            f"{tooling_contract}\n{EXTERNAL_TOOL_CONTRACT}\n{loop_contract}"
+            f"{tooling_contract}\n{EXTERNAL_TOOL_CONTRACT}\n{CROSS_DAY_COLD_RESUME_CONTRACT}\n{loop_contract}"
         ),
     }
     if target_dir is not None:

@@ -124,10 +124,28 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("Refreshes liveness (`taskboard alive T3` / heartbeat)", worker_loop)
         self.assertNotIn("no tool calls, no context re-reads", skill)
 
+    def test_cross_day_cold_resume_is_documented_and_pressure_tested(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        manual = (ROOT / "USER-MANUAL.md").read_text(encoding="utf-8")
+        role_t0 = (ROOT / "references" / "role-t0.md").read_text(encoding="utf-8")
+        cold_resume = (ROOT / "tests" / "pressure" / "cold-resume.md").read_text(encoding="utf-8")
+
+        for text in (readme, manual, role_t0):
+            self.assertIn("Cross-day cold resume", text)
+            self.assertIn("cold start is the default correctness path", text)
+            self.assertIn("claude --resume", text)
+            self.assertIn("same role, same TASK, and same TASK version", text)
+            self.assertIn("Current Instruction", text)
+
+        self.assertIn("fresh next-day worker terminal", cold_resume)
+        self.assertIn("must recover the topic from TASKBOARD state", cold_resume)
+        self.assertIn("must not require the user to manage T1/T2/T3", cold_resume)
+        self.assertIn("resume is optional optimization", cold_resume)
+
     def test_field_pressure_scenarios_are_recorded(self):
         pressure_dir = ROOT / "tests" / "pressure"
 
-        for filename in ("T0-seeding.md", "managed-launch.md", "worker-loop.md"):
+        for filename in ("T0-seeding.md", "managed-launch.md", "worker-loop.md", "cold-resume.md"):
             text = (pressure_dir / filename).read_text(encoding="utf-8")
             self.assertIn("LeLamp field run 2026-06-10", text)
             self.assertIn("## Prompt", text)

@@ -249,6 +249,34 @@ class TaskboardT0Test(unittest.TestCase):
             self.assertIn("sleep/yield for the configured interval", text)
             self.assertIn("goal completion, stop gate, explicit user pause, or context-limit restart", text)
 
+    def test_role_target_files_include_cross_day_cold_resume_contract(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            self.run_t0(
+                root,
+                "--goal",
+                "Ship demo",
+                "--launcher",
+                "windows-terminal",
+                "--agent-template",
+                'codex --prompt-file "{target_file}"',
+            )
+            target_texts = [
+                (root / ".taskboard" / "targets" / f"taskboard-{role}.md").read_text(encoding="utf-8")
+                for role in ("T1", "T2", "T3")
+            ]
+
+        for text in target_texts:
+            self.assertIn("Cross-day cold resume contract", text)
+            self.assertIn("Treat a fresh terminal as normal", text)
+            self.assertIn("recover the topic from TASKBOARD state", text)
+            self.assertIn("Do not rely on claude --resume", text)
+            self.assertIn("only as an optimization for the same role, same TASK, and same TASK version", text)
+            self.assertIn("Current Instruction", text)
+            self.assertIn("Before pause, shutdown, or context-limit restart", text)
+
     def test_role_target_files_mark_t0_input_as_goal_intake_only(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

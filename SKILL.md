@@ -9,9 +9,9 @@ description: >
   /taskboard-dev T1, /taskboard-dev T2, or /taskboard-dev T3.
 ---
 
-# TASKBOARD-Driven Development v4.5.12
+# TASKBOARD-Driven Development v4.5.13
 
-T0-managed collaborative development. The user gives T0 one goal, and T0 manages the T1 architect/scheduler, T2 reviewer/verifier, and T3 executor loops until the goal is complete or a stop gate is hit. Status is still encoded in filenames. Polling still uses Glob with zero file content reads. The read-only context layer remains the cross-session memory. v4.5.12 keeps the v4 task file protocol, the compact `taskboard.py` CLI facade, completion/subagent/boundary smoke checks, checkout-owner launch guarding, live milestone acceptance, native-subagent dispatch/result plans, and CLI-imported T0 loop subagent control receipts while preserving the stricter T0 seeding boundary that forbids T0 from pre-filling REQ skeletons, priorities, interface signatures, task IDs, acceptance rows, or MAP risk sections.
+T0-managed collaborative development. The user gives T0 one goal, and T0 manages the T1 architect/scheduler, T2 reviewer/verifier, and T3 executor loops until the goal is complete or a stop gate is hit. Status is still encoded in filenames. Polling still uses Glob with zero file content reads. The read-only context layer remains the cross-session memory. v4.5.13 keeps the v4 task file protocol, the compact `taskboard.py` CLI facade, completion/subagent/boundary smoke checks, checkout-owner launch guarding, live milestone acceptance, native-subagent dispatch/result plans, and CLI-imported T0 loop subagent control receipts while preserving the stricter T0 seeding boundary that forbids T0 from pre-filling REQ skeletons, priorities, interface signatures, task IDs, acceptance rows, or MAP risk sections.
 
 ## Five Principles (non-negotiable)
 
@@ -114,6 +114,8 @@ Agents SHOULD proceed without asking for:
 ### Long-Run Goal Contract
 
 At session start, the user defines a goal/target in plain language for T0. T0 owns that goal and turns it into durable T1/T2/T3 targets. The active goal should be reflected in `PROJECT.md`/`REQUIREMENTS.md` for milestone goals, in the current `TASK-xxx` file for task-level goals, and in each role session's goal/target instruction when the CLI supports one. If a T1/T2/T3 session has no explicit target, it MUST synthesize one from T0's current goal and the current milestone before entering autonomous loop mode; ask the user only when T0 cannot determine the product goal or a true stop gate is hit.
+
+Cross-day cold resume: cold start is the default correctness path. A fresh worker terminal recovers topic from TASKBOARD state, stable docs, current TASK, history, unchecked Pending, `Current Instruction`, and scoped `git status`; `claude --resume` is only an optimization for the same role, same TASK, and same TASK version.
 
 ---
 

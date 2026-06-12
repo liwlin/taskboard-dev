@@ -1,4 +1,4 @@
-# taskboard-dev v4.5.12 用户手册
+# taskboard-dev v4.5.13 用户手册
 
 T0 管理的 TASKBOARD 驱动开发工作流 — 用户只对 T0 下达目标，T0 负责管理 T1 架构师、T2 审核者、T3 执行者，基于文件名即状态的零轮询开销设计。v4.5 面向 Claude Code / Codex 的现代长任务能力：loop、目标/target、后台执行、resume、工具检查点，以及紧凑 `taskboard.py` 控制面入口。默认原则是“能自动做就自动做”，只有真正的停止门才需要人确认。
 
@@ -114,6 +114,8 @@ python scripts/taskboard_loop.py --root . --native-result-receipt-json '{"role":
 `taskboard_start.py` 和底层 supervisor loop 使用相同的运行态审计文件：默认写 `.taskboard/t0/latest.json`、`.taskboard/t0/events.jsonl` 和 `.taskboard/targets/taskboard-T*.md`。因此默认一键入口也能留下 T0 持续调度证据；默认入口会把 `auto_mode`、`starter_mode`、`resume_config` 和 `launch_probe` 持久写入 latest snapshot，并把 `launch_probe_state`、`launch_probe_recommended_backend`、`launch_probe_reason` 写入 event log，再由 `taskboard_progress.py` 读出，方便恢复后确认当前 T0 是一键自动入口还是 dry check，并保留上次 T0 的 launcher、fallback launcher、agent template、agent preflight、lease、interval、target-file mode 和 terminal/subagent backend recommendation；恢复命令会保留 auto vs dry-check、`--fallback-launcher`、`--launcher none`、`--agent-preflight-command`、`--no-agent-preflight` 和 `--no-target-files`。只做无痕 dry check 时可加 `--dry-run --no-event-log`。短跑验证时使用 `--dry-run --iterations 1 --launcher none`，验证调度路径但不打开 worker 终端。
 
 如果用户按 Ctrl-C 或终端向 `taskboard_start.py` / 直接运行的 `taskboard_loop.py` 发送 `KeyboardInterrupt`，入口会返回 130，并输出 `taskboard-t0-interruption`、`state=interrupted`、`resume_command` 和 `user_action`。这个中断报告也会持久写入 `.taskboard/t0/latest.json` 和 `.taskboard/t0/events.jsonl`，所以即使终端输出丢失，`taskboard_progress.py` 仍能从最新 T0 控制面状态重建恢复命令。如果 latest snapshot 被禁用或丢失，progress 会把 latest event 的 `interrupted` 状态提升为用户可见的 T0 恢复状态，并继续从 event `resume_config` 重建命令。这个恢复命令仍然恢复 T0 自己，并保留上次 auto vs dry-check、launcher、fallback launcher、agent template、lease、interval 和 target-file mode 配置；用户不需要改去手动管理 T1/T2/T3。
+
+Cross-day cold resume: cold start is the default correctness path. 第二天重新打开项目时，T0 从 `.taskboard/t0/goal.json`、当前 TASKBOARD 文件名、最新 `.taskboard/targets/taskboard-T*.md`、stable docs、TASK history、unchecked Pending、`Current Instruction` 和 scoped `git status` 恢复主题；用户仍只恢复 T0，不需要分别管理 T1/T2/T3。`claude --resume` 只能作为同一角色、same role, same TASK, and same TASK version 的优化；如果恢复出来的聊天上下文与 TASKBOARD 状态冲突，以看板为准。Worker 在 pause、shutdown 或 context-limit restart 前，应把下一步写成一行 `Current Instruction`，降低隔夜恢复歧义。
 
 查看 T0 给用户的进度摘要：
 
