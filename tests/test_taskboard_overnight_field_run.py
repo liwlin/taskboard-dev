@@ -183,6 +183,28 @@ class TaskboardOvernightFieldRunTest(unittest.TestCase):
         self.assertEqual(passed["next_stage"], "none")
         self.assertEqual(passed["next_command"], "")
 
+    def test_status_accepts_format_after_subcommand_for_recovery_diagnostics(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            prepare_cold_resume_root(root)
+
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "--root", str(root), "status", "--format", "json"],
+                cwd=ROOT,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+            try:
+                payload = json.loads(result.stdout)
+            except json.JSONDecodeError as exc:
+                raise AssertionError(result.stdout) from exc
+
+        self.assertEqual(result.returncode, 0, payload)
+        self.assertEqual(payload["state"], "not-started")
+        self.assertEqual(payload["next_stage"], "start")
+
 
 if __name__ == "__main__":
     unittest.main()

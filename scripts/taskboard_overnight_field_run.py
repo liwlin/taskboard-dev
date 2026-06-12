@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Record and verify a real overnight T0-managed worker recovery field run."""
 
-from argparse import ArgumentParser, Namespace
+from argparse import ArgumentParser, Namespace, SUPPRESS
 from pathlib import Path
 import json
 import time
@@ -368,19 +368,23 @@ def build_parser() -> ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     status = subparsers.add_parser("status", help="Report current overnight field-run stage and next command")
+    status.add_argument("--format", choices=("text", "json"), default=SUPPRESS, help="Output format")
     status.add_argument("--now-epoch", type=float, default=None, help="Override current epoch for deterministic tests")
     status.add_argument("--min-elapsed-seconds", type=int, default=DEFAULT_MIN_ELAPSED_SECONDS)
 
     start = subparsers.add_parser("start", help="Record the pre-close overnight field-run baseline")
+    start.add_argument("--format", choices=("text", "json"), default=SUPPRESS, help="Output format")
     start.add_argument("--run-id", default="", help="Stable field-run id to store in the marker")
     start.add_argument("--now-epoch", type=float, default=None, help="Override current epoch for deterministic tests")
     start.add_argument("--force", action="store_true", help="Replace an existing marker")
 
     resume = subparsers.add_parser("resume", help="Record next-day worker-terminal reopen evidence")
+    resume.add_argument("--format", choices=("text", "json"), default=SUPPRESS, help="Output format")
     resume.add_argument("--now-epoch", type=float, default=None, help="Override current epoch for deterministic tests")
     resume.add_argument("--min-elapsed-seconds", type=int, default=DEFAULT_MIN_ELAPSED_SECONDS)
 
     verify = subparsers.add_parser("verify", help="Verify overnight resume plus live milestone acceptance")
+    verify.add_argument("--format", choices=("text", "json"), default=SUPPRESS, help="Output format")
     verify.add_argument("--min-elapsed-seconds", type=int, default=DEFAULT_MIN_ELAPSED_SECONDS)
     return parser
 
