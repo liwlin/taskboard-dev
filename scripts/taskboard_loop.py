@@ -688,6 +688,18 @@ def extract_agent_command(agent_template: Optional[str]) -> str:
     return tokens[0].strip("\"'")
 
 
+def default_claude_readiness_probe(command: str) -> list[str]:
+    return [
+        command,
+        "-p",
+        "--max-budget-usd",
+        "0.02",
+        "--permission-mode",
+        "bypassPermissions",
+        "Reply exactly: TASKBOARD_AGENT_PREFLIGHT_OK",
+    ]
+
+
 def validate_agent_preflight(
     agent_template: Optional[str],
     execute_launches: bool,
@@ -752,6 +764,44 @@ def validate_agent_preflight(
             f"agent command '{command}' from --agent-template was not found on PATH; "
             "fix T0 --agent-template or install/login to the agent CLI before launching workers"
         )
+    if (
+        agent_template == DEFAULT_AGENT_TEMPLATE
+        and command == "claude"
+        and os.environ.get("TASKBOARD_SKIP_DEFAULT_CLAUDE_READINESS") != "1"
+    ):
+        probe = default_claude_readiness_probe(command)
+        completed = subprocess.run(
+            probe,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+        output = completed.stdout.strip()
+        if completed.returncode != 0:
+            probe_item = {"returncode": completed.returncode, "output": output}
+            if launch_failure_is_spawn_refusal(probe_item):
+                return {
+                    "enabled": True,
+                    "state": "spawn-refused",
+                    "mode": "default-claude-readiness",
+                    "command": " ".join(shlex.quote(part) for part in probe),
+                    "returncode": completed.returncode,
+                    "output": output[:2000],
+                    "reason": "agent-preflight-spawn-refused",
+                }
+            raise ValueError(
+                "default Claude preflight failed "
+                f"returncode={completed.returncode}: {output}"
+            )
+        return {
+            "enabled": True,
+            "state": "passed",
+            "mode": "default-claude-readiness",
+            "command": " ".join(shlex.quote(part) for part in probe),
+            "returncode": completed.returncode,
+            "output": output[:2000],
+        }
     return {
         "enabled": True,
         "state": "passed",

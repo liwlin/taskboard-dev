@@ -56,6 +56,53 @@ class TaskboardLoopTest(unittest.TestCase):
             check=False,
         )
 
+    def test_default_claude_preflight_runs_readiness_probe(self):
+        with patch.dict(os.environ, {"TASKBOARD_SKIP_DEFAULT_CLAUDE_READINESS": "0"}), patch(
+            "taskboard_loop.shutil.which", return_value="claude"
+        ), patch(
+            "taskboard_loop.subprocess.run",
+            return_value=subprocess.CompletedProcess(
+                ["claude", "-p"],
+                0,
+                stdout="TASKBOARD_AGENT_PREFLIGHT_OK\n",
+            ),
+        ) as run_mock:
+            payload = loop_module.validate_agent_preflight(
+                loop_module.DEFAULT_AGENT_TEMPLATE,
+                True,
+                "windows-terminal",
+            )
+
+        self.assertEqual(payload["state"], "passed")
+        self.assertEqual(payload["mode"], "default-claude-readiness")
+        self.assertIn("TASKBOARD_AGENT_PREFLIGHT_OK", payload["output"])
+        args = run_mock.call_args.args[0]
+        self.assertEqual(args[0], "claude")
+        self.assertIn("-p", args)
+        self.assertIn("--max-budget-usd", args)
+
+    def test_default_claude_preflight_detects_auth_spawn_refusal(self):
+        with patch.dict(os.environ, {"TASKBOARD_SKIP_DEFAULT_CLAUDE_READINESS": "0"}), patch(
+            "taskboard_loop.shutil.which", return_value="claude"
+        ), patch(
+            "taskboard_loop.subprocess.run",
+            return_value=subprocess.CompletedProcess(
+                ["claude", "-p"],
+                1,
+                stdout="Failed to authenticate. API Error: 403 Request not allowed\n",
+            ),
+        ):
+            payload = loop_module.validate_agent_preflight(
+                loop_module.DEFAULT_AGENT_TEMPLATE,
+                True,
+                "windows-terminal",
+            )
+
+        self.assertEqual(payload["state"], "spawn-refused")
+        self.assertEqual(payload["mode"], "default-claude-readiness")
+        self.assertEqual(payload["reason"], "agent-preflight-spawn-refused")
+        self.assertIn("API Error: 403", payload["output"])
+
     def test_once_combines_session_probe_health_and_dispatch(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

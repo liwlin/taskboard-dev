@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Verify the taskboard-dev T0 orchestration contract."""
 
 from pathlib import Path
@@ -101,7 +101,7 @@ def verify_t0_contract() -> None:
     )
     require_not_contains("SKILL.md", "| `T0-")
 
-    require_contains("USER-MANUAL.md", "# taskboard-dev v4.5.30 用户手册")
+    require_contains("USER-MANUAL.md", "# taskboard-dev v4.5.31 用户手册")
     require_contains("USER-MANUAL.md", "## 5. T0 编排器操作手册")
     require_contains("USER-MANUAL.md", "## Multi-agent 借鉴原则")
     require_contains("USER-MANUAL.md", "T0 是 manager，不是 worker")
@@ -130,7 +130,7 @@ def verify_t0_contract() -> None:
     require_contains("USER-MANUAL.md", "| T0 | `T1-待决策`")
     require_not_contains("USER-MANUAL.md", "| `T0-")
 
-    require_contains("README.md", "当前版本：**v4.5.30**")
+    require_contains("README.md", "当前版本：**v4.5.31**")
     require_contains("README.md", "T0 用户入口")
     require_contains("README.md", "执行：/taskboard-dev T0")
     require_contains("README.md", "用户默认只需要手动打开 1 个入口终端")
@@ -157,7 +157,7 @@ def verify_t0_contract() -> None:
     require_contains("README.md", "use `--launcher none` for no-write dry checks")
     require_contains("README.md", "python scripts/taskboard_next.py --role T0 --root .")
 
-    require_contains("references/taskboard-template.md", "# TASKBOARD v4.5.30 Templates")
+    require_contains("references/taskboard-template.md", "# TASKBOARD v4.5.31 Templates")
     require_contains("references/taskboard-template.md", "## Current T0 Control-Plane Entries")
     require_contains("references/taskboard-template.md", "python scripts/taskboard.py --root . status")
     require_contains("references/taskboard-template.md", "python scripts/taskboard.py --root . launch-probe")
@@ -177,7 +177,7 @@ def verify_t0_contract() -> None:
     require_contains("references/taskboard-template.md", "目标(T0):")
     require_contains("references/taskboard-template.md", "执行: /taskboard-dev T0")
 
-    require_contains("scripts/package.sh", 'VERSION="${VERSION:-v4.5.30}"')
+    require_contains("scripts/package.sh", 'VERSION="${VERSION:-v4.5.31}"')
     require_contains("scripts/package.sh", 'cp "$ROOT_DIR/scripts/taskboard.py"')
     require_contains("scripts/package.sh", 'cp "$ROOT_DIR/scripts/taskboard_start.py"')
     require_contains("scripts/package.sh", 'cp "$ROOT_DIR/scripts/taskboard_t0.py"')
@@ -621,6 +621,8 @@ def verify_t0_contract() -> None:
     require_contains("README.md", "Codex 或其他客户端仍可通过")
     require_contains("README.md", "--agent-preflight-command")
     require_contains("README.md", "--no-agent-preflight")
+    require_contains("README.md", "claude -p` readiness probe")
+    require_contains("README.md", "TASKBOARD_SKIP_DEFAULT_CLAUDE_READINESS=1")
     require_contains("README.md", "agent preflight command failed")
     require_contains("README.md", "latest event")
     require_contains("README.md", 'python scripts/taskboard_start.py --goal "<user goal>"')
@@ -641,6 +643,10 @@ def verify_t0_contract() -> None:
     require_contains("scripts/taskboard_next.py", "goal-complete-sentinel")
     require_contains("scripts/taskboard_loop.py", "--execute-launches")
     require_contains("scripts/taskboard_loop.py", "validate_agent_preflight")
+    require_contains("scripts/taskboard_loop.py", "default_claude_readiness_probe")
+    require_contains("scripts/taskboard_loop.py", "TASKBOARD_SKIP_DEFAULT_CLAUDE_READINESS")
+    require_contains("scripts/taskboard_loop.py", "TASKBOARD_AGENT_PREFLIGHT_OK")
+    require_contains("scripts/taskboard_loop.py", "default-claude-readiness")
     require_contains("scripts/taskboard_loop.py", "--agent-preflight-command")
     require_contains("scripts/taskboard_loop.py", "launch_failure_is_spawn_refusal")
     require_contains("scripts/taskboard_loop.py", "build_launch_probe")
@@ -905,6 +911,8 @@ def verify_t0_contract() -> None:
     require_contains("USER-MANUAL.md", "Computer Use")
     require_contains("USER-MANUAL.md", "--agent-preflight-command")
     require_contains("USER-MANUAL.md", "--no-agent-preflight")
+    require_contains("USER-MANUAL.md", "claude -p` readiness probe")
+    require_contains("USER-MANUAL.md", "TASKBOARD_SKIP_DEFAULT_CLAUDE_READINESS=1")
     require_contains("USER-MANUAL.md", "agent preflight command failed")
     require_contains("references/role-t0.md", "Worker loop contract")
     require_contains("references/role-t0.md", "taskboard.py --root . cycle T{N} --sleep-seconds 120")
