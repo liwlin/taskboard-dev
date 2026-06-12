@@ -231,6 +231,23 @@ class TaskboardOvernightFieldRunTest(unittest.TestCase):
         self.assertEqual(ready["prepare_state"], "not-needed")
         self.assertEqual(ready["prepare_command"], "")
 
+    def test_status_prepare_command_uses_saved_t0_goal_when_available(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_dir = root / ".taskboard" / "t0"
+            state_dir.mkdir(parents=True)
+            (state_dir / "goal.json").write_text(
+                json.dumps({"kind": "taskboard-t0-goal", "goal": "Ship demo"}),
+                encoding="utf-8",
+            )
+
+            code, payload = self.run_overnight(root, "status")
+
+        self.assertEqual(code, 0, payload)
+        self.assertEqual(payload["prepare_state"], "needed")
+        self.assertIn('--goal "Ship demo"', payload["prepare_command"])
+        self.assertNotIn("<user goal>", payload["prepare_command"])
+
     def test_status_accepts_format_after_subcommand_for_recovery_diagnostics(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

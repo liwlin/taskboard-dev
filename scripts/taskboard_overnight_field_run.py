@@ -9,6 +9,7 @@ from typing import Optional
 
 from taskboard_cold_resume_acceptance import collect_acceptance as collect_cold_resume_acceptance
 from taskboard_live_milestone_acceptance import collect_acceptance as collect_live_milestone_acceptance
+from taskboard_t0 import read_runtime_goal
 
 
 MARKER_RELATIVE = ".taskboard/t0/overnight-field-run.json"
@@ -111,9 +112,18 @@ def next_command(root: Path, stage: str, run_id: str = "<field-run-id>") -> str:
     return ""
 
 
+def quote_cli_value(value: object) -> str:
+    text = str(value)
+    return '"' + text.replace('"', '\\"') + '"'
+
+
 def t0_prepare_command(root: Path) -> str:
-    root_text = str(root.resolve())
-    return f'python scripts/taskboard_start.py --root "{root_text}" --goal "<user goal>"'
+    goal = read_runtime_goal(root) or "<user goal>"
+    return (
+        "python scripts/taskboard_start.py "
+        f"--root {quote_cli_value(root.resolve())} "
+        f"--goal {quote_cli_value(goal)}"
+    )
 
 
 def with_prepare_guidance(root: Path, payload: dict[str, object]) -> dict[str, object]:
