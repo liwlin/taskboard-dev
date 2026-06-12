@@ -12,6 +12,7 @@ from typing import Optional
 from taskboard_completion import report_completion
 from taskboard_health import report_health
 from taskboard_loop import default_event_log_file, default_state_file, default_subagent_fallback_file
+from taskboard_sessions import probe_sessions
 from taskboard_stopgates import report_stop_gates
 from taskboard_subagents import subagent_status_payload
 from taskboard_t0 import DEFAULT_AGENT_TEMPLATE, read_goal
@@ -167,6 +168,14 @@ def read_subagent_fallback_packet(root: Path) -> dict[str, object]:
         "prompt_count": safe_int(packet.get("subagent_prompt_count"), len(role_list)),
         "prompt_roles": role_list,
     }
+
+
+def read_live_session_probe(root: Path, stale_seconds: int = 300) -> dict[str, object]:
+    try:
+        payload = probe_sessions(root, stale_seconds, list(ROLES))
+    except (OSError, ValueError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
 
 
 def build_user_summary(
@@ -1096,6 +1105,11 @@ def report_progress(root: Path) -> dict[str, object]:
     starter_boundary = str(latest_payload.get("starter_boundary") or "")
     resume_config = latest_payload.get("resume_config", {})
     resume_config_payload = resume_config if isinstance(resume_config, dict) else {}
+    live_session_probe = read_live_session_probe(
+        root,
+        safe_int(resume_config_payload.get("stale_seconds"), 300),
+    )
+    effective_session_payload = live_session_probe if live_session_probe else session_payload
     t0_supervisor = build_t0_supervisor_freshness(snapshot, resume_config_payload)
     t0_supervisor_state = str(t0_supervisor.get("state") or "")
     try:
@@ -1131,11 +1145,12 @@ def report_progress(root: Path) -> dict[str, object]:
         "starter_mode": starter_mode,
         "starter_boundary": starter_boundary,
         "active_count": active_count,
-        "missing_roles": list(session_payload.get("missing_roles", []))
-        if isinstance(session_payload.get("missing_roles", []), list)
+        "session_probe_state": str(effective_session_payload.get("state") or ""),
+        "missing_roles": list(effective_session_payload.get("missing_roles", []))
+        if isinstance(effective_session_payload.get("missing_roles", []), list)
         else [],
-        "stale_roles": list(session_payload.get("stale_roles", []))
-        if isinstance(session_payload.get("stale_roles", []), list)
+        "stale_roles": list(effective_session_payload.get("stale_roles", []))
+        if isinstance(effective_session_payload.get("stale_roles", []), list)
         else [],
         "launch_failures": launch_failures,
         "launch_failure_count": len(launch_failures),

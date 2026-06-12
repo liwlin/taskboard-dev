@@ -62,6 +62,11 @@ class TaskboardStartTest(unittest.TestCase):
         self.assertTrue(t1_launch_exists)
         self.assertIn("read the UTF-8 target file", t1_launch_text)
         self.assertIn("taskboard-T1.md", t1_launch_text)
+        self.assertIn("taskboard.py --root . alive T1", t1_launch_text)
+        self.assertLess(
+            t1_launch_text.index("taskboard.py --root . alive T1"),
+            t1_launch_text.index("& claude --name 'taskboard-T1' $prompt"),
+        )
         self.assertIn("& claude --name 'taskboard-T1' $prompt", t1_launch_text)
         self.assertNotIn("Ship demo", t1_launch_text)
         self.assertEqual(events[0]["kind"], "taskboard-t0-supervisor-event")

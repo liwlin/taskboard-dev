@@ -368,6 +368,7 @@ def write_default_claude_launch_script(root: Path, session: dict[str, str]) -> P
             "$ErrorActionPreference = 'Stop'",
             "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8",
             f"Set-Location -LiteralPath {powershell_single_quote(str(root))}",
+            f"& python scripts/taskboard.py --root . alive {str(session.get('role') or '').upper()} | Out-Null",
             "$prompt = @'",
             prompt,
             "'@",

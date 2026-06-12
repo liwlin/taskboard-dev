@@ -119,6 +119,31 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("launch_probe_recommended_backend=subagent", text)
         self.assertIn("latest_event_launch_probe_recommended_backend=subagent", text)
 
+    def test_progress_uses_live_alive_markers_over_stale_snapshot_sessions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            self.run_json(
+                START_SCRIPT,
+                root,
+                "--goal",
+                "Ship demo",
+                "--dry-run",
+                "--iterations",
+                "1",
+            )
+            alive_dir = root / ".taskboard" / "alive"
+            alive_dir.mkdir(parents=True)
+            for role in ("T1", "T2", "T3"):
+                (alive_dir / role).touch()
+
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+
+        self.assertEqual(progress["session_probe_state"], "healthy")
+        self.assertEqual(progress["missing_roles"], [])
+        self.assertEqual(progress["stale_roles"], [])
+
     def test_progress_surfaces_checkout_owner_conflict(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
