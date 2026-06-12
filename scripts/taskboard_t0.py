@@ -332,6 +332,54 @@ def write_role_target_files(sessions: list[dict[str, str]]) -> list[dict[str, ob
     return target_files
 
 
+def role_launch_script_file(session: dict[str, str]) -> Optional[Path]:
+    target_file = session.get("target_file")
+    title = session.get("title")
+    if not target_file or not title:
+        return None
+    return Path(str(target_file)).with_name(f"{title}.launch.ps1")
+
+
+def default_claude_pointer_prompt(session: dict[str, str]) -> str:
+    role = session.get("role") or ""
+    title = session.get("title") or f"taskboard-{role}"
+    target_file = session.get("target_file") or ""
+    return "\n".join(
+        [
+            f"You are {title}, an isolated {role} worker managed by T0.",
+            "Before any TASKBOARD action, read the UTF-8 target file below and follow it exactly.",
+            f"Target file: {target_file}",
+            f"Then load /taskboard-dev {role} and your role reference before acting.",
+            "Do not rely on prior chat context; TASKBOARD state and the target file are authoritative.",
+        ]
+    )
+
+
+def write_default_claude_launch_script(root: Path, session: dict[str, str]) -> Path:
+    target_file = session.get("target_file")
+    launch_script = role_launch_script_file(session)
+    if not target_file or launch_script is None:
+        raise ValueError(
+            "default Claude launcher requires target files; enable target files or use a custom agent-template"
+        )
+    prompt = default_claude_pointer_prompt(session)
+    body = "\n".join(
+        [
+            "$ErrorActionPreference = 'Stop'",
+            "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8",
+            f"Set-Location -LiteralPath {powershell_single_quote(str(root))}",
+            "$prompt = @'",
+            prompt,
+            "'@",
+            f"& claude --name {powershell_single_quote(str(session.get('title') or 'taskboard-worker'))} $prompt",
+            "",
+        ]
+    )
+    launch_script.parent.mkdir(parents=True, exist_ok=True)
+    launch_script.write_text(body, encoding="utf-8")
+    return launch_script
+
+
 def launcher_needs_target_files(launcher: str, agent_template: Optional[str]) -> bool:
     return launcher != "none" and bool(agent_template and "{target_file}" in agent_template)
 
@@ -355,8 +403,11 @@ def render_agent_command(session: dict[str, str], agent_template: Optional[str])
             "enable target files or use {target}"
         )
     if agent_template == DEFAULT_AGENT_TEMPLATE:
-        target_file = powershell_single_quote(str(session.get("target_file") or ""))
-        return f"$target = Get-Content -Raw -LiteralPath {target_file}; & claude $target"
+        prompt = default_claude_pointer_prompt(session)
+        return (
+            f"$prompt = {powershell_single_quote(prompt)}; "
+            f"& claude --name {powershell_single_quote(str(session.get('title') or 'taskboard-worker'))} $prompt"
+        )
 
     compact_target = " ".join(session["target"].splitlines())
     return agent_template.format(
@@ -448,6 +499,25 @@ def build_launch_commands(
     commands = []
     root_text = str(root)
     for index, session in enumerate(sessions):
+        if agent_template == DEFAULT_AGENT_TEMPLATE and launcher in {"windows-terminal", "powershell"}:
+            launch_script = write_default_claude_launch_script(root, session)
+            if launcher == "windows-terminal":
+                commands.append(
+                    "wt -w taskboard new-tab "
+                    f"--title {powershell_quote(session['title'])} "
+                    f"-d {powershell_quote(root_text)} "
+                    "powershell -NoExit -ExecutionPolicy Bypass "
+                    f"-File {powershell_quote(str(launch_script))}"
+                )
+            else:
+                commands.append(
+                    "Start-Process powershell "
+                    f"-WorkingDirectory {powershell_quote(root_text)} "
+                    "-ArgumentList '-NoExit','-ExecutionPolicy','Bypass','-File',"
+                    f"{powershell_single_quote(str(launch_script))}"
+                )
+            continue
+
         agent_command = render_agent_command(session, agent_template)
         if launcher == "windows-terminal":
             commands.append(

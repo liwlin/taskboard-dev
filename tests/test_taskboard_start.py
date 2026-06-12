@@ -37,7 +37,10 @@ class TaskboardStartTest(unittest.TestCase):
             goal_file = root / ".taskboard" / "t0" / "goal.json"
             saved_goal = json.loads(goal_file.read_text(encoding="utf-8"))
             t1_target = root / ".taskboard" / "targets" / "taskboard-T1.md"
+            t1_launch = root / ".taskboard" / "targets" / "taskboard-T1.launch.ps1"
             t1_exists = t1_target.exists()
+            t1_launch_exists = t1_launch.exists()
+            t1_launch_text = t1_launch.read_text(encoding="utf-8") if t1_launch_exists else ""
             event_log = root / ".taskboard" / "t0" / "events.jsonl"
             events = [
                 json.loads(line)
@@ -51,11 +54,16 @@ class TaskboardStartTest(unittest.TestCase):
         self.assertEqual(payload["dispatch"]["launcher"], "windows-terminal")
         self.assertEqual(len(payload["launch_commands"]), 3)
         self.assertEqual(payload["executed_commands"], [])
-        self.assertIn("claude", payload["launch_commands"][0])
-        self.assertIn("Get-Content -Raw -LiteralPath", payload["launch_commands"][0])
-        self.assertIn("taskboard-T1.md", payload["launch_commands"][0])
+        self.assertIn("taskboard-T1.launch.ps1", payload["launch_commands"][0])
+        self.assertIn("-File", payload["launch_commands"][0])
+        self.assertNotIn("-Command", payload["launch_commands"][0])
         self.assertNotIn("Ship demo", payload["launch_commands"][0])
         self.assertTrue(t1_exists)
+        self.assertTrue(t1_launch_exists)
+        self.assertIn("read the UTF-8 target file", t1_launch_text)
+        self.assertIn("taskboard-T1.md", t1_launch_text)
+        self.assertIn("& claude --name 'taskboard-T1' $prompt", t1_launch_text)
+        self.assertNotIn("Ship demo", t1_launch_text)
         self.assertEqual(events[0]["kind"], "taskboard-t0-supervisor-event")
         self.assertEqual(events[0]["goal"], "Ship demo")
 

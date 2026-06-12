@@ -44,8 +44,11 @@ class TaskboardT0BoundarySmokeTest(unittest.TestCase):
                 ".taskboard/t0/events.jsonl",
                 ".taskboard/t0/goal.json",
                 ".taskboard/t0/latest.json",
+                ".taskboard/targets/taskboard-T1.launch.ps1",
                 ".taskboard/targets/taskboard-T1.md",
+                ".taskboard/targets/taskboard-T2.launch.ps1",
                 ".taskboard/targets/taskboard-T2.md",
+                ".taskboard/targets/taskboard-T3.launch.ps1",
                 ".taskboard/targets/taskboard-T3.md",
             ],
         )

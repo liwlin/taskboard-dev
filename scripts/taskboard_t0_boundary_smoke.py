@@ -17,8 +17,11 @@ ALLOWED_CREATED_FILES = {
     ".taskboard/t0/goal.json",
     ".taskboard/t0/latest.json",
     ".taskboard/targets/taskboard-T1.md",
+    ".taskboard/targets/taskboard-T1.launch.ps1",
     ".taskboard/targets/taskboard-T2.md",
+    ".taskboard/targets/taskboard-T2.launch.ps1",
     ".taskboard/targets/taskboard-T3.md",
+    ".taskboard/targets/taskboard-T3.launch.ps1",
 }
 FORBIDDEN_WORKER_FILES = {
     "docs/HANDOFF.md",
@@ -129,7 +132,7 @@ def run_smoke(root: Path, goal: str, force: bool) -> dict[str, object]:
         "failure_count": len(failures),
         "failures": failures,
         "evidence": [
-            "T0 dry-run created only T0 control-plane and target files",
+            "T0 dry-run created only T0 control-plane and target/launch files",
             "T0 did not create PROJECT/MAP/REQUIREMENTS/STATE/dev-log/HANDOFF",
             "T0 did not create TASK, archive, source, or git files",
             "T0 did not execute worker launcher commands",
