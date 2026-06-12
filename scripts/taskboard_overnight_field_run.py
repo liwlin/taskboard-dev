@@ -100,6 +100,83 @@ def failure_payload(root: Path, command: str, failures: list[str], marker: Optio
     }
 
 
+def next_command(root: Path, stage: str, run_id: str = "<field-run-id>") -> str:
+    root_text = str(root.resolve())
+    if stage == "start":
+        return f'python scripts/taskboard_overnight_field_run.py --root "{root_text}" start --run-id "{run_id}"'
+    if stage == "resume":
+        return f'python scripts/taskboard_overnight_field_run.py --root "{root_text}" resume'
+    if stage == "verify":
+        return f'python scripts/taskboard_overnight_field_run.py --root "{root_text}" verify'
+    return ""
+
+
+def command_status(root: Path, args: Namespace) -> dict[str, object]:
+    marker = read_marker(root)
+    current_time = float(args.now_epoch) if args.now_epoch is not None else now_epoch()
+    base = {
+        "kind": "taskboard-overnight-field-run",
+        "command": "status",
+        "root": str(root.resolve()),
+        "marker_file": str(marker_path(root).resolve()),
+        "failure_count": 0,
+        "failures": [],
+        "evidence": [],
+        "boundary": BOUNDARY,
+    }
+    if not marker:
+        return {
+            **base,
+            "state": "not-started",
+            "next_stage": "start",
+            "next_command": next_command(root, "start"),
+            "marker": {},
+        }
+
+    marker_state = str(marker.get("state") or "")
+    run_id = str(marker.get("run_id") or "<field-run-id>")
+    started_at = marker.get("started_at_epoch")
+    try:
+        started_epoch = float(started_at)
+    except (TypeError, ValueError):
+        started_epoch = current_time
+    elapsed_seconds = max(0, int(current_time - started_epoch))
+
+    if marker_state == "passed":
+        return {
+            **base,
+            "state": "passed",
+            "run_id": run_id,
+            "elapsed_seconds": elapsed_seconds,
+            "next_stage": "none",
+            "next_command": "",
+            "marker": marker,
+        }
+
+    if marker.get("resume"):
+        return {
+            **base,
+            "state": "ready-to-verify",
+            "run_id": run_id,
+            "elapsed_seconds": elapsed_seconds,
+            "next_stage": "verify",
+            "next_command": next_command(root, "verify"),
+            "marker": marker,
+        }
+
+    state = "ready-to-resume" if elapsed_seconds >= args.min_elapsed_seconds else "waiting-overnight"
+    return {
+        **base,
+        "state": state,
+        "run_id": run_id,
+        "elapsed_seconds": elapsed_seconds,
+        "min_elapsed_seconds": args.min_elapsed_seconds,
+        "next_stage": "resume",
+        "next_command": next_command(root, "resume"),
+        "marker": marker,
+    }
+
+
 def command_start(root: Path, args: Namespace) -> dict[str, object]:
     existing = read_marker(root)
     if existing and not args.force:
@@ -273,6 +350,10 @@ def format_text(payload: dict[str, object]) -> str:
         lines.append(f"run_id={payload['run_id']}")
     if "elapsed_seconds" in payload:
         lines.append(f"elapsed_seconds={payload['elapsed_seconds']}")
+    if "next_stage" in payload:
+        lines.append(f"next_stage={payload['next_stage']}")
+    if "next_command" in payload:
+        lines.append(f"next_command={payload['next_command']}")
     for failure in payload.get("failures", []):
         lines.append(f"failure={failure}")
     for item in payload.get("evidence", []):
@@ -285,6 +366,10 @@ def build_parser() -> ArgumentParser:
     parser.add_argument("--root", default=".", help="Project root containing docs/ and .taskboard/")
     parser.add_argument("--format", choices=("text", "json"), default="text")
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    status = subparsers.add_parser("status", help="Report current overnight field-run stage and next command")
+    status.add_argument("--now-epoch", type=float, default=None, help="Override current epoch for deterministic tests")
+    status.add_argument("--min-elapsed-seconds", type=int, default=DEFAULT_MIN_ELAPSED_SECONDS)
 
     start = subparsers.add_parser("start", help="Record the pre-close overnight field-run baseline")
     start.add_argument("--run-id", default="", help="Stable field-run id to store in the marker")
@@ -305,7 +390,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     args = parser.parse_args(argv)
     root = Path(args.root).resolve()
 
-    if args.command == "start":
+    if args.command == "status":
+        payload = command_status(root, args)
+    elif args.command == "start":
         payload = command_start(root, args)
     elif args.command == "resume":
         payload = command_resume(root, args)
@@ -318,7 +405,16 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
     else:
         print(format_text(payload))
-    return 0 if payload.get("state") in {"started", "resume-verified", "passed"} else 1
+    success_states = {
+        "not-started",
+        "waiting-overnight",
+        "ready-to-resume",
+        "ready-to-verify",
+        "started",
+        "resume-verified",
+        "passed",
+    }
+    return 0 if payload.get("state") in success_states else 1
 
 
 if __name__ == "__main__":

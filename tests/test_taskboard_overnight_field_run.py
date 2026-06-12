@@ -127,6 +127,62 @@ class TaskboardOvernightFieldRunTest(unittest.TestCase):
         self.assertEqual(resume_payload["state"], "failed")
         self.assertTrue(any("elapsed_seconds below required minimum" in item for item in resume_payload["failures"]), resume_payload)
 
+    def test_status_reports_next_action_across_overnight_stages(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            prepare_cold_resume_root(root)
+
+            initial_code, initial = self.run_overnight(root, "status", "--now-epoch", "1000")
+            self.run_overnight(root, "start", "--run-id", "field-status", "--now-epoch", "1000")
+            started_code, started = self.run_overnight(
+                root,
+                "status",
+                "--now-epoch",
+                "1100",
+                "--min-elapsed-seconds",
+                "300",
+            )
+            ready_code, ready = self.run_overnight(
+                root,
+                "status",
+                "--now-epoch",
+                "1400",
+                "--min-elapsed-seconds",
+                "300",
+            )
+            self.run_overnight(root, "resume", "--now-epoch", "1400", "--min-elapsed-seconds", "300")
+            resumed_code, resumed = self.run_overnight(root, "status", "--now-epoch", "1500")
+            remove_active_tasks(root)
+            make_complete_live_milestone(root)
+            self.run_overnight(root, "verify", "--min-elapsed-seconds", "300")
+            passed_code, passed = self.run_overnight(root, "status")
+
+        self.assertEqual(initial_code, 0, initial)
+        self.assertEqual(initial["state"], "not-started")
+        self.assertEqual(initial["next_stage"], "start")
+        self.assertIn("start --run-id", initial["next_command"])
+
+        self.assertEqual(started_code, 0, started)
+        self.assertEqual(started["state"], "waiting-overnight")
+        self.assertEqual(started["next_stage"], "resume")
+        self.assertEqual(started["elapsed_seconds"], 100)
+        self.assertIn("resume", started["next_command"])
+
+        self.assertEqual(ready_code, 0, ready)
+        self.assertEqual(ready["state"], "ready-to-resume")
+        self.assertEqual(ready["next_stage"], "resume")
+        self.assertEqual(ready["elapsed_seconds"], 400)
+
+        self.assertEqual(resumed_code, 0, resumed)
+        self.assertEqual(resumed["state"], "ready-to-verify")
+        self.assertEqual(resumed["next_stage"], "verify")
+        self.assertIn("verify", resumed["next_command"])
+
+        self.assertEqual(passed_code, 0, passed)
+        self.assertEqual(passed["state"], "passed")
+        self.assertEqual(passed["next_stage"], "none")
+        self.assertEqual(passed["next_command"], "")
+
 
 if __name__ == "__main__":
     unittest.main()
