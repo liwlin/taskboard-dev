@@ -1,4 +1,4 @@
-# taskboard-dev v4.5.24 用户手册
+# taskboard-dev v4.5.25 用户手册
 
 T0 管理的 TASKBOARD 驱动开发工作流 — 用户只对 T0 下达目标，T0 负责管理 T1 架构师、T2 审核者、T3 执行者，基于文件名即状态的零轮询开销设计。v4.5 面向 Claude Code / Codex 的现代长任务能力：loop、目标/target、后台执行、resume、工具检查点，以及紧凑 `taskboard.py` 控制面入口。默认原则是“能自动做就自动做”，只有真正的停止门才需要人确认。
 
@@ -136,7 +136,7 @@ python scripts/taskboard_overnight_field_run.py --root . verify
 python scripts/taskboard_overnight_field_run.py --root . status
 ```
 
-该 recorder 只写 `.taskboard/t0/overnight-field-run.json` 这一份 T0 控制面证据。`start` 要求当前真实冷恢复验收通过，`resume` 要求第二天重开 worker 后再次通过冷恢复验收并满足 elapsed 门槛，`verify` 要求 live milestone acceptance 通过，`status` 只读显示当前阶段、下一条命令、下一关卡是否 ready、blocker 列表，以及 blocked 时应先运行的 T0 prepare command；如果 `.taskboard/t0/goal.json` 已有目标，prepare command 会复用保存目标，否则保留 `<user goal>` 占位。The status `next_command` omits `--run-id` for the `start` stage so the recorder can auto-generate a run id; explicit `--run-id` remains available for manually named field runs. 它不会启动 worker、编辑 TASKBOARD 任务、实现代码或制造 T1/T2/T3 证据。
+该 recorder 只写 `.taskboard/t0/overnight-field-run.json` 这一份 T0 控制面证据。`start` 要求当前真实冷恢复验收通过，`resume` 要求第二天重开 worker 后再次通过冷恢复验收并满足 elapsed 门槛，`verify` 要求 live milestone acceptance 通过，`status` 只读显示当前阶段、下一条命令、下一关卡是否 ready、blocker 列表，以及 blocked 时应先运行的 T0 prepare command；如果 `.taskboard/t0/goal.json` 已有目标，prepare command 会复用保存目标，否则可用 `status --goal "<user goal>"` 生成无占位 prepare command，且不会写入 goal 或制造 field-run 证据。The status `next_command` omits `--run-id` for the `start` stage so the recorder can auto-generate a run id; explicit `--run-id` remains available for manually named field runs. 它不会启动 worker、编辑 TASKBOARD 任务、实现代码或制造 T1/T2/T3 证据。
 
 查看整个自动开发框架距离最终目标的 readiness：
 

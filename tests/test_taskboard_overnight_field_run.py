@@ -249,6 +249,18 @@ class TaskboardOvernightFieldRunTest(unittest.TestCase):
         self.assertIn('--goal "Ship demo"', payload["prepare_command"])
         self.assertNotIn("<user goal>", payload["prepare_command"])
 
+    def test_status_prepare_command_accepts_goal_argument_without_saved_goal(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            code, payload = self.run_overnight(root, "status", "--goal", "Ship demo")
+
+        self.assertEqual(code, 0, payload)
+        self.assertEqual(payload["prepare_state"], "needed")
+        self.assertIn('--goal "Ship demo"', payload["prepare_command"])
+        self.assertNotIn("<user goal>", payload["prepare_command"])
+        self.assertFalse((root / ".taskboard" / "t0" / "goal.json").exists())
+
     def test_status_accepts_format_after_subcommand_for_recovery_diagnostics(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

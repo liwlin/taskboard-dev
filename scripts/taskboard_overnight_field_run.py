@@ -117,8 +117,8 @@ def quote_cli_value(value: object) -> str:
     return '"' + text.replace('"', '\\"') + '"'
 
 
-def t0_prepare_command(root: Path) -> str:
-    goal = read_runtime_goal(root) or "<user goal>"
+def t0_prepare_command(root: Path, goal_override: Optional[str] = None) -> str:
+    goal = read_runtime_goal(root) or goal_override or "<user goal>"
     return (
         "python scripts/taskboard_start.py "
         f"--root {quote_cli_value(root.resolve())} "
@@ -126,7 +126,7 @@ def t0_prepare_command(root: Path) -> str:
     )
 
 
-def with_prepare_guidance(root: Path, payload: dict[str, object]) -> dict[str, object]:
+def with_prepare_guidance(root: Path, payload: dict[str, object], goal_override: Optional[str] = None) -> dict[str, object]:
     if payload.get("next_ready") is not False:
         return {
             **payload,
@@ -138,7 +138,7 @@ def with_prepare_guidance(root: Path, payload: dict[str, object]) -> dict[str, o
     return {
         **payload,
         "prepare_state": "needed",
-        "prepare_command": t0_prepare_command(root),
+        "prepare_command": t0_prepare_command(root, goal_override),
         "prepare_reason": (
             f"Run or resume T0 until {next_gate} is ready; do not manage T1/T2/T3 directly."
         ),
@@ -201,7 +201,7 @@ def command_status(root: Path, args: Namespace) -> dict[str, object]:
             "next_command": next_command(root, "start"),
             **next_gate_status(root, "start", min_elapsed_seconds=args.min_elapsed_seconds),
             "marker": {},
-        })
+        }, args.goal)
 
     marker_state = str(marker.get("state") or "")
     run_id = str(marker.get("run_id") or "<field-run-id>")
@@ -222,7 +222,7 @@ def command_status(root: Path, args: Namespace) -> dict[str, object]:
             "next_command": "",
             **next_gate_status(root, "none"),
             "marker": marker,
-        })
+        }, args.goal)
 
     if marker.get("resume"):
         return with_prepare_guidance(root, {
@@ -234,7 +234,7 @@ def command_status(root: Path, args: Namespace) -> dict[str, object]:
             "next_command": next_command(root, "verify"),
             **next_gate_status(root, "verify"),
             "marker": marker,
-        })
+        }, args.goal)
 
     state = "ready-to-resume" if elapsed_seconds >= args.min_elapsed_seconds else "waiting-overnight"
     return with_prepare_guidance(root, {
@@ -247,7 +247,7 @@ def command_status(root: Path, args: Namespace) -> dict[str, object]:
         "next_command": next_command(root, "resume"),
         **next_gate_status(root, "resume", elapsed_seconds, args.min_elapsed_seconds),
         "marker": marker,
-    })
+    }, args.goal)
 
 
 def command_start(root: Path, args: Namespace) -> dict[str, object]:
@@ -456,6 +456,7 @@ def build_parser() -> ArgumentParser:
     status.add_argument("--format", choices=("text", "json"), default=SUPPRESS, help="Output format")
     status.add_argument("--now-epoch", type=float, default=None, help="Override current epoch for deterministic tests")
     status.add_argument("--min-elapsed-seconds", type=int, default=DEFAULT_MIN_ELAPSED_SECONDS)
+    status.add_argument("--goal", default="", help="T0 goal to use in prepare_command when no saved goal exists")
 
     start = subparsers.add_parser("start", help="Record the pre-close overnight field-run baseline")
     start.add_argument("--format", choices=("text", "json"), default=SUPPRESS, help="Output format")
