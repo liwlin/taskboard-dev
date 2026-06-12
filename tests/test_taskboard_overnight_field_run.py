@@ -183,6 +183,29 @@ class TaskboardOvernightFieldRunTest(unittest.TestCase):
         self.assertEqual(passed["next_stage"], "none")
         self.assertEqual(passed["next_command"], "")
 
+    def test_status_reports_start_gate_readiness_and_blockers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            empty_root = Path(tmp) / "empty"
+            empty_root.mkdir()
+            blocked_code, blocked = self.run_overnight(empty_root, "status")
+
+            ready_root = Path(tmp) / "ready"
+            ready_root.mkdir()
+            prepare_cold_resume_root(ready_root)
+            ready_code, ready = self.run_overnight(ready_root, "status")
+
+        self.assertEqual(blocked_code, 0, blocked)
+        self.assertEqual(blocked["next_stage"], "start")
+        self.assertFalse(blocked["next_ready"])
+        self.assertIn("no selected worker TASK for cold resume", blocked["next_blockers"])
+        self.assertEqual(blocked["next_gate"], "cold-resume-acceptance")
+
+        self.assertEqual(ready_code, 0, ready)
+        self.assertEqual(ready["next_stage"], "start")
+        self.assertTrue(ready["next_ready"])
+        self.assertEqual(ready["next_blockers"], [])
+        self.assertEqual(ready["next_gate"], "cold-resume-acceptance")
+
     def test_status_accepts_format_after_subcommand_for_recovery_diagnostics(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

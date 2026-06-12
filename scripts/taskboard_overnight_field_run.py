@@ -111,6 +111,41 @@ def next_command(root: Path, stage: str, run_id: str = "<field-run-id>") -> str:
     return ""
 
 
+def next_gate_status(
+    root: Path,
+    stage: str,
+    elapsed_seconds: Optional[int] = None,
+    min_elapsed_seconds: int = DEFAULT_MIN_ELAPSED_SECONDS,
+) -> dict[str, object]:
+    if stage == "none":
+        return {"next_gate": "none", "next_ready": True, "next_blockers": []}
+
+    blockers: list[str] = []
+    if stage in {"start", "resume"}:
+        if stage == "resume" and elapsed_seconds is not None and elapsed_seconds < min_elapsed_seconds:
+            blockers.append(f"elapsed_seconds below required minimum: {elapsed_seconds} < {min_elapsed_seconds}")
+        cold_acceptance = collect_cold_resume_acceptance(root)
+        blockers.extend(str(item) for item in cold_acceptance.get("failures", []))
+        return {
+            "next_gate": "cold-resume-acceptance",
+            "next_ready": not blockers and cold_acceptance.get("state") == "passed",
+            "next_blockers": blockers,
+            "next_gate_state": cold_acceptance.get("state"),
+        }
+
+    if stage == "verify":
+        live_acceptance = collect_live_milestone_acceptance(root, ["T1", "T2", "T3"])
+        blockers.extend(str(item) for item in live_acceptance.get("failures", []))
+        return {
+            "next_gate": "live-milestone-acceptance",
+            "next_ready": not blockers and live_acceptance.get("state") == "passed",
+            "next_blockers": blockers,
+            "next_gate_state": live_acceptance.get("state"),
+        }
+
+    return {"next_gate": "unknown", "next_ready": False, "next_blockers": [f"unknown next stage: {stage}"]}
+
+
 def command_status(root: Path, args: Namespace) -> dict[str, object]:
     marker = read_marker(root)
     current_time = float(args.now_epoch) if args.now_epoch is not None else now_epoch()
@@ -130,6 +165,7 @@ def command_status(root: Path, args: Namespace) -> dict[str, object]:
             "state": "not-started",
             "next_stage": "start",
             "next_command": next_command(root, "start"),
+            **next_gate_status(root, "start", min_elapsed_seconds=args.min_elapsed_seconds),
             "marker": {},
         }
 
@@ -150,6 +186,7 @@ def command_status(root: Path, args: Namespace) -> dict[str, object]:
             "elapsed_seconds": elapsed_seconds,
             "next_stage": "none",
             "next_command": "",
+            **next_gate_status(root, "none"),
             "marker": marker,
         }
 
@@ -161,6 +198,7 @@ def command_status(root: Path, args: Namespace) -> dict[str, object]:
             "elapsed_seconds": elapsed_seconds,
             "next_stage": "verify",
             "next_command": next_command(root, "verify"),
+            **next_gate_status(root, "verify"),
             "marker": marker,
         }
 
@@ -173,6 +211,7 @@ def command_status(root: Path, args: Namespace) -> dict[str, object]:
         "min_elapsed_seconds": args.min_elapsed_seconds,
         "next_stage": "resume",
         "next_command": next_command(root, "resume"),
+        **next_gate_status(root, "resume", elapsed_seconds, args.min_elapsed_seconds),
         "marker": marker,
     }
 
@@ -354,6 +393,12 @@ def format_text(payload: dict[str, object]) -> str:
         lines.append(f"next_stage={payload['next_stage']}")
     if "next_command" in payload:
         lines.append(f"next_command={payload['next_command']}")
+    if "next_gate" in payload:
+        lines.append(f"next_gate={payload['next_gate']}")
+    if "next_ready" in payload:
+        lines.append(f"next_ready={str(payload['next_ready']).lower()}")
+    for blocker in payload.get("next_blockers", []):
+        lines.append(f"next_blocker={blocker}")
     for failure in payload.get("failures", []):
         lines.append(f"failure={failure}")
     for item in payload.get("evidence", []):
