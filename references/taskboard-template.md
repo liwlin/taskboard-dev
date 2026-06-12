@@ -1,4 +1,4 @@
-# TASKBOARD v4.5.26 Templates
+# TASKBOARD v4.5.27 Templates
 
 ## Directory Structure (auto-generated on first run)
 
@@ -110,7 +110,7 @@ Current v4.4 recovery rules:
 - Stop gates are aggregated through T0: progress exposes `decision_command`, and `taskboard_decide.py` records the user's answer before T1 continues.
 - Completion is gated by empty active queues, `STATE.md` goal-complete sentinel, archived TASK evidence, and dev-log completion evidence.
 - Assignment lease expiry, pending-ack timeout, stalled TASK detection, launch lease suppression, checkout-owner conflicts, launcher failures, and fallback launchers are handled inside T0; user action should remain T0-level.
-- Cross-day cold resume: cold start is the default correctness path. T0 reloads `.taskboard/t0/goal.json`, regenerates `.taskboard/targets/taskboard-T*.md`, and fresh workers recover topic from TASKBOARD state, stable docs, current TASK, history, unchecked Pending, `Current Instruction`, and scoped `git status`. `claude --resume` is only an optimization for the same role, same TASK, and same TASK version; stale chat context loses to the board.
+- Cross-day cold resume: cold start is the default correctness path. Terminal identity is role-bound; topic identity is TASK-bound. T0 reloads `.taskboard/t0/goal.json`, regenerates `.taskboard/targets/taskboard-T*.md`, and fresh workers recover topic from TASKBOARD state, stable docs, current TASK, history, unchecked Pending, `Current Instruction`, and scoped `git status`. `claude --resume` is only an optimization for the same role, same TASK, and same TASK version. Never treat a resumed chat session as authoritative; stale chat context loses to the board. After every Pending item completion, update the TASK immediately and refresh Current Instruction to the next concrete step.
 - Progress-level cold-resume readiness is read-only T0 evidence. `taskboard_progress.py` exposes `cold_resume_readiness`, `cold_resume_state`, and `cold_resume_missing_evidence` so T0/user can see whether the selected worker TASK has `Current Instruction`, unchecked Pending, History, Files, and scoped `git status` evidence before relying on a fresh next-day worker.
 - Cold-resume claims should pass `python scripts/taskboard_cold_resume_smoke.py`; the smoke builds a temporary git-backed board with a saved goal, active T3 TASK, `Current Instruction`, unchecked Pending, and scoped dirty file, then verifies T0 restores T3 without user-managed worker terminals.
 - Real cold worker resume field claims should pass `python scripts/taskboard_cold_resume_acceptance.py --root .`; this read-only gate uses progress evidence and rejects smoke/test/demo starter mode, missing T0 control-plane evidence, checkout-owner conflicts, missing selected worker TASK, incomplete `cold_resume_readiness`, and unavailable scoped `git status`.

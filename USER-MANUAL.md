@@ -1,4 +1,4 @@
-# taskboard-dev v4.5.26 用户手册
+# taskboard-dev v4.5.27 用户手册
 
 T0 管理的 TASKBOARD 驱动开发工作流 — 用户只对 T0 下达目标，T0 负责管理 T1 架构师、T2 审核者、T3 执行者，基于文件名即状态的零轮询开销设计。v4.5 面向 Claude Code / Codex 的现代长任务能力：loop、目标/target、后台执行、resume、工具检查点，以及紧凑 `taskboard.py` 控制面入口。默认原则是“能自动做就自动做”，只有真正的停止门才需要人确认。
 
@@ -115,7 +115,7 @@ python scripts/taskboard_loop.py --root . --native-result-receipt-json '{"role":
 
 如果用户按 Ctrl-C 或终端向 `taskboard_start.py` / 直接运行的 `taskboard_loop.py` 发送 `KeyboardInterrupt`，入口会返回 130，并输出 `taskboard-t0-interruption`、`state=interrupted`、`resume_command` 和 `user_action`。这个中断报告也会持久写入 `.taskboard/t0/latest.json` 和 `.taskboard/t0/events.jsonl`，所以即使终端输出丢失，`taskboard_progress.py` 仍能从最新 T0 控制面状态重建恢复命令。如果 latest snapshot 被禁用或丢失，progress 会把 latest event 的 `interrupted` 状态提升为用户可见的 T0 恢复状态，并继续从 event `resume_config` 重建命令。这个恢复命令仍然恢复 T0 自己，并保留上次 auto vs dry-check、launcher、fallback launcher、agent template、lease、interval 和 target-file mode 配置；用户不需要改去手动管理 T1/T2/T3。
 
-Cross-day cold resume: cold start is the default correctness path. 第二天重新打开项目时，T0 从 `.taskboard/t0/goal.json`、当前 TASKBOARD 文件名、最新 `.taskboard/targets/taskboard-T*.md`、stable docs、TASK history、unchecked Pending、`Current Instruction` 和 scoped `git status` 恢复主题；用户仍只恢复 T0，不需要分别管理 T1/T2/T3。`claude --resume` 只能作为同一角色、same role, same TASK, and same TASK version 的优化；如果恢复出来的聊天上下文与 TASKBOARD 状态冲突，以看板为准。Worker 在 pause、shutdown 或 context-limit restart 前，应把下一步写成一行 `Current Instruction`，降低隔夜恢复歧义。
+Cross-day cold resume: cold start is the default correctness path. Terminal identity is role-bound; topic identity is TASK-bound. 第二天重新打开项目时，T0 从 `.taskboard/t0/goal.json`、当前 TASKBOARD 文件名、最新 `.taskboard/targets/taskboard-T*.md`、stable docs、TASK history、unchecked Pending、`Current Instruction` 和 scoped `git status` 恢复主题；用户仍只恢复 T0，不需要分别管理 T1/T2/T3。`claude --resume` 只能作为同一角色、same role, same TASK, and same TASK version 的优化。Never treat a resumed chat session as authoritative；如果恢复出来的聊天上下文与 TASKBOARD 状态冲突，以看板为准。After every Pending item completion, update the TASK immediately: 勾选该 Pending、记录/准备 history，并 refresh Current Instruction to the next concrete step。Worker 在 pause、shutdown 或 context-limit restart 前，应把下一步写成一行 `Current Instruction`，降低隔夜恢复歧义。
 
 `taskboard_progress.py` 会输出 `cold_resume_readiness` / `cold_resume_state`，只读检查当前受控 TASK 是否包含 `Current Instruction`、unchecked Pending、History、Files，以及 Files 范围内的 scoped `git status`。这让第二天重新打开项目时，T0 和用户能直接看到 worker 是否具备冷启动恢复证据，而不用依赖旧聊天上下文。
 

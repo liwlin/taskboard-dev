@@ -137,12 +137,18 @@ class T0ContractTest(unittest.TestCase):
         for text in (readme, manual, role_t0):
             self.assertIn("Cross-day cold resume", text)
             self.assertIn("cold start is the default correctness path", text)
+            self.assertIn("Terminal identity is role-bound; topic identity is TASK-bound", text)
             self.assertIn("claude --resume", text)
             self.assertIn("same role, same TASK, and same TASK version", text)
+            self.assertIn("Never treat a resumed chat session as authoritative", text)
+            self.assertIn("After every Pending item completion, update the TASK immediately", text)
+            self.assertIn("refresh Current Instruction to the next concrete step", text)
             self.assertIn("Current Instruction", text)
 
         self.assertIn("fresh next-day worker terminal", cold_resume)
         self.assertIn("must recover the topic from TASKBOARD state", cold_resume)
+        self.assertIn("Terminal identity is role-bound; topic identity is TASK-bound", cold_resume)
+        self.assertIn("After every Pending item completion, update the TASK immediately", cold_resume)
         self.assertIn("must not require the user to manage T1/T2/T3", cold_resume)
         self.assertIn("resume is optional optimization", cold_resume)
 

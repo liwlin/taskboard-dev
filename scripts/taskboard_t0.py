@@ -71,10 +71,12 @@ EXTERNAL_TOOL_CONTRACT = (
 
 CROSS_DAY_COLD_RESUME_CONTRACT = (
     "Cross-day cold resume contract:\n"
+    "- Terminal identity is role-bound; topic identity is TASK-bound. A reopened taskboard-T3 terminal is still T3, but the current topic comes from the selected TASK file.\n"
     "- Treat a fresh terminal as normal; recover the topic from TASKBOARD state, not from yesterday's chat.\n"
     "- At startup or resume, read this target file, TASKBOARD filenames, stable docs, the current TASK file, history, unchecked Pending items, Current Instruction, and scoped git status before acting.\n"
     "- Do not rely on claude --resume for correctness; use it only as an optimization for the same role, same TASK, and same TASK version.\n"
-    "- If resumed chat context conflicts with TASKBOARD state, discard the stale chat context and follow the board.\n"
+    "- Never treat a resumed chat session as authoritative; if resumed chat context conflicts with TASKBOARD state, discard the stale chat context and follow the board.\n"
+    "- After every Pending item completion, update the TASK immediately: check the item, append or prepare the history note, and refresh Current Instruction to the next concrete step before continuing.\n"
     "- Before pause, shutdown, or context-limit restart, externalize the next concrete step as a one-line Current Instruction in the active TASK or HANDOFF so the next fresh terminal can continue."
 )
 

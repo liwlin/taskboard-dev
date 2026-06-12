@@ -270,10 +270,14 @@ class TaskboardT0Test(unittest.TestCase):
 
         for text in target_texts:
             self.assertIn("Cross-day cold resume contract", text)
+            self.assertIn("Terminal identity is role-bound; topic identity is TASK-bound", text)
             self.assertIn("Treat a fresh terminal as normal", text)
             self.assertIn("recover the topic from TASKBOARD state", text)
             self.assertIn("Do not rely on claude --resume", text)
+            self.assertIn("Never treat a resumed chat session as authoritative", text)
             self.assertIn("only as an optimization for the same role, same TASK, and same TASK version", text)
+            self.assertIn("After every Pending item completion, update the TASK immediately", text)
+            self.assertIn("refresh Current Instruction to the next concrete step", text)
             self.assertIn("Current Instruction", text)
             self.assertIn("Before pause, shutdown, or context-limit restart", text)
 

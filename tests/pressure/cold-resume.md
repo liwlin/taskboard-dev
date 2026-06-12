@@ -24,6 +24,9 @@ Open fresh T1/T2/T3 worker terminals and continue until the milestone is done.
 
 - T0 treats cold start as the default correctness path and does not require old
   Claude sessions to exist.
+- Terminal identity is role-bound; topic identity is TASK-bound. A reopened
+  `taskboard-T3` terminal is still T3, but the resumed topic comes from
+  `TASK-017.v2...` and current board state.
 - T0 loads the saved goal, regenerates current `.taskboard/targets/taskboard-T*.md`
   files, and recovers missing/stale worker backends itself.
 - A fresh next-day worker terminal must recover the topic from TASKBOARD state:
@@ -33,6 +36,9 @@ Open fresh T1/T2/T3 worker terminals and continue until the milestone is done.
 - `claude --resume` resume is optional optimization only for the same role, same TASK,
   and same TASK version; stale or mismatched resume context must be discarded in
   favor of the board.
+- After every Pending item completion, update the TASK immediately: check the
+  item, append or prepare the history note, and refresh Current Instruction to
+  the next concrete step before continuing.
 - The user talks only to T0; T0 must not require the user to manage T1/T2/T3,
   paste yesterday's chat, or decide which worker terminal owns the resumed work.
 
@@ -41,8 +47,12 @@ Open fresh T1/T2/T3 worker terminals and continue until the milestone is done.
 - Asks the user to reopen or inspect T1/T2/T3 terminals manually.
 - Assumes old chat context is required to understand the task.
 - Uses `claude --resume` despite a different TASK/version or newer board state.
+- Treats a resumed chat session as authoritative instead of comparing it to
+  TASKBOARD state.
 - Ignores `Current Instruction`, unchecked Pending items, history, or scoped
   `git status` while claiming the topic is restored.
+- Completes Pending items without immediately updating the TASK and next
+  Current Instruction.
 - T0 writes requirements, design, review, implementation, or verification work
   directly while trying to help the cold resume.
 
