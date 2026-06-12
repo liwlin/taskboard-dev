@@ -152,6 +152,22 @@ class T0ContractTest(unittest.TestCase):
         self.assertIn("must not require the user to manage T1/T2/T3", cold_resume)
         self.assertIn("resume is optional optimization", cold_resume)
 
+    def test_skill_repo_ignores_runtime_taskboard_docs(self):
+        gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
+
+        for path in (
+            "/docs/taskboard/",
+            "/docs/PROJECT.md",
+            "/docs/MAP.md",
+            "/docs/REQUIREMENTS.md",
+            "/docs/STATE.md",
+            "/docs/HANDOFF.md",
+            "/docs/dev-log.md",
+            "/docs/codex/",
+            "/docs/reviews/",
+        ):
+            self.assertIn(path, gitignore)
+
     def test_field_pressure_scenarios_are_recorded(self):
         pressure_dir = ROOT / "tests" / "pressure"
 

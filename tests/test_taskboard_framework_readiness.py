@@ -189,7 +189,6 @@ class TaskboardFrameworkReadinessTest(unittest.TestCase):
         self.assertEqual(payload["state"], "field-verification-required")
         self.assertFalse(payload["goal_complete"])
         self.assertIn("real overnight field run", payload["remaining_gaps"])
-        self.assertIn("real native-subagent field run", payload["remaining_gaps"])
 
         checks = {item["id"]: item for item in payload["checks"]}
         for check_id in (
@@ -204,7 +203,12 @@ class TaskboardFrameworkReadinessTest(unittest.TestCase):
             self.assertEqual(checks[check_id]["state"], "passed", check_id)
 
         self.assertEqual(checks["real-overnight-field-run"]["state"], "missing")
-        self.assertEqual(checks["real-native-subagent-field-run"]["state"], "missing")
+        native_state = checks["real-native-subagent-field-run"]["state"]
+        self.assertIn(native_state, {"missing", "passed"})
+        if native_state == "missing":
+            self.assertIn("real native-subagent field run", payload["remaining_gaps"])
+        else:
+            self.assertNotIn("real native-subagent field run", payload["remaining_gaps"])
         self.assertIn("taskboard_start.py --goal", checks["one-command-t0-entry"]["evidence"])
         self.assertIn("taskboard_cold_resume_acceptance.py", checks["cross-day-cold-resume"]["evidence"])
         self.assertIn("taskboard_live_milestone_acceptance.py", checks["field-acceptance-gates"]["evidence"])
@@ -223,7 +227,11 @@ class TaskboardFrameworkReadinessTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertIn("state=field-verification-required", result.stdout)
         self.assertIn("gap=real overnight field run", result.stdout)
-        self.assertIn("gap=real native-subagent field run", result.stdout)
+        if "check=real-native-subagent-field-run state=missing" in result.stdout:
+            self.assertIn("gap=real native-subagent field run", result.stdout)
+        else:
+            self.assertIn("check=real-native-subagent-field-run state=passed", result.stdout)
+            self.assertNotIn("gap=real native-subagent field run", result.stdout)
 
     def test_readiness_requires_real_native_subagent_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:
