@@ -101,10 +101,10 @@ def failure_payload(root: Path, command: str, failures: list[str], marker: Optio
     }
 
 
-def next_command(root: Path, stage: str, run_id: str = "<field-run-id>") -> str:
+def next_command(root: Path, stage: str) -> str:
     root_text = str(root.resolve())
     if stage == "start":
-        return f'python scripts/taskboard_overnight_field_run.py --root "{root_text}" start --run-id "{run_id}"'
+        return f'python scripts/taskboard_overnight_field_run.py --root "{root_text}" start'
     if stage == "resume":
         return f'python scripts/taskboard_overnight_field_run.py --root "{root_text}" resume'
     if stage == "verify":

@@ -160,7 +160,8 @@ class TaskboardOvernightFieldRunTest(unittest.TestCase):
         self.assertEqual(initial_code, 0, initial)
         self.assertEqual(initial["state"], "not-started")
         self.assertEqual(initial["next_stage"], "start")
-        self.assertIn("start --run-id", initial["next_command"])
+        self.assertTrue(initial["next_command"].endswith(" start"), initial["next_command"])
+        self.assertNotIn("<field-run-id>", initial["next_command"])
 
         self.assertEqual(started_code, 0, started)
         self.assertEqual(started["state"], "waiting-overnight")
