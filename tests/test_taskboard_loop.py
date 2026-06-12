@@ -554,6 +554,67 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertGreater(events[1]["suppressed_launches"][0]["remaining_seconds"], 0)
         self.assertIn("launch lease active", " ".join(output[1]["actions"]))
 
+    def test_launcher_none_does_not_hold_checkout_owner_against_real_launcher(self):
+        executed_batches = []
+
+        def fake_execute(commands):
+            executed_batches.append(list(commands))
+            return [
+                {
+                    "command": command,
+                    "returncode": 0,
+                    "output": "",
+                }
+                for command in commands
+            ]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            none_output = loop_module.run_loop(
+                root,
+                "Ship demo",
+                30,
+                300,
+                "none",
+                'codex --prompt-file "{target_file}"',
+                True,
+                1,
+                0,
+                300,
+                True,
+                root / ".taskboard" / "t0" / "latest.json",
+                root / ".taskboard" / "targets",
+                300,
+                root / ".taskboard" / "t0" / "events.jsonl",
+            )
+            with patch("taskboard_loop.execute_commands", fake_execute):
+                real_output = loop_module.run_loop(
+                    root,
+                    "Ship demo",
+                    30,
+                    300,
+                    "windows-terminal",
+                    'codex --prompt-file "{target_file}"',
+                    True,
+                    1,
+                    0,
+                    300,
+                    True,
+                    root / ".taskboard" / "t0" / "latest.json",
+                    root / ".taskboard" / "targets",
+                    300,
+                    root / ".taskboard" / "t0" / "events.jsonl",
+                    checkout_owner_id="real-launcher",
+                )
+
+        self.assertEqual(none_output[0]["checkout_owner"]["state"], "skipped")
+        self.assertEqual(none_output[0]["checkout_owner"]["reason"], "launcher-none")
+        self.assertEqual(real_output[0]["checkout_owner"]["state"], "acquired")
+        self.assertEqual([len(batch) for batch in executed_batches], [3])
+        self.assertEqual(len(real_output[0]["executed_commands"]), 3)
+
     def test_execute_launches_does_not_relaunch_healthy_roles_after_launch_lease(self):
         executed_batches = []
 

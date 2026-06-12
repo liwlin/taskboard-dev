@@ -1,4 +1,4 @@
-# TASKBOARD v4.5.25 Templates
+# TASKBOARD v4.5.26 Templates
 
 ## Directory Structure (auto-generated on first run)
 
@@ -97,7 +97,7 @@ T0 runtime files:
 - `.taskboard/t0/latest.json`: latest `taskboard-t0-supervisor-state` snapshot with `resume_config`.
 - `.taskboard/t0/events.jsonl`: append-only `taskboard-t0-supervisor-event` audit log.
 - `.taskboard/t0/launches.json`: launch lease state that prevents duplicate managed terminals.
-- `.taskboard/t0/checkout-owner.json`: top-level checkout-owner marker that suppresses worker launch when another peer orchestrator owns the same Git checkout.
+- `.taskboard/t0/checkout-owner.json`: top-level checkout-owner marker that suppresses real worker launch when another peer orchestrator owns the same Git checkout; `--launcher none` and no-launch checks do not hold this lock.
 - `.taskboard/t0/subagent-fallback.json`: recoverable prompts for isolated native subagent fallback.
 - `.taskboard/t0/subagents.json`: T0 native-subagent dispatch ack state (`pending_roles` / `dispatched_roles`).
 - `.taskboard/targets/taskboard-T1.md`, `.taskboard/targets/taskboard-T2.md`, `.taskboard/targets/taskboard-T3.md`: isolated role inbox files written by T0.

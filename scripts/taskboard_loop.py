@@ -1004,6 +1004,7 @@ def run_once(
     preflight_spawn_refused = bool(
         isinstance(agent_preflight, dict) and agent_preflight.get("state") == "spawn-refused"
     )
+    launch_execution_enabled = execute_launches and launcher != "none"
     checkout_owner = (
         acquire_checkout_owner(
             root,
@@ -1011,10 +1012,14 @@ def run_once(
             checkout_owner_lease_seconds,
             current_time,
         )
-        if execute_launches
-        else {"kind": "taskboard-checkout-owner", "state": "skipped", "reason": "launches-disabled"}
+        if launch_execution_enabled
+        else {
+            "kind": "taskboard-checkout-owner",
+            "state": "skipped",
+            "reason": "launcher-none" if launcher == "none" else "launches-disabled",
+        }
     )
-    if execute_launches and preflight_spawn_refused:
+    if launch_execution_enabled and preflight_spawn_refused:
         source_sessions = assignment_recovery_session_list or stalled_recovery_session_list or fallback_source_sessions(
             session_probe, dispatch_plan, used_recovery_commands
         )
@@ -1030,10 +1035,10 @@ def run_once(
         )
         launch_commands = []
         suppressed_launches = []
-    elif execute_launches and checkout_owner.get("state") == "conflict":
+    elif launch_execution_enabled and checkout_owner.get("state") == "conflict":
         launch_commands = []
         suppressed_launches = []
-    elif execute_launches:
+    elif launch_execution_enabled:
         launch_commands, suppressed_launches = filter_launch_commands(
             requested_launch_commands,
             launch_state_payload,
@@ -1043,9 +1048,9 @@ def run_once(
     else:
         launch_commands = requested_launch_commands
         suppressed_launches = []
-    executed_commands = execute_commands(launch_commands) if execute_launches and launch_commands else []
+    executed_commands = execute_commands(launch_commands) if launch_execution_enabled and launch_commands else []
     fallback_attempts: list[dict[str, object]] = []
-    if execute_launches and executed_commands and any(command_failed(item) for item in executed_commands):
+    if launch_execution_enabled and executed_commands and any(command_failed(item) for item in executed_commands):
         source_sessions = assignment_recovery_session_list or stalled_recovery_session_list or fallback_source_sessions(
             session_probe, dispatch_plan, used_recovery_commands
         )
@@ -1061,7 +1066,7 @@ def run_once(
         )
         executed_commands.extend(fallback_executed)
         suppressed_launches.extend(fallback_suppressed)
-    if execute_launches and any(launch_failure_is_spawn_refusal(item) for item in executed_commands):
+    if launch_execution_enabled and any(launch_failure_is_spawn_refusal(item) for item in executed_commands):
         source_sessions = assignment_recovery_session_list or stalled_recovery_session_list or fallback_source_sessions(
             session_probe, dispatch_plan, used_recovery_commands
         )
@@ -1075,7 +1080,7 @@ def run_once(
             source_sessions,
             agent_template,
         )
-    if execute_launches and executed_commands:
+    if launch_execution_enabled and executed_commands:
         record_launch_successes(launch_state_payload, executed_commands, current_time)
         write_launch_state(root, launch_state_payload, launch_lease_seconds)
     completion_audit = dispatch_plan.get("completion_audit")
