@@ -5,6 +5,7 @@ from argparse import ArgumentParser
 from datetime import datetime, timezone
 from pathlib import Path
 import json
+import subprocess
 import sys
 from typing import Optional
 
@@ -513,6 +514,145 @@ def build_subagent_control(
     }
 
 
+def parse_task_files(task_text: str) -> list[str]:
+    files: list[str] = []
+    in_files = False
+    for raw_line in task_text.splitlines():
+        line = raw_line.strip()
+        if line.startswith("**Files**"):
+            in_files = True
+            continue
+        if not in_files:
+            continue
+        if line.startswith("## ") or (line.startswith("**") and not line.startswith("**Files**")):
+            break
+        if not line.startswith("- "):
+            continue
+        value = line[2:].strip().strip("`")
+        if value:
+            files.append(value)
+    return files
+
+
+def read_scoped_git_status(root: Path, files: list[str]) -> tuple[str, str]:
+    if not files:
+        return "", "not-requested"
+    try:
+        result = subprocess.run(
+            ["git", "status", "--short", "--", *files],
+            cwd=root,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+    except OSError as exc:
+        return str(exc), "unavailable"
+    return result.stdout.strip(), "available" if result.returncode == 0 else "unavailable"
+
+
+def build_cold_resume_readiness(root: Path, role: str, task_name: str) -> dict[str, object]:
+    taskboard = root / "docs" / "taskboard"
+    task_path = taskboard / task_name if task_name and task_name != "none" else None
+    if task_path is None:
+        return {
+            "state": "idle",
+            "role": role,
+            "task": "none",
+            "task_file": "",
+            "files": [],
+            "has_current_instruction": False,
+            "has_unchecked_pending": False,
+            "has_history": False,
+            "scoped_git_status": "",
+            "scoped_git_status_state": "not-requested",
+            "missing_evidence": ["active TASK"],
+            "source_of_truth": "TASKBOARD cold-start default; no active worker task is selected.",
+            "boundary": (
+                "Cold-resume readiness is read-only T0 evidence; it does not rely on chat memory "
+                "and does not execute worker tasks."
+            ),
+        }
+    if not task_path.exists():
+        return {
+            "state": "attention",
+            "role": role,
+            "task": task_name,
+            "task_file": str(task_path),
+            "files": [],
+            "has_current_instruction": False,
+            "has_unchecked_pending": False,
+            "has_history": False,
+            "scoped_git_status": "",
+            "scoped_git_status_state": "not-requested",
+            "missing_evidence": ["active TASK file"],
+            "source_of_truth": "TASKBOARD cold-start default; selected task file is missing.",
+            "boundary": (
+                "Cold-resume readiness is read-only T0 evidence; it does not rely on chat memory "
+                "and does not execute worker tasks."
+            ),
+        }
+
+    try:
+        text = task_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return {
+            "state": "attention",
+            "role": role,
+            "task": task_name,
+            "task_file": str(task_path),
+            "files": [],
+            "has_current_instruction": False,
+            "has_unchecked_pending": False,
+            "has_history": False,
+            "scoped_git_status": "",
+            "scoped_git_status_state": "not-requested",
+            "missing_evidence": [f"readable TASK file: {exc}"],
+            "source_of_truth": "TASKBOARD cold-start default; selected task file is unreadable.",
+            "boundary": (
+                "Cold-resume readiness is read-only T0 evidence; it does not rely on chat memory "
+                "and does not execute worker tasks."
+            ),
+        }
+
+    files = parse_task_files(text)
+    has_current_instruction = "## Current Instruction" in text
+    has_unchecked_pending = "- [ ]" in text
+    has_history = "## History" in text
+    scoped_git_status, scoped_git_status_state = read_scoped_git_status(root, files)
+    missing_evidence = []
+    if not has_current_instruction:
+        missing_evidence.append("Current Instruction")
+    if not has_unchecked_pending:
+        missing_evidence.append("unchecked Pending")
+    if not has_history:
+        missing_evidence.append("History")
+    if role == "T3" and not files:
+        missing_evidence.append("Files")
+
+    return {
+        "state": "ready" if not missing_evidence else "attention",
+        "role": role,
+        "task": task_name,
+        "task_file": str(task_path),
+        "files": files,
+        "has_current_instruction": has_current_instruction,
+        "has_unchecked_pending": has_unchecked_pending,
+        "has_history": has_history,
+        "scoped_git_status": scoped_git_status,
+        "scoped_git_status_state": scoped_git_status_state,
+        "missing_evidence": missing_evidence,
+        "source_of_truth": (
+            "TASKBOARD cold-start default: role target, current TASK, Pending, "
+            "Current Instruction, History, Files, and scoped git status outrank stale chat context."
+        ),
+        "boundary": (
+            "Cold-resume readiness is read-only T0 evidence; it does not rely on chat memory "
+            "and does not execute worker tasks."
+        ),
+    }
+
+
 def report_progress(root: Path) -> dict[str, object]:
     event_summary = read_event_log_summary(root)
     subagent_packet = read_subagent_fallback_packet(root)
@@ -720,6 +860,11 @@ def report_progress(root: Path) -> dict[str, object]:
             latest_event_resume_config_payload,
             latest_event_auto_mode,
         )
+        cold_resume_readiness = build_cold_resume_readiness(
+            root,
+            latest_event_next_role,
+            latest_event_task,
+        )
         return {
             "kind": "taskboard-t0-progress",
             "state": fallback_state,
@@ -776,6 +921,9 @@ def report_progress(root: Path) -> dict[str, object]:
             "completion_missing_evidence": completion_missing_list,
             "error": latest_event_error,
             "queue_metrics": queue_metrics,
+            "cold_resume_readiness": cold_resume_readiness,
+            "cold_resume_state": cold_resume_readiness.get("state"),
+            "cold_resume_missing_evidence": cold_resume_readiness.get("missing_evidence", []),
             "t0_supervisor": t0_supervisor,
             "t0_supervisor_state": t0_supervisor.get("state"),
             "t0_supervisor_age_seconds": t0_supervisor.get("age_seconds"),
@@ -965,6 +1113,7 @@ def report_progress(root: Path) -> dict[str, object]:
         resume_config_payload,
         auto_mode,
     )
+    cold_resume_readiness = build_cold_resume_readiness(root, next_role, task)
 
     return {
         "kind": "taskboard-t0-progress",
@@ -1026,6 +1175,9 @@ def report_progress(root: Path) -> dict[str, object]:
         "completion_missing_evidence": completion_missing_list,
         "error": error,
         "queue_metrics": queue_metrics,
+        "cold_resume_readiness": cold_resume_readiness,
+        "cold_resume_state": cold_resume_readiness.get("state"),
+        "cold_resume_missing_evidence": cold_resume_readiness.get("missing_evidence", []),
         "t0_supervisor": t0_supervisor,
         "t0_supervisor_state": t0_supervisor_state,
         "t0_supervisor_age_seconds": t0_supervisor.get("age_seconds"),
@@ -1088,6 +1240,10 @@ def format_text(payload: dict[str, object]) -> str:
     latest_event_failure_list = (
         latest_event_failures if isinstance(latest_event_failures, list) else []
     )
+    cold_resume = payload.get("cold_resume_readiness", {})
+    cold_resume_payload = cold_resume if isinstance(cold_resume, dict) else {}
+    cold_resume_missing = cold_resume_payload.get("missing_evidence", [])
+    cold_resume_missing_list = cold_resume_missing if isinstance(cold_resume_missing, list) else []
     latest_event_first_failure = (
         latest_event_failure_list[0]
         if latest_event_failure_list and isinstance(latest_event_failure_list[0], dict)
@@ -1109,6 +1265,16 @@ def format_text(payload: dict[str, object]) -> str:
         "queue_metrics_role_counts="
         + ",".join(f"{role}:{role_count_payload.get(role, 0)}" for role in ROLES),
         f"queue_metrics_next_role={metrics_payload.get('next_role', payload['next_role'])}",
+        f"cold_resume_state={cold_resume_payload.get('state', '')}",
+        f"cold_resume_role={cold_resume_payload.get('role', '')}",
+        f"cold_resume_task={cold_resume_payload.get('task', '')}",
+        f"cold_resume_has_current_instruction={cold_resume_payload.get('has_current_instruction', False)}",
+        f"cold_resume_has_unchecked_pending={cold_resume_payload.get('has_unchecked_pending', False)}",
+        f"cold_resume_has_history={cold_resume_payload.get('has_history', False)}",
+        "cold_resume_files="
+        + ",".join(str(item) for item in cold_resume_payload.get("files", []) if item),
+        f"cold_resume_scoped_git_status_state={cold_resume_payload.get('scoped_git_status_state', '')}",
+        "cold_resume_missing_evidence=" + "; ".join(str(item) for item in cold_resume_missing_list),
         f"t0_supervisor_state={payload.get('t0_supervisor_state', '')}",
         f"t0_supervisor_age_seconds={payload.get('t0_supervisor_age_seconds', '')}",
         f"t0_supervisor_stale_after_seconds={payload.get('t0_supervisor_stale_after_seconds', '')}",

@@ -227,6 +227,82 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn(f"assignment_task={task_name}", text)
         self.assertIn("assignment_reason=taskboard-T2 is missing", text)
 
+    def test_progress_surfaces_cold_resume_readiness_for_active_worker_task(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            taskboard = root / "docs" / "taskboard"
+            taskboard.mkdir(parents=True)
+            (root / "docs" / "PROJECT.md").write_text("# PROJECT\n\nLogin milestone.\n", encoding="utf-8")
+            task_name = f"TASK-017.v2.{T3_EXECUTE}.md"
+            (taskboard / task_name).write_text(
+                "\n".join(
+                    [
+                        "# TASK-017 Login resume",
+                        "",
+                        "**Wave**: 1",
+                        "**Files**:",
+                        "- src/login.py",
+                        "",
+                        "## Pending",
+                        "- [x] Inspect partial login change",
+                        "- [ ] Finish token refresh branch",
+                        "",
+                        "## Current Instruction",
+                        "Continue from token refresh branch; preserve the scoped diff.",
+                        "",
+                        "## History",
+                        "- 2026-06-11 T3: paused after local edit.",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            source = root / "src" / "login.py"
+            source.parent.mkdir(parents=True)
+            source.write_text("def login():\n    return 'old-token'\n", encoding="utf-8")
+            subprocess.run(["git", "init"], cwd=root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "taskboard@example.invalid"],
+                cwd=root,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Taskboard Progress"],
+                cwd=root,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=True,
+            )
+            subprocess.run(["git", "add", "src/login.py"], cwd=root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=True)
+            subprocess.run(
+                ["git", "commit", "-m", "baseline login"],
+                cwd=root,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=True,
+            )
+            source.write_text("def login():\n    return 'token-refresh-in-progress'\n", encoding="utf-8")
+
+            self.run_json(LOOP_SCRIPT, root, "--goal", "Continue login")
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+            text = self.run_text(PROGRESS_SCRIPT, root)
+
+        readiness = progress["cold_resume_readiness"]
+        self.assertEqual(readiness["state"], "ready")
+        self.assertEqual(readiness["role"], "T3")
+        self.assertEqual(readiness["task"], task_name)
+        self.assertTrue(readiness["has_current_instruction"])
+        self.assertTrue(readiness["has_unchecked_pending"])
+        self.assertTrue(readiness["has_history"])
+        self.assertEqual(readiness["files"], ["src/login.py"])
+        self.assertIn("M src/login.py", readiness["scoped_git_status"])
+        self.assertIn("TASKBOARD", readiness["source_of_truth"])
+        self.assertEqual(readiness["missing_evidence"], [])
+        self.assertIn("cold_resume_state=ready", text)
+        self.assertIn("cold_resume_task=" + task_name, text)
+
     def test_progress_surfaces_pending_assignment_ack_timeout_as_t0_recovery(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
