@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Verify the taskboard-dev T0 orchestration contract."""
 
 from pathlib import Path
@@ -101,7 +101,7 @@ def verify_t0_contract() -> None:
     )
     require_not_contains("SKILL.md", "| `T0-")
 
-    require_contains("USER-MANUAL.md", "# taskboard-dev v4.5.31 用户手册")
+    require_contains("USER-MANUAL.md", "# taskboard-dev v4.5.32 用户手册")
     require_contains("USER-MANUAL.md", "## 5. T0 编排器操作手册")
     require_contains("USER-MANUAL.md", "## Multi-agent 借鉴原则")
     require_contains("USER-MANUAL.md", "T0 是 manager，不是 worker")
@@ -130,7 +130,7 @@ def verify_t0_contract() -> None:
     require_contains("USER-MANUAL.md", "| T0 | `T1-待决策`")
     require_not_contains("USER-MANUAL.md", "| `T0-")
 
-    require_contains("README.md", "当前版本：**v4.5.31**")
+    require_contains("README.md", "当前版本：**v4.5.32**")
     require_contains("README.md", "T0 用户入口")
     require_contains("README.md", "执行：/taskboard-dev T0")
     require_contains("README.md", "用户默认只需要手动打开 1 个入口终端")
@@ -157,7 +157,7 @@ def verify_t0_contract() -> None:
     require_contains("README.md", "use `--launcher none` for no-write dry checks")
     require_contains("README.md", "python scripts/taskboard_next.py --role T0 --root .")
 
-    require_contains("references/taskboard-template.md", "# TASKBOARD v4.5.31 Templates")
+    require_contains("references/taskboard-template.md", "# TASKBOARD v4.5.32 Templates")
     require_contains("references/taskboard-template.md", "## Current T0 Control-Plane Entries")
     require_contains("references/taskboard-template.md", "python scripts/taskboard.py --root . status")
     require_contains("references/taskboard-template.md", "python scripts/taskboard.py --root . launch-probe")
@@ -177,7 +177,7 @@ def verify_t0_contract() -> None:
     require_contains("references/taskboard-template.md", "目标(T0):")
     require_contains("references/taskboard-template.md", "执行: /taskboard-dev T0")
 
-    require_contains("scripts/package.sh", 'VERSION="${VERSION:-v4.5.31}"')
+    require_contains("scripts/package.sh", 'VERSION="${VERSION:-v4.5.32}"')
     require_contains("scripts/package.sh", 'cp "$ROOT_DIR/scripts/taskboard.py"')
     require_contains("scripts/package.sh", 'cp "$ROOT_DIR/scripts/taskboard_start.py"')
     require_contains("scripts/package.sh", 'cp "$ROOT_DIR/scripts/taskboard_t0.py"')
@@ -664,6 +664,9 @@ def verify_t0_contract() -> None:
     require_contains("scripts/taskboard_progress.py", "subagent_fallback_available")
     require_contains("scripts/taskboard_progress.py", "subagent_fallback_packet_available")
     require_contains("scripts/taskboard_progress.py", "subagent_fallback_packet_file")
+    require_contains("scripts/taskboard_progress.py", "subagent_fallback_packet_state")
+    require_contains("scripts/taskboard_progress.py", "subagent_spawn_request")
+    require_contains("scripts/taskboard_progress.py", "subagent_plan_payload")
     require_contains("scripts/taskboard_progress.py", "subagent_prompt_roles")
     require_contains("scripts/taskboard_progress.py", "subagent_dispatched_roles")
     require_contains("scripts/taskboard_progress.py", "subagent_pending_roles")
@@ -691,6 +694,8 @@ def verify_t0_contract() -> None:
     require_contains("scripts/taskboard_subagents.py", "taskboard-subagent-dispatch-state")
     require_contains("scripts/taskboard_subagents.py", "taskboard-subagent-next")
     require_contains("scripts/taskboard_subagents.py", "taskboard-subagent-plan")
+    require_contains("scripts/taskboard_subagents.py", "fallback_packet_state")
+    require_contains("scripts/taskboard_subagents.py", "stale-goal")
     require_contains("scripts/taskboard_subagents.py", "taskboard-subagent-ack")
     require_contains("scripts/taskboard_subagents.py", "spawn_receipt")
     require_contains("scripts/taskboard_subagents.py", "result_receipt")
@@ -720,6 +725,9 @@ def verify_t0_contract() -> None:
     require_contains("tests/test_taskboard_loop.py", "test_loop_records_injected_native_result_receipt_and_advances_subagent_plan")
     require_contains("tests/test_taskboard_loop.py", "test_cli_imports_native_spawn_receipt_json_and_advances_subagent_plan")
     require_contains("tests/test_taskboard_loop.py", "test_cli_imports_native_result_receipt_json_and_advances_subagent_plan")
+    require_contains("tests/test_taskboard_cli.py", "test_subagent_plan_rejects_stale_goal_packet")
+    require_contains("tests/test_taskboard_progress.py", "test_progress_does_not_offer_stale_subagent_packet_for_current_goal")
+    require_contains("tests/test_taskboard_progress.py", "subagent_spawn_request")
     require_contains("tests/test_taskboard_loop.py", "test_cli_rejects_invalid_native_receipt_json")
     require_contains("scripts/taskboard_start.py", "--agent-preflight-command")
     require_contains("scripts/taskboard_loop.py", "do not perform design")
@@ -815,6 +823,9 @@ def verify_t0_contract() -> None:
     require_contains("README.md", "subagent_fallback_available")
     require_contains("README.md", "subagent_fallback_packet_available")
     require_contains("README.md", "subagent_fallback_packet_file")
+    require_contains("README.md", "subagent_fallback_packet_state")
+    require_contains("README.md", "subagent_spawn_request")
+    require_contains("README.md", "stale-goal")
     require_contains("README.md", "subagent_prompt_roles")
     require_contains("README.md", "subagent_control_state")
     require_contains("README.md", "--native-spawn-receipt-json")
@@ -874,6 +885,9 @@ def verify_t0_contract() -> None:
     require_contains("USER-MANUAL.md", "subagent_fallback_available")
     require_contains("USER-MANUAL.md", "subagent_fallback_packet_available")
     require_contains("USER-MANUAL.md", "subagent_fallback_packet_file")
+    require_contains("USER-MANUAL.md", "subagent_fallback_packet_state")
+    require_contains("USER-MANUAL.md", "subagent_spawn_request")
+    require_contains("USER-MANUAL.md", "stale-goal")
     require_contains("USER-MANUAL.md", "subagent_prompt_roles")
     require_contains("USER-MANUAL.md", "subagent_control_state")
     require_contains("USER-MANUAL.md", "--native-spawn-receipt-json")

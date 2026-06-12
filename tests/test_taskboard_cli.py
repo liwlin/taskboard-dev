@@ -35,12 +35,13 @@ class TaskboardCliTest(unittest.TestCase):
         path.write_text(text, encoding="utf-8")
         return path
 
-    def write_subagent_packet(self, root: Path) -> Path:
+    def write_subagent_packet(self, root: Path, goal: str = "") -> Path:
         t0_dir = root / ".taskboard" / "t0"
         t0_dir.mkdir(parents=True, exist_ok=True)
         packet = {
             "kind": "taskboard-subagent-fallback-packet",
             "version": 1,
+            "goal": goal,
             "subagent_prompt_count": 3,
             "subagent_prompt_roles": ["T1", "T2", "T3"],
             "subagent_fallback": {
@@ -55,6 +56,13 @@ class TaskboardCliTest(unittest.TestCase):
         }
         path = t0_dir / "subagent-fallback.json"
         path.write_text(json.dumps(packet), encoding="utf-8")
+        return path
+
+    def write_runtime_goal(self, root: Path, goal: str) -> Path:
+        t0_dir = root / ".taskboard" / "t0"
+        t0_dir.mkdir(parents=True, exist_ok=True)
+        path = t0_dir / "goal.json"
+        path.write_text(json.dumps({"kind": "taskboard-t0-goal", "goal": goal}), encoding="utf-8")
         return path
 
     def test_next_selects_t0_priority_task(self):
@@ -170,6 +178,27 @@ class TaskboardCliTest(unittest.TestCase):
         self.assertEqual(payload["recommended_backend"], "terminal")
         self.assertEqual(payload["agent_preflight"]["state"], "passed")
         self.assertIn("T0-managed terminal launcher", payload["user_action"])
+
+    def test_subagent_plan_rejects_stale_goal_packet(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write_runtime_goal(root, "current goal")
+            self.write_subagent_packet(root, goal="old field-check goal")
+
+            _, stdout = self.run_cli(root, "subagent", "plan")
+            plan = json.loads(stdout)
+            _, stdout = self.run_cli(root, "subagent", "status")
+            status = json.loads(stdout)
+
+        self.assertEqual(plan["state"], "stale-packet")
+        self.assertEqual(plan["action"], "create-subagent-fallback-packet")
+        self.assertFalse(plan["packet_available"])
+        self.assertEqual(plan["packet_state"], "stale-goal")
+        self.assertEqual(plan["packet_goal"], "old field-check goal")
+        self.assertEqual(plan["current_goal"], "current goal")
+        self.assertEqual(plan["prompt"], "")
+        self.assertEqual(status["packet_state"], "stale-goal")
+        self.assertFalse(status["packet_available"])
 
     def test_stall_reports_old_task_without_writing_state(self):
         with tempfile.TemporaryDirectory() as tmp:

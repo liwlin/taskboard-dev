@@ -14,7 +14,7 @@ from taskboard_health import report_health
 from taskboard_loop import default_event_log_file, default_state_file, default_subagent_fallback_file
 from taskboard_sessions import probe_sessions
 from taskboard_stopgates import report_stop_gates
-from taskboard_subagents import subagent_status_payload
+from taskboard_subagents import subagent_plan_payload, subagent_status_payload
 from taskboard_t0 import DEFAULT_AGENT_TEMPLATE, read_goal
 
 
@@ -666,6 +666,7 @@ def report_progress(root: Path) -> dict[str, object]:
     event_summary = read_event_log_summary(root)
     subagent_packet = read_subagent_fallback_packet(root)
     subagent_dispatch = subagent_status_payload(root)
+    subagent_plan = subagent_plan_payload(root)
     subagent_dispatched_roles = [
         str(item) for item in subagent_dispatch.get("dispatched_roles", []) if str(item)
     ]
@@ -681,15 +682,35 @@ def report_progress(root: Path) -> dict[str, object]:
     subagent_failed_roles = [
         str(item) for item in subagent_dispatch.get("failed_roles", []) if str(item)
     ]
+    subagent_packet_state = str(subagent_dispatch.get("packet_state") or "")
+    subagent_packet_available = bool(subagent_packet.get("available"))
+    subagent_dispatch_packet_available = bool(subagent_dispatch.get("packet_available"))
     subagent_control = build_subagent_control(
         root,
-        bool(subagent_packet.get("available") or subagent_dispatch.get("packet_available")),
+        subagent_dispatch_packet_available,
         [str(item) for item in subagent_dispatch.get("prompt_roles", []) if str(item)],
         subagent_pending_roles,
         subagent_active_roles,
         subagent_completed_roles,
         subagent_failed_roles,
     )
+    subagent_spawn_request = {}
+    if subagent_plan.get("action") == "spawn-native-subagent":
+        subagent_spawn_request = {
+            "action": str(subagent_plan.get("action") or ""),
+            "role": str(subagent_plan.get("role") or ""),
+            "prompt": str(subagent_plan.get("prompt") or ""),
+            "prompt_hash": str(subagent_plan.get("prompt_hash") or ""),
+            "native_spawn": subagent_plan.get("native_spawn", {}),
+            "ack_command": str(subagent_plan.get("ack_command") or ""),
+            "done_command": str(subagent_plan.get("done_command") or ""),
+            "fail_command": str(subagent_plan.get("fail_command") or ""),
+            "packet_file": str(subagent_plan.get("packet_file") or ""),
+            "boundary": (
+                "Parent T0 may call its native subagent tool with this prompt, then "
+                "record the returned receipt with ack_command. Python does not call native tools."
+            ),
+        }
     subagent_dispatch_records = subagent_dispatch.get("records", {})
     if not isinstance(subagent_dispatch_records, dict):
         subagent_dispatch_records = {}
@@ -820,13 +841,14 @@ def report_progress(root: Path) -> dict[str, object]:
             if isinstance(latest_event_subagent_prompt_roles_raw, list)
             else []
         )
-        if not latest_event_subagent_prompt_roles and subagent_packet.get("available"):
+        if not latest_event_subagent_prompt_roles and subagent_dispatch_packet_available:
             packet_roles = subagent_packet.get("prompt_roles", [])
             latest_event_subagent_prompt_roles = (
                 [str(item) for item in packet_roles if str(item)] if isinstance(packet_roles, list) else []
             )
         latest_event_subagent_fallback_available = bool(
-            latest_event_payload.get("subagent_fallback_available") or subagent_packet.get("available")
+            subagent_dispatch_packet_available
+            and (latest_event_payload.get("subagent_fallback_available") or subagent_packet_available)
         )
         latest_event_subagent_fallback_kind = str(latest_event_payload.get("subagent_fallback_kind") or "")
         latest_event_subagent_fallback_reason = str(latest_event_payload.get("subagent_fallback_reason") or "")
@@ -907,7 +929,10 @@ def report_progress(root: Path) -> dict[str, object]:
             "subagent_fallback_available": latest_event_subagent_fallback_available,
             "subagent_fallback_kind": latest_event_subagent_fallback_kind,
             "subagent_fallback_reason": latest_event_subagent_fallback_reason,
-            "subagent_fallback_packet_available": bool(subagent_packet.get("available")),
+            "subagent_fallback_packet_available": subagent_packet_available,
+            "subagent_fallback_packet_state": subagent_packet_state,
+            "subagent_fallback_packet_goal": str(subagent_dispatch.get("packet_goal") or ""),
+            "subagent_current_goal": str(subagent_dispatch.get("current_goal") or ""),
             "subagent_fallback_packet_file": str(subagent_packet.get("path") or ""),
             "subagent_prompt_count": latest_event_subagent_prompt_count,
             "subagent_prompt_roles": latest_event_subagent_prompt_roles,
@@ -918,6 +943,8 @@ def report_progress(root: Path) -> dict[str, object]:
             "subagent_completed_roles": subagent_completed_roles,
             "subagent_failed_roles": subagent_failed_roles,
             "subagent_dispatch_records": subagent_dispatch_records,
+            "subagent_plan": subagent_plan,
+            "subagent_spawn_request": subagent_spawn_request,
             **subagent_control,
             "stalled_recoveries": latest_event_stalled_recoveries,
             "stalled_recovery_count": latest_event_stalled_recovery_count,
@@ -1068,7 +1095,10 @@ def report_progress(root: Path) -> dict[str, object]:
         if isinstance(item, dict) and item.get("launcher")
     ]
     subagent_fallback_summary = summarize_subagent_fallback(latest_payload.get("subagent_fallback", {}))
-    subagent_fallback_available = bool(subagent_fallback_summary.get("available") or subagent_packet.get("available"))
+    subagent_fallback_available = bool(
+        subagent_dispatch_packet_available
+        and (subagent_fallback_summary.get("available") or subagent_packet_available)
+    )
     subagent_fallback_kind = str(subagent_fallback_summary.get("kind") or "")
     subagent_fallback_reason = str(subagent_fallback_summary.get("reason") or "")
     subagent_prompt_count = safe_int(
@@ -1081,7 +1111,7 @@ def report_progress(root: Path) -> dict[str, object]:
         if isinstance(subagent_prompt_roles_raw, list)
         else []
     )
-    if not subagent_prompt_roles and subagent_packet.get("available"):
+    if not subagent_prompt_roles and subagent_dispatch_packet_available:
         packet_roles = subagent_packet.get("prompt_roles", [])
         subagent_prompt_roles = [str(item) for item in packet_roles if str(item)] if isinstance(packet_roles, list) else []
 
@@ -1165,7 +1195,10 @@ def report_progress(root: Path) -> dict[str, object]:
         "subagent_fallback_available": subagent_fallback_available,
         "subagent_fallback_kind": subagent_fallback_kind,
         "subagent_fallback_reason": subagent_fallback_reason,
-        "subagent_fallback_packet_available": bool(subagent_packet.get("available")),
+        "subagent_fallback_packet_available": subagent_packet_available,
+        "subagent_fallback_packet_state": subagent_packet_state,
+        "subagent_fallback_packet_goal": str(subagent_dispatch.get("packet_goal") or ""),
+        "subagent_current_goal": str(subagent_dispatch.get("current_goal") or ""),
         "subagent_fallback_packet_file": str(subagent_packet.get("path") or ""),
         "subagent_prompt_count": subagent_prompt_count,
         "subagent_prompt_roles": subagent_prompt_roles,
@@ -1176,6 +1209,8 @@ def report_progress(root: Path) -> dict[str, object]:
         "subagent_completed_roles": subagent_completed_roles,
         "subagent_failed_roles": subagent_failed_roles,
         "subagent_dispatch_records": subagent_dispatch_records,
+        "subagent_plan": subagent_plan,
+        "subagent_spawn_request": subagent_spawn_request,
         **subagent_control,
         "suppressed_launches": suppressed_launch_list,
         "suppressed_launch_count": len(suppressed_launch_list),

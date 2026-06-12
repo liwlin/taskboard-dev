@@ -55,10 +55,28 @@ def read_subagent_fallback_packet(root: Path) -> dict[str, object]:
         "available": True,
         "path": str(path),
         "kind": str(packet.get("kind") or ""),
+        "goal": str(packet.get("goal") or ""),
         "prompt_count": int(packet.get("subagent_prompt_count") or len(prompt_list)),
         "prompt_roles": [role for role in role_list if role],
         "prompts": prompt_list,
     }
+
+
+def read_runtime_goal(root: Path) -> str:
+    path = root / ".taskboard" / "t0" / "goal.json"
+    payload = read_json_file(path)
+    goal = payload.get("goal") if isinstance(payload, dict) else ""
+    return goal.strip() if isinstance(goal, str) else ""
+
+
+def fallback_packet_state(root: Path, packet: dict[str, object]) -> str:
+    if not packet.get("available"):
+        return "missing"
+    current_goal = read_runtime_goal(root)
+    packet_goal = str(packet.get("goal") or "").strip()
+    if current_goal and packet_goal and current_goal != packet_goal:
+        return "stale-goal"
+    return "ready"
 
 
 def empty_dispatch_state(root: Path) -> dict[str, object]:
@@ -151,6 +169,7 @@ def dispatch_records(state: dict[str, object]) -> dict[str, dict[str, object]]:
 
 def subagent_status_payload(root: Path) -> dict[str, object]:
     packet = read_subagent_fallback_packet(root)
+    packet_state = fallback_packet_state(root, packet)
     state = read_subagent_dispatch_state(root)
     records = dispatch_records(state)
     roles = prompt_roles(packet)
@@ -165,8 +184,11 @@ def subagent_status_payload(root: Path) -> dict[str, object]:
     ]
     return {
         "kind": "taskboard-subagent-dispatch",
-        "packet_available": bool(packet.get("available")),
+        "packet_available": bool(packet.get("available")) and packet_state == "ready",
+        "packet_state": packet_state,
         "packet_file": str(packet.get("path") or default_subagent_fallback_file(root)),
+        "packet_goal": str(packet.get("goal") or ""),
+        "current_goal": read_runtime_goal(root),
         "state_file": str(default_subagent_dispatch_file(root)),
         "prompt_roles": roles,
         "pending_roles": pending,
@@ -222,6 +244,7 @@ def subagent_next_payload(root: Path) -> dict[str, object]:
 def subagent_plan_payload(root: Path) -> dict[str, object]:
     status = subagent_status_payload(root)
     packet = read_subagent_fallback_packet(root)
+    packet_state = str(status.get("packet_state") or fallback_packet_state(root, packet))
     prompt_role_list = [str(item) for item in status.get("prompt_roles", []) if str(item)]
     pending_roles = [str(item) for item in status.get("pending_roles", []) if str(item)]
     active_roles = [str(item) for item in status.get("active_roles", []) if str(item)]
@@ -233,7 +256,10 @@ def subagent_plan_payload(root: Path) -> dict[str, object]:
     plan: dict[str, object] = {
         "kind": "taskboard-subagent-plan",
         "packet_available": bool(status.get("packet_available")),
+        "packet_state": packet_state,
         "packet_file": str(status.get("packet_file") or default_subagent_fallback_file(root)),
+        "packet_goal": str(status.get("packet_goal") or ""),
+        "current_goal": str(status.get("current_goal") or ""),
         "state_file": str(default_subagent_dispatch_file(root)),
         "prompt_roles": prompt_role_list,
         "pending_roles": pending_roles,
@@ -259,7 +285,7 @@ def subagent_plan_payload(root: Path) -> dict[str, object]:
     }
 
     if not status.get("packet_available"):
-        plan["state"] = "missing-packet"
+        plan["state"] = "stale-packet" if packet_state == "stale-goal" else "missing-packet"
         plan["action"] = "create-subagent-fallback-packet"
         return plan
 

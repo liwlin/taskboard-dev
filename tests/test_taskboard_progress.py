@@ -119,6 +119,43 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("launch_probe_recommended_backend=subagent", text)
         self.assertIn("latest_event_launch_probe_recommended_backend=subagent", text)
 
+    def test_progress_does_not_offer_stale_subagent_packet_for_current_goal(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            t0_dir = root / ".taskboard" / "t0"
+            t0_dir.mkdir(parents=True)
+            (t0_dir / "goal.json").write_text(
+                json.dumps({"kind": "taskboard-t0-goal", "goal": "current goal"}),
+                encoding="utf-8",
+            )
+            (t0_dir / "subagent-fallback.json").write_text(
+                json.dumps(
+                    {
+                        "kind": "taskboard-subagent-fallback-packet",
+                        "goal": "old goal",
+                        "subagent_prompt_count": 1,
+                        "subagent_prompt_roles": ["T1"],
+                        "subagent_fallback": {
+                            "kind": "taskboard-subagent-fallback",
+                            "subagent_prompts": [{"role": "T1", "prompt": "old prompt"}],
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            progress = self.run_json(PROGRESS_SCRIPT, root)
+
+        self.assertTrue(progress["subagent_fallback_packet_available"])
+        self.assertEqual(progress["subagent_fallback_packet_state"], "stale-goal")
+        self.assertEqual(progress["subagent_fallback_packet_goal"], "old goal")
+        self.assertEqual(progress["subagent_current_goal"], "current goal")
+        self.assertFalse(progress["subagent_fallback_available"])
+        self.assertEqual(progress["subagent_plan"]["state"], "stale-packet")
+        self.assertEqual(progress["subagent_spawn_request"], {})
+        self.assertEqual(progress["subagent_control_state"], "unavailable")
+        self.assertEqual(progress["subagent_pending_roles"], ["T1"])
+
     def test_progress_uses_live_alive_markers_over_stale_snapshot_sessions(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1640,6 +1677,17 @@ class TaskboardProgressTest(unittest.TestCase):
         self.assertIn("--agent-nickname", progress["subagent_ack_command"])
         self.assertIn("subagent done --role T1", progress["subagent_done_command"])
         self.assertIn("subagent fail --role T1", progress["subagent_fail_command"])
+        self.assertEqual(progress["subagent_plan"]["action"], "spawn-native-subagent")
+        self.assertEqual(progress["subagent_spawn_request"]["action"], "spawn-native-subagent")
+        self.assertEqual(progress["subagent_spawn_request"]["role"], "T1")
+        self.assertEqual(progress["subagent_spawn_request"]["prompt"], "T1 prompt")
+        self.assertEqual(
+            progress["subagent_spawn_request"]["native_spawn"]["tool_hint"],
+            "multi_agent_v1.spawn_agent",
+        )
+        self.assertIn("subagent ack --role T1", progress["subagent_spawn_request"]["ack_command"])
+        self.assertIn("subagent done --role T1", progress["subagent_spawn_request"]["done_command"])
+        self.assertIn("subagent fail --role T1", progress["subagent_spawn_request"]["fail_command"])
         self.assertEqual(progress["subagent_retry_commands"], [])
         self.assertIn("subagent_control_state=dispatch-next", text)
         self.assertIn("subagent_control_next_role=T1", text)
