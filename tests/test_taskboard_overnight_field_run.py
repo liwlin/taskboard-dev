@@ -206,6 +206,31 @@ class TaskboardOvernightFieldRunTest(unittest.TestCase):
         self.assertEqual(ready["next_blockers"], [])
         self.assertEqual(ready["next_gate"], "cold-resume-acceptance")
 
+    def test_status_guides_blocked_field_run_back_to_t0_preparation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            empty_root = Path(tmp) / "empty"
+            empty_root.mkdir()
+            blocked_code, blocked = self.run_overnight(empty_root, "status")
+
+            ready_root = Path(tmp) / "ready"
+            ready_root.mkdir()
+            prepare_cold_resume_root(ready_root)
+            ready_code, ready = self.run_overnight(ready_root, "status")
+
+        self.assertEqual(blocked_code, 0, blocked)
+        self.assertEqual(blocked["prepare_state"], "needed")
+        self.assertIn("taskboard_start.py", blocked["prepare_command"])
+        self.assertIn("--goal", blocked["prepare_command"])
+        self.assertIn("<user goal>", blocked["prepare_command"])
+        self.assertIn("T0", blocked["prepare_reason"])
+        self.assertNotIn("taskboard-T1", blocked["prepare_command"])
+        self.assertNotIn("taskboard-T2", blocked["prepare_command"])
+        self.assertNotIn("taskboard-T3", blocked["prepare_command"])
+
+        self.assertEqual(ready_code, 0, ready)
+        self.assertEqual(ready["prepare_state"], "not-needed")
+        self.assertEqual(ready["prepare_command"], "")
+
     def test_status_accepts_format_after_subcommand_for_recovery_diagnostics(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

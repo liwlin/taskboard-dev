@@ -111,6 +111,30 @@ def next_command(root: Path, stage: str, run_id: str = "<field-run-id>") -> str:
     return ""
 
 
+def t0_prepare_command(root: Path) -> str:
+    root_text = str(root.resolve())
+    return f'python scripts/taskboard_start.py --root "{root_text}" --goal "<user goal>"'
+
+
+def with_prepare_guidance(root: Path, payload: dict[str, object]) -> dict[str, object]:
+    if payload.get("next_ready") is not False:
+        return {
+            **payload,
+            "prepare_state": "not-needed",
+            "prepare_command": "",
+            "prepare_reason": "",
+        }
+    next_gate = str(payload.get("next_gate") or "next gate")
+    return {
+        **payload,
+        "prepare_state": "needed",
+        "prepare_command": t0_prepare_command(root),
+        "prepare_reason": (
+            f"Run or resume T0 until {next_gate} is ready; do not manage T1/T2/T3 directly."
+        ),
+    }
+
+
 def next_gate_status(
     root: Path,
     stage: str,
@@ -160,14 +184,14 @@ def command_status(root: Path, args: Namespace) -> dict[str, object]:
         "boundary": BOUNDARY,
     }
     if not marker:
-        return {
+        return with_prepare_guidance(root, {
             **base,
             "state": "not-started",
             "next_stage": "start",
             "next_command": next_command(root, "start"),
             **next_gate_status(root, "start", min_elapsed_seconds=args.min_elapsed_seconds),
             "marker": {},
-        }
+        })
 
     marker_state = str(marker.get("state") or "")
     run_id = str(marker.get("run_id") or "<field-run-id>")
@@ -179,7 +203,7 @@ def command_status(root: Path, args: Namespace) -> dict[str, object]:
     elapsed_seconds = max(0, int(current_time - started_epoch))
 
     if marker_state == "passed":
-        return {
+        return with_prepare_guidance(root, {
             **base,
             "state": "passed",
             "run_id": run_id,
@@ -188,10 +212,10 @@ def command_status(root: Path, args: Namespace) -> dict[str, object]:
             "next_command": "",
             **next_gate_status(root, "none"),
             "marker": marker,
-        }
+        })
 
     if marker.get("resume"):
-        return {
+        return with_prepare_guidance(root, {
             **base,
             "state": "ready-to-verify",
             "run_id": run_id,
@@ -200,10 +224,10 @@ def command_status(root: Path, args: Namespace) -> dict[str, object]:
             "next_command": next_command(root, "verify"),
             **next_gate_status(root, "verify"),
             "marker": marker,
-        }
+        })
 
     state = "ready-to-resume" if elapsed_seconds >= args.min_elapsed_seconds else "waiting-overnight"
-    return {
+    return with_prepare_guidance(root, {
         **base,
         "state": state,
         "run_id": run_id,
@@ -213,7 +237,7 @@ def command_status(root: Path, args: Namespace) -> dict[str, object]:
         "next_command": next_command(root, "resume"),
         **next_gate_status(root, "resume", elapsed_seconds, args.min_elapsed_seconds),
         "marker": marker,
-    }
+    })
 
 
 def command_start(root: Path, args: Namespace) -> dict[str, object]:
@@ -399,6 +423,12 @@ def format_text(payload: dict[str, object]) -> str:
         lines.append(f"next_ready={str(payload['next_ready']).lower()}")
     for blocker in payload.get("next_blockers", []):
         lines.append(f"next_blocker={blocker}")
+    if "prepare_state" in payload:
+        lines.append(f"prepare_state={payload['prepare_state']}")
+    if "prepare_command" in payload:
+        lines.append(f"prepare_command={payload['prepare_command']}")
+    if "prepare_reason" in payload:
+        lines.append(f"prepare_reason={payload['prepare_reason']}")
     for failure in payload.get("failures", []):
         lines.append(f"failure={failure}")
     for item in payload.get("evidence", []):
