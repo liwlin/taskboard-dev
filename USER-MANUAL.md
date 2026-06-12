@@ -1,4 +1,4 @@
-# taskboard-dev v4.5.17 用户手册
+# taskboard-dev v4.5.18 用户手册
 
 T0 管理的 TASKBOARD 驱动开发工作流 — 用户只对 T0 下达目标，T0 负责管理 T1 架构师、T2 审核者、T3 执行者，基于文件名即状态的零轮询开销设计。v4.5 面向 Claude Code / Codex 的现代长任务能力：loop、目标/target、后台执行、resume、工具检查点，以及紧凑 `taskboard.py` 控制面入口。默认原则是“能自动做就自动做”，只有真正的停止门才需要人确认。
 
@@ -126,6 +126,16 @@ python scripts/taskboard_cold_resume_acceptance.py --root .
 ```
 
 它只读调用 progress，拒绝 smoke/test/demo starter mode、缺失 T0 控制面证据、checkout-owner conflict、未选中 worker TASK、`cold_resume_readiness` 非 `ready`、缺失 `Current Instruction` / unchecked Pending / History / Files / scoped `git status` 等情况。通过它表示当前项目具备 fresh worker 冷启动恢复证据，不表示整个 milestone 已完成。
+
+记录真实隔夜 field run：
+
+```bash
+python scripts/taskboard_overnight_field_run.py --root . start --run-id "<field-run-id>"
+python scripts/taskboard_overnight_field_run.py --root . resume
+python scripts/taskboard_overnight_field_run.py --root . verify
+```
+
+该 recorder 只写 `.taskboard/t0/overnight-field-run.json` 这一份 T0 控制面证据。`start` 要求当前真实冷恢复验收通过，`resume` 要求第二天重开 worker 后再次通过冷恢复验收并满足 elapsed 门槛，`verify` 要求 live milestone acceptance 通过。它不会启动 worker、编辑 TASKBOARD 任务、实现代码或制造 T1/T2/T3 证据。
 
 查看整个自动开发框架距离最终目标的 readiness：
 
@@ -300,6 +310,9 @@ python scripts/taskboard_loop.py --root .taskboard-demo --goal "Ship demo" --ite
 python scripts/taskboard_e2e_smoke.py
 python scripts/taskboard_cold_resume_smoke.py
 python scripts/taskboard_cold_resume_acceptance.py --root .
+python scripts/taskboard_overnight_field_run.py --root . start --run-id "<field-run-id>"
+python scripts/taskboard_overnight_field_run.py --root . resume
+python scripts/taskboard_overnight_field_run.py --root . verify
 python scripts/taskboard_framework_readiness.py --root .
 python scripts/taskboard_t0_boundary_smoke.py
 python scripts/taskboard_subagent_smoke.py

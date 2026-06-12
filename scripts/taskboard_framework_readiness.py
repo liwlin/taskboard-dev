@@ -30,6 +30,15 @@ def contains(root: Path, relative: str, needle: str) -> bool:
     return needle in read_text(root, relative)
 
 
+def read_json(root: Path, relative: str) -> dict[str, object]:
+    path = root / relative
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
 def build_check(
     check_id: str,
     title: str,
@@ -46,6 +55,25 @@ def build_check(
         "evidence": evidence if not missing else [],
         "remediation": "" if not missing else remediation,
     }
+
+
+def overnight_field_run_requirements(root: Path) -> list[tuple[str, bool]]:
+    marker = read_json(root, ".taskboard/t0/overnight-field-run.json")
+    resume = marker.get("resume", {})
+    resume_payload = resume if isinstance(resume, dict) else {}
+    verification = marker.get("verification", {})
+    verification_payload = verification if isinstance(verification, dict) else {}
+    elapsed = int(resume_payload.get("elapsed_seconds") or 0)
+    minimum = int(resume_payload.get("min_elapsed_seconds") or 28800)
+    return [
+        ("taskboard_overnight_field_run.py exists", path_exists(root, "scripts/taskboard_overnight_field_run.py")),
+        ("overnight field-run marker exists", bool(marker)),
+        ("marker kind is taskboard-overnight-field-run", marker.get("kind") == "taskboard-overnight-field-run"),
+        ("marker state is passed", marker.get("state") == "passed"),
+        ("resume cold acceptance passed", resume_payload.get("cold_resume_acceptance_state") == "passed"),
+        ("live milestone acceptance passed", verification_payload.get("live_milestone_acceptance_state") == "passed"),
+        ("elapsed_seconds meets marker minimum", elapsed >= minimum),
+    ]
 
 
 def collect_readiness(root: Path) -> dict[str, object]:
@@ -129,6 +157,7 @@ def collect_readiness(root: Path) -> dict[str, object]:
             "Release package and installed skill stay consistent",
             [
                 ("package includes cold acceptance", contains(root, "scripts/package.sh", "taskboard_cold_resume_acceptance.py")),
+                ("package includes overnight field-run recorder", contains(root, "scripts/package.sh", "taskboard_overnight_field_run.py")),
                 ("sync script exists", path_exists(root, "scripts/sync-local-skill.ps1")),
                 ("release consistency verifier exists", path_exists(root, "scripts/verify_release_consistency.py")),
                 ("T0 contract verifier exists", path_exists(root, "scripts/verify_t0_contract.py")),
@@ -136,25 +165,31 @@ def collect_readiness(root: Path) -> dict[str, object]:
             ["package.sh", "sync-local-skill.ps1", "verify_release_consistency.py", "verify_t0_contract.py"],
             "Restore package manifest, sync script, and release/T0 contract verifiers.",
         ),
-        {
-            "id": "real-overnight-field-run",
-            "title": "Actual overnight worker terminals are closed and reopened successfully",
-            "state": "missing",
-            "missing": ["real overnight field run"],
-            "evidence": [],
-            "remediation": (
+        build_check(
+            "real-overnight-field-run",
+            "Actual overnight worker terminals are closed and reopened successfully",
+            overnight_field_run_requirements(root),
+            [
+                "taskboard_overnight_field_run.py",
+                ".taskboard/t0/overnight-field-run.json",
+                "taskboard_cold_resume_acceptance.py",
+                "taskboard_live_milestone_acceptance.py",
+            ],
+            (
                 "Run a real project overnight test: start T0, let it assign a worker TASK, close/reopen "
-                "worker terminals the next day, run taskboard_cold_resume_acceptance.py, then complete "
-                "the milestone through taskboard_live_milestone_acceptance.py."
+                "worker terminals the next day, run taskboard_overnight_field_run.py resume, then complete "
+                "the milestone and run taskboard_overnight_field_run.py verify."
             ),
-        },
+        ),
     ]
-    remaining_gaps = [
-        str(missing)
-        for check in checks
-        if check.get("state") != "passed"
-        for missing in check.get("missing", [])
-    ]
+    remaining_gaps = []
+    for check in checks:
+        if check.get("state") == "passed":
+            continue
+        if check.get("id") == "real-overnight-field-run":
+            remaining_gaps.append("real overnight field run")
+            continue
+        remaining_gaps.extend(str(missing) for missing in check.get("missing", []))
     passed_count = sum(1 for check in checks if check.get("state") == "passed")
     return {
         "kind": "taskboard-framework-readiness",
