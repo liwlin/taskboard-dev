@@ -68,6 +68,41 @@ def default_checkout_owner_id() -> str:
     return f"taskboard-t0:{socket.gethostname()}:{os.getpid()}"
 
 
+def load_native_receipt_json(raw: Optional[str], label: str) -> Optional[dict[str, object]]:
+    if raw is None or raw == "":
+        return None
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid {label} JSON: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"{label} JSON must be an object")
+    return payload
+
+
+def load_native_receipt_file(path: Optional[str], label: str) -> Optional[dict[str, object]]:
+    if not path:
+        return None
+    receipt_path = Path(path).resolve()
+    try:
+        raw = receipt_path.read_text(encoding="utf-8-sig")
+    except OSError as exc:
+        raise ValueError(f"cannot read {label} file: {receipt_path}: {exc}") from exc
+    return load_native_receipt_json(raw, label)
+
+
+def choose_native_receipt(
+    raw_json: Optional[str],
+    file_path: Optional[str],
+    label: str,
+    json_flag: str,
+    file_flag: str,
+) -> Optional[dict[str, object]]:
+    if raw_json and file_path:
+        raise ValueError(f"use either {json_flag} or {file_flag}, not both")
+    return load_native_receipt_json(raw_json, label) or load_native_receipt_file(file_path, label)
+
+
 def process_is_alive(pid: object) -> bool:
     try:
         normalized = int(pid)
@@ -1695,6 +1730,8 @@ def run_loop(
     agent_preflight_command: Optional[str] = None,
     checkout_owner_id: Optional[str] = None,
     checkout_owner_lease_seconds: int = 1800,
+    native_spawn_result: Optional[dict[str, object]] = None,
+    native_result_receipt: Optional[dict[str, object]] = None,
 ) -> list[dict[str, object]]:
     if interval_seconds < 0:
         raise ValueError("--interval-seconds must be >= 0")
@@ -1733,6 +1770,8 @@ def run_loop(
     results: list[dict[str, object]] = []
     count = 0
     assignment_watch = read_assignment_watch(state_file)
+    pending_native_spawn_result = native_spawn_result
+    pending_native_result_receipt = native_result_receipt
     while iterations is None or count < iterations:
         payload = run_once(
             root,
@@ -1751,7 +1790,11 @@ def run_loop(
             agent_preflight,
             checkout_owner_id,
             checkout_owner_lease_seconds,
+            native_spawn_result=pending_native_spawn_result,
+            native_result_receipt=pending_native_result_receipt,
         )
+        pending_native_spawn_result = None
+        pending_native_result_receipt = None
         if runtime_metadata:
             payload.update(runtime_metadata)
         payload["resume_config"] = resume_config
@@ -1930,6 +1973,22 @@ def main(argv: Optional[list[str]] = None) -> int:
         default=1800,
         help="Freshness window for .taskboard/t0/checkout-owner.json before T0 may reclaim launcher ownership.",
     )
+    parser.add_argument(
+        "--native-spawn-receipt-json",
+        help="JSON object from a native spawn_agent call for the role selected by subagent_control.",
+    )
+    parser.add_argument(
+        "--native-spawn-receipt-file",
+        help="UTF-8 JSON file containing a native spawn_agent receipt object.",
+    )
+    parser.add_argument(
+        "--native-result-receipt-json",
+        help="JSON object from a native wait_agent/result call for a dispatched subagent.",
+    )
+    parser.add_argument(
+        "--native-result-receipt-file",
+        help="UTF-8 JSON file containing a native wait_agent/result receipt object.",
+    )
     parser.add_argument("--format", choices=("text", "json"), default="text")
     args = parser.parse_args(argv)
     root = Path(args.root).resolve()
@@ -1944,6 +2003,20 @@ def main(argv: Optional[list[str]] = None) -> int:
         target_dir = Path(args.target_dir).resolve() if args.target_dir else default_target_dir(root)
 
     try:
+        native_spawn_result = choose_native_receipt(
+            args.native_spawn_receipt_json,
+            args.native_spawn_receipt_file,
+            "native spawn receipt",
+            "--native-spawn-receipt-json",
+            "--native-spawn-receipt-file",
+        )
+        native_result_receipt = choose_native_receipt(
+            args.native_result_receipt_json,
+            args.native_result_receipt_file,
+            "native result receipt",
+            "--native-result-receipt-json",
+            "--native-result-receipt-file",
+        )
         results = run_loop(
             root,
             args.goal,
@@ -1966,6 +2039,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             agent_preflight_command=args.agent_preflight_command,
             checkout_owner_id=args.checkout_owner_id,
             checkout_owner_lease_seconds=args.checkout_owner_lease_seconds,
+            native_spawn_result=native_spawn_result,
+            native_result_receipt=native_result_receipt,
         )
     except KeyboardInterrupt:
         effective_goal = read_goal(root, args.goal)

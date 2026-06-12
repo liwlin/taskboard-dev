@@ -46,6 +46,16 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout)
         return result.stdout
 
+    def run_loop_raw(self, root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, str(SCRIPT), "--root", str(root), "--format", "json", *args],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+
     def test_once_combines_session_probe_health_and_dispatch(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1284,6 +1294,41 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertEqual(state["roles"]["T1"]["status"], "dispatched")
         self.assertEqual(state["roles"]["T1"]["agent_id"], "019eb760-native-t1")
 
+    def test_cli_imports_native_spawn_receipt_json_and_advances_subagent_plan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            output = self.run_loop(
+                root,
+                "--goal",
+                "Ship demo",
+                "--execute-launches",
+                "--launcher",
+                "powershell",
+                "--agent-template",
+                f'"{sys.executable}" -c "print(123)" --prompt-file "{{target_file}}"',
+                "--agent-preflight-command",
+                f'"{sys.executable}" -c "import sys; print(\'API Error: 403 Request not allowed\'); sys.exit(1)"',
+                "--native-spawn-receipt-json",
+                json.dumps(
+                    {
+                        "role": "T1",
+                        "agent_id": "019eb760-native-t1",
+                        "agent_nickname": "T1 architect child",
+                        "spawn_tool": "multi_agent_v1.spawn_agent",
+                    }
+                ),
+            )
+            state = json.loads((root / ".taskboard" / "t0" / "subagents.json").read_text(encoding="utf-8"))
+
+        control = output[0]["subagent_control"]
+        self.assertEqual(control["state"], "dispatched")
+        self.assertEqual(control["action"], "recorded-native-spawn")
+        self.assertEqual(control["subagent_ack"]["record"]["spawn_receipt"]["spawn_tool"], "multi_agent_v1.spawn_agent")
+        self.assertEqual(control["subagent_next_plan"]["role"], "T2")
+        self.assertEqual(state["roles"]["T1"]["status"], "dispatched")
+
     def test_loop_records_injected_native_result_receipt_and_advances_subagent_plan(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1340,6 +1385,66 @@ class TaskboardLoopTest(unittest.TestCase):
         self.assertEqual(control["subagent_next_plan"]["role"], "T2")
         self.assertEqual(state["roles"]["T1"]["status"], "completed")
         self.assertEqual(state["roles"]["T1"]["result_receipt"]["result_status"], "completed")
+
+    def test_cli_imports_native_result_receipt_json_and_advances_subagent_plan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+            self.run_loop(
+                root,
+                "--goal",
+                "Ship demo",
+                "--execute-launches",
+                "--launcher",
+                "powershell",
+                "--agent-template",
+                f'"{sys.executable}" -c "print(123)" --prompt-file "{{target_file}}"',
+                "--agent-preflight-command",
+                f'"{sys.executable}" -c "import sys; print(\'API Error: 403 Request not allowed\'); sys.exit(1)"',
+                "--native-spawn-receipt-json",
+                json.dumps(
+                    {
+                        "role": "T1",
+                        "agent_id": "019eb760-native-t1",
+                        "agent_nickname": "T1 architect child",
+                        "spawn_tool": "multi_agent_v1.spawn_agent",
+                    }
+                ),
+            )
+
+            output = self.run_loop(
+                root,
+                "--goal",
+                "Ship demo",
+                "--native-result-receipt-json",
+                json.dumps(
+                    {
+                        "role": "T1",
+                        "summary": "T1 created the taskboard requirements",
+                        "result_tool": "multi_agent_v1.wait_agent",
+                        "result_status": "completed",
+                        "native_status": "completed",
+                    }
+                ),
+            )
+            state = json.loads((root / ".taskboard" / "t0" / "subagents.json").read_text(encoding="utf-8"))
+
+        control = output[0]["subagent_control"]
+        self.assertEqual(control["state"], "result-recorded")
+        self.assertEqual(control["action"], "recorded-native-result")
+        self.assertEqual(control["subagent_result"]["record"]["result_receipt"]["result_tool"], "multi_agent_v1.wait_agent")
+        self.assertEqual(control["subagent_next_plan"]["role"], "T2")
+        self.assertEqual(state["roles"]["T1"]["status"], "completed")
+
+    def test_cli_rejects_invalid_native_receipt_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            result = self.run_loop_raw(root, "--goal", "Ship demo", "--native-spawn-receipt-json", "{bad")
+
+        self.assertEqual(result.returncode, 2, result.stdout)
+        self.assertIn("invalid native spawn receipt JSON", result.stdout)
 
     def test_loop_persists_interruption_recovery_state(self):
         with tempfile.TemporaryDirectory() as tmp:
