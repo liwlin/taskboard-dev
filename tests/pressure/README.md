@@ -22,6 +22,19 @@ a boundary edit without a before/after behavioral run is untested).
 New rationalizations captured in any run MUST be added to the Red Flags
 section of SKILL.md.
 
+## Verification Level
+
+Pressure scenarios are **intent-level** tests: they show whether an isolated
+agent understands and describes the required behavior. They do not prove that
+the client/runtime can keep a worker alive across interactive turns.
+
+Any rule that depends on process lifetime, terminal tabs, slash commands,
+heartbeats, idle loops, or launcher behavior also needs a **runtime-level**
+test with the real client or a script-generated launch artifact. The 2026-06-12
+field run exposed this split: `worker-loop.md` passed at intent level, but the
+real Claude worker tabs still stopped after one turn until the launcher used
+`/loop 2m /taskboard-dev T{N}`.
+
 ## Scenarios
 
 | File | Tests | Origin |

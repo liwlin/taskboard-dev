@@ -4,6 +4,7 @@
 from argparse import ArgumentParser
 from pathlib import Path
 import json
+import re
 import shlex
 import sys
 import time
@@ -21,6 +22,8 @@ ROLE_LABELS = {
 }
 
 DEFAULT_AGENT_TEMPLATE = 'claude --taskboard-target-file "{target_file}"'
+SCRIPT_DIR = Path(__file__).resolve().parent
+TASK_ID_RE = re.compile(r"TASK-(\d+)")
 
 ROLE_TARGETS = {
     "T1": "T1: 基于用户目标创建或修订 PROJECT/MAP/REQUIREMENTS/STATE 和 TASK 文件，保持任务队列可执行。",
@@ -117,6 +120,23 @@ def runtime_goal_file(root: Path) -> Path:
     return root / ".taskboard" / "t0" / "goal.json"
 
 
+def goal_reset_marker_file(root: Path) -> Path:
+    return root / ".taskboard" / "t0" / "goal-reset.json"
+
+
+def goal_intake_task_marker_file(root: Path) -> Path:
+    return root / ".taskboard" / "t0" / "goal-intake-task.json"
+
+
+def bundled_script(name: str) -> Path:
+    return SCRIPT_DIR / name
+
+
+def markdown_python_command(script_name: str, *args: str) -> str:
+    script = str(bundled_script(script_name))
+    return " ".join(["python", f'"{script}"', *args])
+
+
 def read_runtime_goal(root: Path) -> str:
     path = runtime_goal_file(root)
     if not path.exists():
@@ -131,10 +151,160 @@ def read_runtime_goal(root: Path) -> str:
     return goal.strip() if isinstance(goal, str) else ""
 
 
+def reset_goal_complete_sentinel(root: Path, previous_goal: str, new_goal: str) -> bool:
+    path = root / "docs" / "STATE.md"
+    if not path.exists():
+        return False
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+
+    replacements = (
+        ("**Goal Complete**: yes", "**Goal Complete**: no"),
+        ("**Goal Complete**: true", "**Goal Complete**: no"),
+        ("Goal Complete: yes", "Goal Complete: no"),
+        ("Goal Complete: true", "Goal Complete: no"),
+    )
+    updated = text
+    for before, after in replacements:
+        updated = updated.replace(before, after)
+    if updated == text:
+        return False
+
+    path.write_text(updated, encoding="utf-8")
+    marker = {
+        "kind": "taskboard-t0-goal-reset",
+        "version": 1,
+        "previous_goal": previous_goal,
+        "new_goal": new_goal,
+        "reason": "explicit-new-goal-reset-completion-sentinel",
+        "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+    marker_path = goal_reset_marker_file(root)
+    marker_path.parent.mkdir(parents=True, exist_ok=True)
+    marker_path.write_text(json.dumps(marker, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
+    return True
+
+
+def read_goal_reset_reason(root: Path, goal: str) -> str:
+    path = goal_reset_marker_file(root)
+    if not path.exists():
+        return ""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return ""
+    if not isinstance(payload, dict):
+        return ""
+    if payload.get("new_goal") != goal:
+        return ""
+    reason = payload.get("reason")
+    return reason if isinstance(reason, str) else ""
+
+
+def next_task_number(root: Path) -> int:
+    taskboard = root / "docs" / "taskboard"
+    highest = 0
+    if taskboard.exists():
+        for path in taskboard.rglob("TASK-*"):
+            match = TASK_ID_RE.search(path.name)
+            if match:
+                highest = max(highest, int(match.group(1)))
+    return highest + 1
+
+
+def existing_goal_intake_task(root: Path, goal: str) -> Optional[Path]:
+    marker_path = goal_intake_task_marker_file(root)
+    if marker_path.exists():
+        try:
+            payload = json.loads(marker_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            payload = {}
+        if isinstance(payload, dict) and payload.get("goal") == goal:
+            task_path = payload.get("task_path")
+            if isinstance(task_path, str):
+                path = Path(task_path)
+                if path.exists():
+                    return path
+
+    taskboard = root / "docs" / "taskboard"
+    if taskboard.exists():
+        for path in sorted(taskboard.glob("TASK-*.v1.T1-方案需修改.md")):
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            if "kind: taskboard-t0-goal-intake-task" in text and f"user_goal: {goal}" in text:
+                return path
+    return None
+
+
+def create_goal_intake_task(root: Path, previous_goal: str, new_goal: str) -> Optional[Path]:
+    if not previous_goal or previous_goal == new_goal:
+        return None
+    existing = existing_goal_intake_task(root, new_goal)
+    if existing is not None:
+        return existing
+
+    taskboard = root / "docs" / "taskboard"
+    taskboard.mkdir(parents=True, exist_ok=True)
+    task_id = next_task_number(root)
+    task_name = f"TASK-{task_id:03d}.v1.T1-方案需修改.md"
+    task_path = taskboard / task_name
+    body = (
+        f"# TASK-{task_id:03d}: New goal intake\n\n"
+        "kind: taskboard-t0-goal-intake-task\n"
+        "created_by: T0\n"
+        "next_owner: T1\n"
+        f"user_goal: {new_goal}\n"
+        f"previous_goal: {previous_goal}\n"
+        "boundary: T0 created this TASK only as a queue-visible intake event.\n\n"
+        "## Current Instruction\n"
+        "T1: Treat the new user goal as source material only. T1 owns requirement decomposition, "
+        "context-file updates, architecture choices, acceptance criteria, and follow-on TASK creation. "
+        "Do not treat this T0 intake TASK as a T0-authored requirement, design, REQ skeleton, priority, "
+        "interface, file list, or acceptance checklist.\n\n"
+        "## Acceptance\n"
+        "- [ ] T1-authored REQUIREMENTS/STATE update exists, or a T1 stop gate is recorded.\n"
+        "- [ ] Follow-on TASK files are created/revised for T2 review, or the stop gate explains why not.\n\n"
+        "## Verify\n"
+        f"- [ ] `{markdown_python_command('taskboard_next.py', '--role', 'T0', '--root', '.')}`\n\n"
+        "## Files\n"
+        "| Action | File |\n"
+        "| --- | --- |\n"
+        "| Modify | docs/REQUIREMENTS.md |\n"
+        "| Modify | docs/STATE.md |\n"
+        "| Create/Modify | docs/taskboard/TASK-*.md |\n\n"
+        "## Pending\n"
+        "- [ ] Load the required T1 skill and planning tools.\n"
+        "- [ ] Read the new goal as intake only.\n"
+        "- [ ] Author or revise the board artifacts needed for the new goal.\n"
+        "- [ ] Hand resulting TASK files to T2 through filename state transitions.\n"
+    )
+    task_path.write_text(body, encoding="utf-8")
+    marker = {
+        "kind": "taskboard-t0-goal-intake-task-marker",
+        "version": 1,
+        "goal": new_goal,
+        "previous_goal": previous_goal,
+        "task_path": str(task_path),
+        "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+    marker_path = goal_intake_task_marker_file(root)
+    marker_path.parent.mkdir(parents=True, exist_ok=True)
+    marker_path.write_text(json.dumps(marker, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
+    return task_path
+
+
 def write_runtime_goal(root: Path, goal: Optional[str]) -> str:
     normalized = goal.strip() if goal else ""
     if not normalized:
         return ""
+    previous_goal = read_runtime_goal(root)
+    if previous_goal and previous_goal != normalized:
+        reset_goal_complete_sentinel(root, previous_goal, normalized)
+        create_goal_intake_task(root, previous_goal, normalized)
     path = runtime_goal_file(root)
     payload = {
         "kind": "taskboard-t0-goal",
@@ -236,9 +406,9 @@ def build_session(
     target_task = task_name if role == next_role else "none"
     target_reason = reason if role == next_role else "t0-managed-background-role"
     target = build_target(role, target_status, target_task, goal, target_reason)
-    alive_command = f"python scripts/taskboard.py --root . alive {role}"
-    cycle_command = f"python scripts/taskboard.py --root . cycle {role} --sleep-seconds 120"
-    heartbeat_command = f"python scripts/taskboard_sessions.py --root . heartbeat --role {role}"
+    alive_command = markdown_python_command("taskboard.py", "--root", ".", "alive", role)
+    cycle_command = markdown_python_command("taskboard.py", "--root", ".", "cycle", role, "--sleep-seconds", "120")
+    heartbeat_command = markdown_python_command("taskboard_sessions.py", "--root", ".", "heartbeat", "--role", role)
     if role == next_role and task_name != "none":
         heartbeat_command += f" --task {task_name} --assignment-id {role}:{task_name}"
     heartbeat = (
@@ -265,6 +435,7 @@ def build_session(
         f"- Do not stop after one action if more {role} work is available; keep advancing the role queue under T0 management.\n"
         "Idle recheck contract:\n"
         "- Do not terminate just because this role queue is empty; an empty queue is an idle state, not completion.\n"
+        "- Do not cancel the client /loop for role-local idleness or perceived role completion; only stop for the explicit exit gates below.\n"
         "- When no unblocked role work is visible, write the liveness marker, sleep/yield for the configured interval, then re-read this target file and TASKBOARD filenames.\n"
         "- Suggest exit only for goal completion, stop gate, explicit user pause, or context-limit restart."
     )
@@ -342,17 +513,7 @@ def role_launch_script_file(session: dict[str, str]) -> Optional[Path]:
 
 def default_claude_pointer_prompt(session: dict[str, str]) -> str:
     role = session.get("role") or ""
-    title = session.get("title") or f"taskboard-{role}"
-    target_file = session.get("target_file") or ""
-    return "\n".join(
-        [
-            f"You are {title}, an isolated {role} worker managed by T0.",
-            "Before any TASKBOARD action, read the UTF-8 target file below and follow it exactly.",
-            f"Target file: {target_file}",
-            f"Then load /taskboard-dev {role} and your role reference before acting.",
-            "Do not rely on prior chat context; TASKBOARD state and the target file are authoritative.",
-        ]
-    )
+    return f"/loop 2m /taskboard-dev {role}"
 
 
 def write_default_claude_launch_script(root: Path, session: dict[str, str]) -> Path:
@@ -363,16 +524,25 @@ def write_default_claude_launch_script(root: Path, session: dict[str, str]) -> P
             "default Claude launcher requires target files; enable target files or use a custom agent-template"
         )
     prompt = default_claude_pointer_prompt(session)
+    role = str(session.get("role") or "").upper()
+    taskboard_script = powershell_single_quote(str(bundled_script("taskboard.py")))
+    sessions_script = powershell_single_quote(str(bundled_script("taskboard_sessions.py")))
     body = "\n".join(
         [
             "$ErrorActionPreference = 'Stop'",
             "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8",
             f"Set-Location -LiteralPath {powershell_single_quote(str(root))}",
-            f"& python scripts/taskboard.py --root . alive {str(session.get('role') or '').upper()} | Out-Null",
+            "Get-ChildItem Env: | Where-Object { $_.Name -like 'CLAUDE*' } | ForEach-Object { Remove-Item -LiteralPath \"Env:$($_.Name)\" -ErrorAction SilentlyContinue }",
+            "$gitBashCandidates = @('D:\\Apps\\Git\\bin\\bash.exe', 'C:\\Program Files\\Git\\bin\\bash.exe', 'C:\\Program Files (x86)\\Git\\bin\\bash.exe')",
+            "foreach ($candidate in $gitBashCandidates) { if (Test-Path -LiteralPath $candidate) { $env:CLAUDE_CODE_GIT_BASH_PATH = $candidate; break } }",
+            f"$env:TASKBOARD_TARGET_FILE = {powershell_single_quote(str(target_file))}",
+            "# Worker loop must read the UTF-8 target file from TASKBOARD_TARGET_FILE before role work.",
+            f"& python {taskboard_script} --root . alive {role} | Out-Null",
+            f"& python {sessions_script} --root . heartbeat --role {role} --status launched | Out-Null",
             "$prompt = @'",
             prompt,
             "'@",
-            f"& claude --name {powershell_single_quote(str(session.get('title') or 'taskboard-worker'))} $prompt",
+            f"& claude --name {powershell_single_quote(str(session.get('title') or 'taskboard-worker'))} --dangerously-skip-permissions $prompt",
             "",
         ]
     )
@@ -405,9 +575,16 @@ def render_agent_command(session: dict[str, str], agent_template: Optional[str])
         )
     if agent_template == DEFAULT_AGENT_TEMPLATE:
         prompt = default_claude_pointer_prompt(session)
+        role = str(session.get("role") or "").upper()
         return (
+            "Get-ChildItem Env: | Where-Object { $_.Name -like 'CLAUDE*' } | ForEach-Object { Remove-Item -LiteralPath \"Env:$($_.Name)\" -ErrorAction SilentlyContinue }; "
+            "$gitBashCandidates = @('D:\\Apps\\Git\\bin\\bash.exe', 'C:\\Program Files\\Git\\bin\\bash.exe', 'C:\\Program Files (x86)\\Git\\bin\\bash.exe'); "
+            "foreach ($candidate in $gitBashCandidates) { if (Test-Path -LiteralPath $candidate) { $env:CLAUDE_CODE_GIT_BASH_PATH = $candidate; break } }; "
+            f"$env:TASKBOARD_TARGET_FILE = {powershell_single_quote(str(session.get('target_file') or ''))}; "
+            f"& python {powershell_single_quote(str(bundled_script('taskboard.py')))} --root . alive {role} | Out-Null; "
+            f"& python {powershell_single_quote(str(bundled_script('taskboard_sessions.py')))} --root . heartbeat --role {role} --status launched | Out-Null; "
             f"$prompt = {powershell_single_quote(prompt)}; "
-            f"& claude --name {powershell_single_quote(str(session.get('title') or 'taskboard-worker'))} $prompt"
+            f"& claude --name {powershell_single_quote(str(session.get('title') or 'taskboard-worker'))} --dangerously-skip-permissions $prompt"
         )
 
     compact_target = " ".join(session["target"].splitlines())
@@ -679,6 +856,16 @@ def dispatch(
         status = "T1-create-or-revise"
         task_name = "none"
         reason = "explicit-goal-no-active-tasks"
+
+    reset_reason = read_goal_reset_reason(root, goal)
+    if (
+        role == "T1"
+        and status == "T1-create-or-revise"
+        and goal_arg
+        and reset_reason
+        and reason in {"no-active-tasks-goal-incomplete", "explicit-goal-no-active-tasks"}
+    ):
+        reason = reset_reason
 
     if role == "T0" and status == "complete":
         completion_audit = report_completion(root)

@@ -55,7 +55,8 @@ class TaskboardT0Test(unittest.TestCase):
         self.assertEqual(output["task"], "TASK-001.v1.T2-待审核代码-L2.md")
         self.assertIn("完成登录功能", output["target"])
         self.assertIn("T2", output["target"])
-        self.assertIn("taskboard.py --root . alive T2", output["target"])
+        self.assertIn("taskboard.py", output["target"])
+        self.assertIn("--root . alive T2", output["target"])
         self.assertIn("--task TASK-001.v1.", output["target"])
         self.assertIn("--assignment-id T2:TASK-001.v1.", output["target"])
         self.assertIn("Role runtime contract", output["target"])
@@ -97,8 +98,10 @@ class TaskboardT0Test(unittest.TestCase):
         self.assertEqual(output["status"], "T1-create-or-revise")
         self.assertEqual(len(output["managed_sessions"]), 3)
         self.assertEqual(output["managed_sessions"][0]["command"], "/taskboard-dev T1")
-        self.assertIn("taskboard.py --root . alive T1", output["target"])
-        self.assertIn("taskboard_sessions.py --root . heartbeat --role T1", output["target"])
+        self.assertIn("taskboard.py", output["target"])
+        self.assertIn("--root . alive T1", output["target"])
+        self.assertIn("taskboard_sessions.py", output["target"])
+        self.assertIn("--root . heartbeat --role T1", output["target"])
         self.assertIn("创建或修订", output["target"])
 
     def test_t0_output_includes_goal_intake_packet_not_requirements(self):
@@ -168,6 +171,72 @@ class TaskboardT0Test(unittest.TestCase):
         self.assertIn("no archived TASK evidence", output["completion_audit"]["missing_evidence"])
         self.assertIn("taskboard-T1", output["launch_commands"][0])
 
+    def test_explicit_new_goal_resets_stale_completion_sentinel_and_refreshes_targets(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard" / "archive").mkdir(parents=True)
+            (root / "docs" / "taskboard" / "archive" / "TASK-001.v1.完成.md").write_text(
+                "# done\n", encoding="utf-8"
+            )
+            (root / "docs" / "PROJECT.md").write_text("# PROJECT\n\n旧目标\n", encoding="utf-8")
+            (root / "docs" / "STATE.md").write_text(
+                "# STATE\n\n**Goal Complete**: yes\n", encoding="utf-8"
+            )
+            (root / "docs" / "dev-log.md").write_text("- TASK-001 done\n", encoding="utf-8")
+            goal_file = root / ".taskboard" / "t0" / "goal.json"
+            goal_file.parent.mkdir(parents=True)
+            goal_file.write_text(
+                json.dumps({"kind": "taskboard-t0-goal", "version": 1, "goal": "旧目标"}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            output = self.run_t0(
+                root,
+                "--goal",
+                "新目标",
+                "--launcher",
+                "windows-terminal",
+            )
+            t1_target = (root / ".taskboard" / "targets" / "taskboard-T1.md").read_text(encoding="utf-8")
+            state_text = (root / "docs" / "STATE.md").read_text(encoding="utf-8")
+            intake_tasks = sorted((root / "docs" / "taskboard").glob("TASK-*.v1.T1-方案需修改.md"))
+
+        self.assertEqual(output["state"], "dispatch")
+        self.assertEqual(output["next_role"], "T1")
+        self.assertEqual(output["reason"], "matched-active-task")
+        self.assertEqual(len(intake_tasks), 1)
+        self.assertIn("新目标", t1_target)
+        self.assertNotIn("旧目标", t1_target)
+        self.assertIn("Goal Complete**: no", state_text)
+
+    def test_explicit_changed_goal_creates_t1_intake_task_for_running_workers(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            taskboard = root / "docs" / "taskboard"
+            taskboard.mkdir(parents=True)
+            self.write_task(taskboard, "TASK-012.v1.T3-待执行.md")
+            goal_file = root / ".taskboard" / "t0" / "goal.json"
+            goal_file.parent.mkdir(parents=True)
+            goal_file.write_text(
+                json.dumps({"kind": "taskboard-t0-goal", "version": 1, "goal": "old milestone"}),
+                encoding="utf-8",
+            )
+
+            self.run_t0(root, "--goal", "new face recognition requirement")
+            self.run_t0(root, "--goal", "new face recognition requirement")
+            intake_tasks = sorted(taskboard.glob("TASK-*.v1.T1-方案需修改.md"))
+            marker = root / ".taskboard" / "t0" / "goal-intake-task.json"
+            marker_exists = marker.exists()
+            intake_text = intake_tasks[0].read_text(encoding="utf-8") if intake_tasks else ""
+
+        self.assertEqual(len(intake_tasks), 1)
+        self.assertTrue(marker_exists)
+        self.assertIn("kind: taskboard-t0-goal-intake-task", intake_text)
+        self.assertIn("new face recognition requirement", intake_text)
+        self.assertIn("source material only", intake_text)
+        self.assertIn("T1 owns requirement decomposition", intake_text)
+        self.assertNotIn("REQ-001", intake_text)
+
     def test_windows_terminal_launcher_commands_use_agent_template(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -221,13 +290,48 @@ class TaskboardT0Test(unittest.TestCase):
         self.assertNotIn("Ship demo", output["launch_commands"][0])
         self.assertIn("read the UTF-8 target file", t1_launch_text)
         self.assertIn("taskboard-T1.md", t1_launch_text)
-        self.assertIn("taskboard.py --root . alive T1", t1_launch_text)
+        self.assertIn("taskboard.py", t1_launch_text)
+        self.assertIn("--root . alive T1", t1_launch_text)
+        self.assertIn("Get-ChildItem Env:", t1_launch_text)
+        self.assertIn("CLAUDE_CODE_GIT_BASH_PATH", t1_launch_text)
+        self.assertIn("--dangerously-skip-permissions", t1_launch_text)
+        self.assertNotIn("python scripts/taskboard.py", t1_launch_text)
         self.assertLess(
-            t1_launch_text.index("taskboard.py --root . alive T1"),
-            t1_launch_text.index("& claude --name 'taskboard-T1' $prompt"),
+            t1_launch_text.index("--root . alive T1"),
+            t1_launch_text.index("& claude --name 'taskboard-T1' --dangerously-skip-permissions $prompt"),
         )
-        self.assertIn("& claude --name 'taskboard-T1' $prompt", t1_launch_text)
+        self.assertIn("& claude --name 'taskboard-T1' --dangerously-skip-permissions $prompt", t1_launch_text)
         self.assertNotIn("Ship demo", t1_launch_text)
+
+    def test_default_claude_launch_script_starts_worker_in_client_loop(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "taskboard").mkdir(parents=True)
+
+            self.run_t0(
+                root,
+                "--goal",
+                "Ship demo",
+                "--launcher",
+                "windows-terminal",
+            )
+            launch_texts = {
+                role: (root / ".taskboard" / "targets" / f"taskboard-{role}.launch.ps1").read_text(
+                    encoding="utf-8"
+                )
+                for role in ("T1", "T2", "T3")
+            }
+
+        for role, text in launch_texts.items():
+            self.assertIn(f"/loop 2m /taskboard-dev {role}", text)
+            self.assertLess(
+                text.index(f"--root . alive {role}"),
+                text.index(f"/loop 2m /taskboard-dev {role}"),
+            )
+            self.assertIn("taskboard_sessions.py", text)
+            self.assertIn("--root . heartbeat", text)
+            self.assertIn("CLAUDE_CODE_GIT_BASH_PATH", text)
+            self.assertIn("--dangerously-skip-permissions", text)
 
     def test_agent_template_can_reference_role_target_file(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -279,9 +383,11 @@ class TaskboardT0Test(unittest.TestCase):
 
         for text in target_texts:
             self.assertIn("Idle recheck contract", text)
-            self.assertIn("taskboard.py --root . cycle", text)
+            self.assertIn("taskboard.py", text)
+            self.assertIn("--root . cycle", text)
             self.assertIn("idle-recheck", text)
             self.assertIn("Do not terminate just because this role queue is empty", text)
+            self.assertIn("Do not cancel the client /loop", text)
             self.assertIn("sleep/yield for the configured interval", text)
             self.assertIn("goal completion, stop gate, explicit user pause, or context-limit restart", text)
 

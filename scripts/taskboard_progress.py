@@ -300,7 +300,7 @@ def build_user_action(
         roles = ", ".join(subagent_prompt_roles or [])
         return (
             f"No user action required; T0 can dispatch native subagent fallback prompts"
-            f"{f' for {roles}' if roles else ''}. If native subagents are unavailable, use the generated one-shot worker startup script."
+            f"{f' for {roles}' if roles else ''}. If native subagents are unavailable, use the generated looped worker startup script."
         )
     if launch_failure_count:
         if fallback_launch_recovered:
